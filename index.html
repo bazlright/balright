@@ -245,8 +245,7 @@ background-color: #ff5252;
     <div id="admin-ban-status" style="color:#ff9800; margin-top:0.75rem; min-height:1.5em;"></div>
   </div>
 </div>
-<button onclick="openAdminMenu()" style="position:fixed; bottom:1rem; right:1rem; z-index:10000; background:#d32f2f; color:#fff; border:none; border-radius:0.5rem; padding:0.75rem 1.5rem; font-size:1rem;">Admin Menu</button>
-<!-- Login Modal (site-wide, required on load) -->
+<button id="admin-menu-btn" onclick="openAdminMenu()" style="display:none; position:fixed; bottom:1rem; right:1rem; z-index:10000; background:#d32f2f; color:#fff; border:none; border-radius:0.5rem; padding:0.75rem 1.5rem; font-size:1rem;">Admin Menu</button>
 <div id="site-login-modal" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:4000; align-items:center; justify-content:center; flex-direction:column;">
 <div style="background:#222; padding:2.5rem 2rem; border-radius:0.5rem; text-align:center; color:#fff; min-width:300px; box-shadow:0 8px 32px #000a;">
 <h2>Login Required</h2>
@@ -260,7 +259,6 @@ background-color: #ff5252;
 <div id="site-login-error" style="color:#ff5252; margin-top:0.75rem; min-height:1.5em;"></div>
 </div>
 </div>
-<!-- Name Modal (after login) -->
 <div id="name-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:3000; align-items:center; justify-content:center; flex-direction:column;">
 <div style="background:#444; padding:2rem; border-radius:0.5rem; text-align:center; color:#fff; display:flex; flex-direction:column; align-items:center;">
 <h2>Enter Your Name</h2>
@@ -493,7 +491,8 @@ Suggest a Game
 </div>
 
 <script>
-// Admin menu logic
+const ADMIN_USERS = ['kaiden', ''];
+
 function openAdminMenu() {
   document.getElementById('admin-menu').style.display = 'flex';
 }
@@ -519,14 +518,22 @@ async function adminBanUser() {
   }
 }
 
-// Fetch banned usernames from sheet
 async function getBannedUsernames() {
   try {
     const res = await fetch(BAN_API_URL);
     const text = await res.text();
-    // Expecting CSV or JSON, but for simplicity, treat as CSV: username,reason,timestamp per line
+    // Expecting CSV: username,reason,banned per line
     const lines = text.split('\n');
-    return lines.map(line => line.split(',')[0].trim()).filter(u => u);
+    return lines
+      .map(line => {
+        const parts = line.split(',');
+        // username = parts[0], banned = parts[2]
+        if (parts.length >= 3 && parts[2].trim().toLowerCase() === 'yes') {
+          return parts[0].trim();
+        }
+        return null;
+      })
+      .filter(u => u);
   } catch (e) {
     return [];
   }
@@ -614,6 +621,12 @@ getBannedUsernames().then(bannedList => {
   if (SITE_LOGINS.hasOwnProperty(username) && SITE_LOGINS[username] === password) {
     siteLoginPassed = true;
     hideSiteLoginModal();
+    // Show admin menu button if user is admin
+    if (ADMIN_USERS.includes(username)) {
+      document.getElementById('admin-menu-btn').style.display = 'block';
+    } else {
+      document.getElementById('admin-menu-btn').style.display = 'none';
+    }
     if (!getUserName()) {
       showNameModal();
     } else {
@@ -625,7 +638,6 @@ getBannedUsernames().then(bannedList => {
 });
 }
 
-// Allow Enter key to submit login
 document.addEventListener('DOMContentLoaded', function() {
 const loginModal = document.getElementById('site-login-modal');
 if (loginModal) {
@@ -635,7 +647,6 @@ if (e.key === 'Enter') siteLoginSubmit();
 }
 });
 
-// Name prompt logic (after login)
 function showNameModal() {
 document.getElementById('name-modal').style.display = 'flex';
 document.getElementById('user-name-input').focus();
@@ -656,12 +667,10 @@ initIPLogging();
 function getUserName() {
 return localStorage.getItem('userName') || '';
 }
-// Restore missing getBannedIPs function
 function getBannedIPs() {
 const stored = localStorage.getItem('bannedIPs');
 return stored ? JSON.parse(stored) : [];
 }
-// IP Logging and Notification System
 let currentUserIP = '';
 let userName = getUserName();
 
@@ -679,21 +688,19 @@ document.body.style.overflow = 'auto';
 showUserBanNotification(); // Only show once, no message
 return;
 }
-// Check if IP is banned
+
 if (isIPBanned(userIP)) {
 showBanNotification('Your IP address has been banned from this site.');
 return;
 }
-// Get additional info from geolocation API
-const geoResponse = await fetch(`https://ipapi.co/${userIP}/json/`);
+
 const geoData = await geoResponse.json();
-// Display notification
+
 const notification = document.getElementById('ip-notification');
 const notificationText = document.getElementById('notification-text');
 const locationInfo = geoData.city ? ` (${geoData.city}, ${geoData.country_name})` : '';
 notificationText.textContent = `⚠️ Your IP will be tracked: ${userName ? userName + ' - ' : ''}${userIP}${locationInfo}`;
 notification.style.display = 'flex';
-// Log the IP data to console
 console.log('IP Tracking Information:', {
 timestamp: new Date().toISOString(),
 name: userName,
@@ -900,7 +907,6 @@ const games = [
 document.body.style.overflow = 'hidden';
 document.body.style.overflow = 'auto';
 
-
 const gameButtons = document.getElementById('game-buttons');
 games.forEach((game, idx) => {
   const btn = document.createElement('button');
@@ -908,7 +914,6 @@ games.forEach((game, idx) => {
   btn.onclick = () => openGame(idx);
   gameButtons.appendChild(btn);
 });
-
 
 const iframeContainer = document.getElementById('iframe-container');
 const gameIframe = document.getElementById('game-iframe');
@@ -922,6 +927,8 @@ function openGame(idx) {
   gameIframe.src = games[idx].url;
   iframeContainer.style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  refreshBtn.style.display = 'inline-block';
+  closeBtn.style.display = 'inline-block';
 }
 
 function closeGame() {
@@ -929,6 +936,8 @@ function closeGame() {
   iframeContainer.style.display = 'none';
   document.body.style.overflow = 'auto';
   currentGameIdx = null;
+  refreshBtn.style.display = 'none';
+  closeBtn.style.display = 'none';
 }
 
 function refreshGame() {
