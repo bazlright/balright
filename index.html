@@ -239,8 +239,31 @@ background-color: #ff5252;
 <div id="admin-menu" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:5000; align-items:center; justify-content:center; flex-direction:column;">
   <div style="background:#222; padding:2rem; border-radius:0.5rem; text-align:center; color:#fff; min-width:300px; box-shadow:0 8px 32px #000a;">
     <h2>Admin Ban Panel</h2>
-    <input type="text" id="admin-ban-username" placeholder="Username to ban" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" />
+    <input type="text" id="admin-ban-username" placeholder="Username" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" />
+    <select id="admin-ban-reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" onchange="toggleCustomReason()">
+      <option value="">Select reason</option>
+      <option value="Gooning">Gooning</option>
+      <option value="Nape Riggers">Nape Riggers</option>
+      <option value="Other">Other</option>
+    </select>
+      <input type="text" id="admin-ban-custom-reason" placeholder="Enter custom reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem; display:none;" autocomplete="off" />
+      <script>
+        function toggleCustomReason() {
+          const reasonSelect = document.getElementById('admin-ban-reason');
+          const customReasonInput = document.getElementById('admin-ban-custom-reason');
+          if (reasonSelect.value === 'Other') {
+            customReasonInput.style.display = 'block';
+            customReasonInput.disabled = false;
+            customReasonInput.focus();
+          } else {
+            customReasonInput.style.display = 'none';
+            customReasonInput.disabled = true;
+            customReasonInput.value = '';
+          }
+        }
+      </script>
     <button onclick="adminBanUser()" style="padding:0.5rem 1.5rem; background:#d32f2f; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Ban Username</button>
+    <button onclick="adminUnbanUser()" style="padding:0.5rem 1.5rem; background:#388e3c; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Unban Username</button>
     <button onclick="closeAdminMenu()" style="margin-top:1rem; background:#444; color:#fff; border:none; border-radius:0.25rem; padding:0.5rem 1.5rem;">Close</button>
     <div id="admin-ban-status" style="color:#ff9800; margin-top:0.75rem; min-height:1.5em;"></div>
   </div>
@@ -250,7 +273,8 @@ background-color: #ff5252;
 <div style="background:#222; padding:2.5rem 2rem; border-radius:0.5rem; text-align:center; color:#fff; min-width:300px; box-shadow:0 8px 32px #000a;">
 <h2>Login Required</h2>
 <div style="color:#ff9800; background:#222; border-radius:0.25rem; padding:0.5rem 1rem; margin-bottom:1rem; font-size:1rem;">
-<strong>Do not share your login information with anyone.</strong>
+<strong>Do not share your login information with anyone.</strong><br>
+<span style="font-size:0.95rem; color:#ffb74d;">Usernames are converted to lowercase automatically.</span>
 </div>
 <input type="text" id="site-login-username" placeholder="Username" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" autocomplete="username" />
 <input type="password" id="site-login-password" placeholder="Password" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" autocomplete="current-password" />
@@ -298,199 +322,214 @@ Suggest a Game
 <div id="iframe-container-1" class="iframe-container">
 <iframe id="game-iframe-1" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(1)">Refresh</button>
-<button class="close-btn" onclick="closeGame(1)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(1)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(1)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container" class="iframe-container">
   <iframe id="game-iframe" class="game-iframe" src=""></iframe>
   <div class="iframe-controls">
-    <button class="refresh-btn" id="refresh-btn">Refresh</button>
-    <button class="close-btn" id="close-btn">Close Game</button>
+    <button class="refresh-btn" id="refresh-btn" style="display:none;">Refresh</button>
+    <button class="close-btn" id="close-btn" style="display:none;">Close Game</button>
   </div>
 </div>
 <iframe id="game-iframe-3" class="game-iframe" src=""></iframe>
-<div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(3)">Refresh</button>
-<button class="close-btn" onclick="closeGame(3)">Close Game</button>
-</div>
-</div>
+<!-- Removed duplicate iframe-controls for game-iframe-3 -->
 <div id="iframe-container-4" class="iframe-container">
 <iframe id="game-iframe-4" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(4)">Refresh</button>
-<button class="close-btn" onclick="closeGame(4)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(4)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(4)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-5" class="iframe-container">
 <iframe id="game-iframe-5" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(5)">Refresh</button>
-<button class="close-btn" onclick="closeGame(5)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(5)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(5)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-6" class="iframe-container">
 <iframe id="game-iframe-6" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(6)">Refresh</button>
-<button class="close-btn" onclick="closeGame(6)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(6)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(6)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-7" class="iframe-container">
 <iframe id="game-iframe-7" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(7)">Refresh</button>
-<button class="close-btn" onclick="closeGame(7)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(7)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(7)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-8" class="iframe-container">
 <iframe id="game-iframe-8" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(8)">Refresh</button>
-<button class="close-btn" onclick="closeGame(8)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(8)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(8)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-9" class="iframe-container">
 <iframe id="game-iframe-9" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(9)">Refresh</button>
-<button class="close-btn" onclick="closeGame(9)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(9)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(9)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-10" class="iframe-container">
 <iframe id="game-iframe-10" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(10)">Refresh</button>
-<button class="close-btn" onclick="closeGame(10)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(10)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(10)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-11" class="iframe-container">
 <iframe id="game-iframe-11" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(11)">Refresh</button>
-<button class="close-btn" onclick="closeGame(11)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(11)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(11)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-12" class="iframe-container">
 <iframe id="game-iframe-12" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(12)">Refresh</button>
-<button class="close-btn" onclick="closeGame(12)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(12)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(12)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-13" class="iframe-container">
 <iframe id="game-iframe-13" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(13)">Refresh</button>
-<button class="close-btn" onclick="closeGame(13)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(13)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(13)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-14" class="iframe-container">
 <iframe id="game-iframe-14" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(14)">Refresh</button>
-<button class="close-btn" onclick="closeGame(14)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(14)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(14)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-15" class="iframe-container">
 <iframe id="game-iframe-15" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(15)">Refresh</button>
-<button class="close-btn" onclick="closeGame(15)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(15)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(15)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-16" class="iframe-container">
 <iframe id="game-iframe-16" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(16)">Refresh</button>
-<button class="close-btn" onclick="closeGame(16)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(16)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(16)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-17" class="iframe-container">
 <iframe id="game-iframe-17" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(17)">Refresh</button>
-<button class="close-btn" onclick="closeGame(17)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(17)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(17)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-18" class="iframe-container">
 <iframe id="game-iframe-18" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(18)">Refresh</button>
-<button class="close-btn" onclick="closeGame(18)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(18)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(18)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-19" class="iframe-container">
 <iframe id="game-iframe-19" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(19)">Refresh</button>
-<button class="close-btn" onclick="closeGame(19)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(19)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(19)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-20" class="iframe-container">
 <iframe id="game-iframe-20" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(20)">Refresh</button>
-<button class="close-btn" onclick="closeGame(20)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(20)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(20)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-21" class="iframe-container">
 <iframe id="game-iframe-21" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(21)">Refresh</button>
-<button class="close-btn" onclick="closeGame(21)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(21)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(21)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-22" class="iframe-container">
 <iframe id="game-iframe-22" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(22)">Refresh</button>
-<button class="close-btn" onclick="closeGame(22)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(22)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(22)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-23" class="iframe-container">
 <iframe id="game-iframe-23" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(23)">Refresh</button>
-<button class="close-btn" onclick="closeGame(23)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(23)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(23)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-24" class="iframe-container">
 <iframe id="game-iframe-24" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(24)">Refresh</button>
-<button class="close-btn" onclick="closeGame(24)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(24)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(24)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-25" class="iframe-container">
 <iframe id="game-iframe-25" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(25)">Refresh</button>
-<button class="close-btn" onclick="closeGame(25)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(25)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(25)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-26" class="iframe-container">
 <iframe id="game-iframe-26" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(26)">Refresh</button>
-<button class="close-btn" onclick="closeGame(26)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(26)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(26)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-27" class="iframe-container">
 <iframe id="game-iframe-27" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(27)">Refresh</button>
-<button class="close-btn" onclick="closeGame(27)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(27)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(27)" style="display:none;">Close Game</button>
 </div>
 </div>
 <div id="iframe-container-28" class="iframe-container">
 <iframe id="game-iframe-28" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
-<button class="refresh-btn" onclick="refreshGame(28)">Refresh</button>
-<button class="close-btn" onclick="closeGame(28)">Close Game</button>
+<button class="refresh-btn" onclick="refreshGame(28)" style="display:none;">Refresh</button>
+<button class="close-btn" onclick="closeGame(28)" style="display:none;">Close Game</button>
 </div>
 
 <script>
+async function adminUnbanUser() {
+  const username = document.getElementById('admin-ban-username').value.trim();
+  const statusDiv = document.getElementById('admin-ban-status');
+  if (!username) {
+    statusDiv.textContent = 'Please enter a username.';
+    return;
+  }
+  try {
+    await fetch(BAN_API_URL, {
+      method: 'POST',
+      body: new URLSearchParams({ username, banned: 'no' })
+    });
+    statusDiv.textContent = `User '${username}' has been unbanned.`;
+    document.getElementById('admin-ban-username').value = '';
+    document.getElementById('admin-ban-reason').value = '';
+  } catch (e) {
+    statusDiv.textContent = 'Failed to unban user.';
+  }
+}
 const ADMIN_USERS = ['kaiden', ''];
 
 function openAdminMenu() {
@@ -501,18 +540,30 @@ function closeAdminMenu() {
 }
 async function adminBanUser() {
   const username = document.getElementById('admin-ban-username').value.trim();
+  let reason = document.getElementById('admin-ban-reason').value;
+  const customReasonInput = document.getElementById('admin-ban-custom-reason');
+  if (reason === 'Other') {
+    reason = customReasonInput.value.trim();
+  }
   const statusDiv = document.getElementById('admin-ban-status');
   if (!username) {
     statusDiv.textContent = 'Please enter a username.';
     return;
   }
+  if (reason === '' || (document.getElementById('admin-ban-reason').value === 'Other' && reason === '')) {
+    statusDiv.textContent = 'Please enter a reason.';
+    return;
+  }
   try {
     await fetch(BAN_API_URL, {
       method: 'POST',
-      body: new URLSearchParams({ username, reason: 'admin ban' })
+      body: new URLSearchParams({ username, reason, banned: 'yes' })
     });
     statusDiv.textContent = `User '${username}' has been banned.`;
     document.getElementById('admin-ban-username').value = '';
+    document.getElementById('admin-ban-reason').value = '';
+    customReasonInput.value = '';
+    customReasonInput.style.display = 'none';
   } catch (e) {
     statusDiv.textContent = 'Failed to ban user.';
   }
@@ -520,11 +571,14 @@ async function adminBanUser() {
 
 async function getBannedUsernames() {
   try {
-    const res = await fetch(BAN_API_URL);
+    const res = await fetch(BAN_API_URL, { cache: 'no-store' });
     const text = await res.text();
+    console.log('Ban fetch response:', text); // Log raw response
     // Expecting CSV: username,reason,banned per line
     const lines = text.split('\n');
-    return lines
+    // Skip header row if present
+    const dataLines = lines.filter((line, idx) => idx !== 0 && line.trim() !== '');
+    const banned = dataLines
       .map(line => {
         const parts = line.split(',');
         // username = parts[0], banned = parts[2]
@@ -534,11 +588,14 @@ async function getBannedUsernames() {
         return null;
       })
       .filter(u => u);
+    console.log('Parsed banned usernames:', banned); // Log parsed banned list
+    return banned;
   } catch (e) {
+    console.error('Ban fetch error:', e);
     return [];
   }
 }
-const BAN_API_URL = 'https://script.google.com/macros/s/AKfycbyTjQ9nNctNoYOFSSgPOmXUky36v3N-mAqNslkowcKrAkJIdcSAbrLLszYHHrzusvo/exec';
+const BAN_API_URL = 'https://script.google.com/macros/s/AKfycbxn1Ql1ph2UA2LZraU8eK6gn-H1iwO6az5DIGYmQPzv8Zxgl17yYPg9_PJFLgz-y0_U/exec';
 
 async function checkBan(username, ip) {
   try {
@@ -560,14 +617,6 @@ async function addBan(username, ip, reason = '') {
 }
 
 function showUserBanNotification() {
-var loginModal = document.getElementById('site-login-modal');
-if (loginModal) loginModal.style.display = 'none';
-var nameModal = document.getElementById('name-modal');
-if (nameModal) nameModal.style.display = 'none';
-var ipNotif = document.getElementById('ip-notification');
-if (ipNotif) ipNotif.style.display = 'none';
-var banNotif = document.getElementById('ban-notification');
-if (banNotif) banNotif.style.display = 'none';
 document.body.style.overflow = 'auto';
 Array.from(document.body.children).forEach(function(child) {
 if (child.id !== 'user-ban-notification') {
@@ -575,16 +624,34 @@ child.style.display = 'none';
 }
 });
 var userBanNotification = document.getElementById('user-ban-notification');
-if (userBanNotification) userBanNotification.style.display = 'block';
+if (userBanNotification) {
+  userBanNotification.style.display = 'block';
+  // Show ban reason if available
+  fetch(BAN_API_URL)
+    .then(res => res.text())
+    .then(text => {
+      const username = document.getElementById('site-login-username').value.trim();
+      const lines = text.split('\n');
+      let reason = '';
+      lines.forEach(line => {
+        const parts = line.split(',');
+        if (parts.length >= 3 && parts[0].trim() === username && parts[2].trim().toLowerCase() === 'yes') {
+          reason = parts[1].trim();
+        }
+      });
+      const reasonElem = document.getElementById('user-ban-reason');
+      if (reasonElem) reasonElem.textContent = reason ? `Reason: ${reason}` : '';
+    });
+}
 }
 
 const SITE_LOGINS = {
 'kaiden': 'KHDisco806',
 'jjj': 'yomama!1',
-'Jeremy_Wade': 'Hal',
+'jeremy_wade': 'Hal',
 'gnb_fartball': 'imaura6767',
 'luka': 'thejepstein',
-'XxJermiah2coolxX': 'gian123',
+'xxjermiah2coolxx': 'gian123',
 'ileighlin': 'Leighlin123'
 };
 let siteLoginPassed = false;
@@ -604,14 +671,15 @@ document.body.style.overflow = 'auto';
 
 function siteLoginSubmit() {
 document.body.style.overflow = 'auto';
-const username = document.getElementById('site-login-username').value.trim();
+let username = document.getElementById('site-login-username').value.trim().toLowerCase();
 const password = document.getElementById('site-login-password').value;
 const errorDiv = document.getElementById('site-login-error');
 if (!username || !password) {
   errorDiv.textContent = 'Please enter both username and password.';
   return;
 }
-getBannedUsernames().then(bannedList => {
+(async () => {
+  const bannedList = (await getBannedUsernames()).map(u => u.trim().toLowerCase());
   if (bannedList.includes(username)) {
     hideSiteLoginModal();
     document.body.style.overflow = 'auto';
@@ -620,6 +688,7 @@ getBannedUsernames().then(bannedList => {
   }
   if (SITE_LOGINS.hasOwnProperty(username) && SITE_LOGINS[username] === password) {
     siteLoginPassed = true;
+    localStorage.setItem('userName', username); // Store normalized username
     hideSiteLoginModal();
     // Show admin menu button if user is admin
     if (ADMIN_USERS.includes(username)) {
@@ -635,7 +704,7 @@ getBannedUsernames().then(bannedList => {
   } else {
     errorDiv.textContent = 'Invalid username or password.';
   }
-});
+})();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -665,7 +734,7 @@ initIPLogging();
 }
 
 function getUserName() {
-return localStorage.getItem('userName') || '';
+return (localStorage.getItem('userName') || '').toLowerCase();
 }
 function getBannedIPs() {
 const stored = localStorage.getItem('bannedIPs');
@@ -681,12 +750,13 @@ const data = await response.json();
 const userIP = data.ip;
 currentUserIP = userIP;
 userName = getUserName();
-// Check if user is banned (static or dynamic) right after login
-if (isUserBanned(userName)) {
-hideSiteLoginModal();
-document.body.style.overflow = 'auto';
-showUserBanNotification(); // Only show once, no message
-return;
+// Check if user is banned from Google Sheets right after login
+const bannedList = (await getBannedUsernames()).map(u => u.trim().toLowerCase());
+if (bannedList.includes(userName)) {
+  hideSiteLoginModal();
+  document.body.style.overflow = 'auto';
+  showUserBanNotification();
+  return;
 }
 
 if (isIPBanned(userIP)) {
@@ -927,8 +997,8 @@ function openGame(idx) {
   gameIframe.src = games[idx].url;
   iframeContainer.style.display = 'flex';
   document.body.style.overflow = 'hidden';
-  refreshBtn.style.display = 'inline-block';
-  closeBtn.style.display = 'inline-block';
+  refreshBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
+  closeBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
 }
 
 function closeGame() {
@@ -1025,9 +1095,7 @@ function saveBannedUsers(users) {
 localStorage.setItem('bannedUsers', JSON.stringify(users));
 }
 function isUserBanned(username) {
-if (STATIC_BANNED_USERS.includes(username)) return true;
-const bannedUsers = getBannedUsers();
-return bannedUsers.includes(username);
+return false; 
 }
 function banUser() {
 const userInput = document.getElementById('ban-user-input');
@@ -1087,4 +1155,3 @@ const STATIC_BANNED_USERS = [
 </script>
 </body>
 </html>
-~
