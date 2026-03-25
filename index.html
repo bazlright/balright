@@ -237,36 +237,36 @@ background-color: #ff5252;
 <body>
 <!-- Admin Menu -->
 <div id="admin-menu" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:5000; align-items:center; justify-content:center; flex-direction:column;">
-  <div style="background:#222; padding:2rem; border-radius:0.5rem; text-align:center; color:#fff; min-width:300px; box-shadow:0 8px 32px #000a;">
-    <h2>Admin Ban Panel</h2>
-    <input type="text" id="admin-ban-username" placeholder="Username" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" />
-    <select id="admin-ban-reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" onchange="toggleCustomReason()">
-      <option value="">Select reason</option>
-      <option value="Gooning">Gooning</option>
-      <option value="Nape Riggers">Nape Riggers</option>
-      <option value="Other">Other</option>
-    </select>
-      <input type="text" id="admin-ban-custom-reason" placeholder="Enter custom reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem; display:none;" autocomplete="off" />
-      <script>
-        function toggleCustomReason() {
-          const reasonSelect = document.getElementById('admin-ban-reason');
-          const customReasonInput = document.getElementById('admin-ban-custom-reason');
-          if (reasonSelect.value === 'Other') {
-            customReasonInput.style.display = 'block';
-            customReasonInput.disabled = false;
-            customReasonInput.focus();
-          } else {
-            customReasonInput.style.display = 'none';
-            customReasonInput.disabled = true;
-            customReasonInput.value = '';
-          }
-        }
-      </script>
-    <button onclick="adminBanUser()" style="padding:0.5rem 1.5rem; background:#d32f2f; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Ban Username</button>
-    <button onclick="adminUnbanUser()" style="padding:0.5rem 1.5rem; background:#388e3c; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Unban Username</button>
-    <button onclick="closeAdminMenu()" style="margin-top:1rem; background:#444; color:#fff; border:none; border-radius:0.25rem; padding:0.5rem 1.5rem;">Close</button>
-    <div id="admin-ban-status" style="color:#ff9800; margin-top:0.75rem; min-height:1.5em;"></div>
-  </div>
+<div style="background:#222; padding:2rem; border-radius:0.5rem; text-align:center; color:#fff; min-width:300px; box-shadow:0 8px 32px #000a;">
+<h2>Admin Ban Panel</h2>
+<input type="text" id="admin-ban-username" placeholder="Username" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" />
+<select id="admin-ban-reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" onchange="toggleCustomReason()">
+<option value="">Select reason</option>
+<option value="Gooning">Gooning</option>
+<option value="Nape Riggers">Nape Riggers</option>
+<option value="Other">Other</option>
+</select>
+<input type="text" id="admin-ban-custom-reason" placeholder="Enter custom reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem; display:none;" autocomplete="off" />
+<script>
+function toggleCustomReason() {
+const reasonSelect = document.getElementById('admin-ban-reason');
+const customReasonInput = document.getElementById('admin-ban-custom-reason');
+if (reasonSelect.value === 'Other') {
+customReasonInput.style.display = 'block';
+customReasonInput.disabled = false;
+customReasonInput.focus();
+} else {
+customReasonInput.style.display = 'none';
+customReasonInput.disabled = true;
+customReasonInput.value = '';
+}
+}
+</script>
+<button onclick="adminBanUser()" style="padding:0.5rem 1.5rem; background:#d32f2f; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Ban Username</button>
+<button onclick="adminUnbanUser()" style="padding:0.5rem 1.5rem; background:#388e3c; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Unban Username</button>
+<button onclick="closeAdminMenu()" style="margin-top:1rem; background:#444; color:#fff; border:none; border-radius:0.25rem; padding:0.5rem 1.5rem;">Close</button>
+<div id="admin-ban-status" style="color:#ff9800; margin-top:0.75rem; min-height:1.5em;"></div>
+</div>
 </div>
 <button id="admin-menu-btn" onclick="openAdminMenu()" style="display:none; position:fixed; bottom:1rem; right:1rem; z-index:10000; background:#d32f2f; color:#fff; border:none; border-radius:0.5rem; padding:0.75rem 1.5rem; font-size:1rem;">Admin Menu</button>
 <div id="site-login-modal" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:4000; align-items:center; justify-content:center; flex-direction:column;">
@@ -327,11 +327,11 @@ Suggest a Game
 </div>
 </div>
 <div id="iframe-container" class="iframe-container">
-  <iframe id="game-iframe" class="game-iframe" src=""></iframe>
-  <div class="iframe-controls">
-    <button class="refresh-btn" id="refresh-btn" style="display:none;">Refresh</button>
-    <button class="close-btn" id="close-btn" style="display:none;">Close Game</button>
-  </div>
+<iframe id="game-iframe" class="game-iframe" src=""></iframe>
+<div class="iframe-controls">
+<button class="refresh-btn" id="refresh-btn" style="display:none;">Refresh</button>
+<button class="close-btn" id="close-btn" style="display:none;">Close Game</button>
+</div>
 </div>
 <iframe id="game-iframe-3" class="game-iframe" src=""></iframe>
 <!-- Removed duplicate iframe-controls for game-iframe-3 -->
@@ -512,108 +512,108 @@ Suggest a Game
 
 <script>
 async function adminUnbanUser() {
-  const username = document.getElementById('admin-ban-username').value.trim();
-  const statusDiv = document.getElementById('admin-ban-status');
-  if (!username) {
-    statusDiv.textContent = 'Please enter a username.';
-    return;
-  }
-  try {
-    await fetch(BAN_API_URL, {
-      method: 'POST',
-      body: new URLSearchParams({ username, banned: 'no' })
-    });
-    statusDiv.textContent = `User '${username}' has been unbanned.`;
-    document.getElementById('admin-ban-username').value = '';
-    document.getElementById('admin-ban-reason').value = '';
-  } catch (e) {
-    statusDiv.textContent = 'Failed to unban user.';
-  }
+const username = document.getElementById('admin-ban-username').value.trim();
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+statusDiv.textContent = 'Please enter a username.';
+return;
+}
+try {
+await fetch(BAN_API_URL, {
+method: 'POST',
+body: new URLSearchParams({ username, banned: 'no' })
+});
+statusDiv.textContent = `User '${username}' has been unbanned.`;
+document.getElementById('admin-ban-username').value = '';
+document.getElementById('admin-ban-reason').value = '';
+} catch (e) {
+statusDiv.textContent = 'Failed to unban user.';
+}
 }
 const ADMIN_USERS = ['kaiden', ''];
 
 function openAdminMenu() {
-  document.getElementById('admin-menu').style.display = 'flex';
+document.getElementById('admin-menu').style.display = 'flex';
 }
 function closeAdminMenu() {
-  document.getElementById('admin-menu').style.display = 'none';
+document.getElementById('admin-menu').style.display = 'none';
 }
 async function adminBanUser() {
-  const username = document.getElementById('admin-ban-username').value.trim();
-  let reason = document.getElementById('admin-ban-reason').value;
-  const customReasonInput = document.getElementById('admin-ban-custom-reason');
-  if (reason === 'Other') {
-    reason = customReasonInput.value.trim();
-  }
-  const statusDiv = document.getElementById('admin-ban-status');
-  if (!username) {
-    statusDiv.textContent = 'Please enter a username.';
-    return;
-  }
-  if (reason === '' || (document.getElementById('admin-ban-reason').value === 'Other' && reason === '')) {
-    statusDiv.textContent = 'Please enter a reason.';
-    return;
-  }
-  try {
-    await fetch(BAN_API_URL, {
-      method: 'POST',
-      body: new URLSearchParams({ username, reason, banned: 'yes' })
-    });
-    statusDiv.textContent = `User '${username}' has been banned.`;
-    document.getElementById('admin-ban-username').value = '';
-    document.getElementById('admin-ban-reason').value = '';
-    customReasonInput.value = '';
-    customReasonInput.style.display = 'none';
-  } catch (e) {
-    statusDiv.textContent = 'Failed to ban user.';
-  }
+const username = document.getElementById('admin-ban-username').value.trim();
+let reason = document.getElementById('admin-ban-reason').value;
+const customReasonInput = document.getElementById('admin-ban-custom-reason');
+if (reason === 'Other') {
+reason = customReasonInput.value.trim();
+}
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+statusDiv.textContent = 'Please enter a username.';
+return;
+}
+if (reason === '' || (document.getElementById('admin-ban-reason').value === 'Other' && reason === '')) {
+statusDiv.textContent = 'Please enter a reason.';
+return;
+}
+try {
+await fetch(BAN_API_URL, {
+method: 'POST',
+body: new URLSearchParams({ username, reason, banned: 'yes' })
+});
+statusDiv.textContent = `User '${username}' has been banned.`;
+document.getElementById('admin-ban-username').value = '';
+document.getElementById('admin-ban-reason').value = '';
+customReasonInput.value = '';
+customReasonInput.style.display = 'none';
+} catch (e) {
+statusDiv.textContent = 'Failed to ban user.';
+}
 }
 
 async function getBannedUsernames() {
-  try {
-    const res = await fetch(BAN_API_URL, { cache: 'no-store' });
-    const text = await res.text();
-    console.log('Ban fetch response:', text); // Log raw response
-    // Expecting CSV: username,reason,banned per line
-    const lines = text.split('\n');
-    // Skip header row if present
-    const dataLines = lines.filter((line, idx) => idx !== 0 && line.trim() !== '');
-    const banned = dataLines
-      .map(line => {
-        const parts = line.split(',');
-        // username = parts[0], banned = parts[2]
-        if (parts.length >= 3 && parts[2].trim().toLowerCase() === 'yes') {
-          return parts[0].trim();
-        }
-        return null;
-      })
-      .filter(u => u);
-    console.log('Parsed banned usernames:', banned); // Log parsed banned list
-    return banned;
-  } catch (e) {
-    console.error('Ban fetch error:', e);
-    return [];
-  }
+try {
+const res = await fetch(BAN_API_URL, { cache: 'no-store' });
+const text = await res.text();
+console.log('Ban fetch response:', text); // Log raw response
+// Expecting CSV: username,reason,banned per line
+const lines = text.split('\n');
+// Skip header row if present
+const dataLines = lines.filter((line, idx) => idx !== 0 && line.trim() !== '');
+const banned = dataLines
+.map(line => {
+const parts = line.split(',');
+// username = parts[0], banned = parts[2]
+if (parts.length >= 3 && parts[2].trim().toLowerCase() === 'yes') {
+return parts[0].trim();
+}
+return null;
+})
+.filter(u => u);
+console.log('Parsed banned usernames:', banned); // Log parsed banned list
+return banned;
+} catch (e) {
+console.error('Ban fetch error:', e);
+return [];
+}
 }
 const BAN_API_URL = 'https://script.google.com/macros/s/AKfycbxn1Ql1ph2UA2LZraU8eK6gn-H1iwO6az5DIGYmQPzv8Zxgl17yYPg9_PJFLgz-y0_U/exec';
 
 async function checkBan(username, ip) {
-  try {
-    const res = await fetch(`${BAN_API_URL}?username=${encodeURIComponent(username)}&ip=${encodeURIComponent(ip)}`);
-    const status = await res.text();
-    return status === 'banned';
-  } catch (e) {
-    return false;
-  }
+try {
+const res = await fetch(`${BAN_API_URL}?username=${encodeURIComponent(username)}&ip=${encodeURIComponent(ip)}`);
+const status = await res.text();
+return status === 'banned';
+} catch (e) {
+return false;
+}
 }
 
 async function addBan(username, ip, reason = '') {
-  try {
-    await fetch(BAN_API_URL, {
-      method: 'POST',
-      body: new URLSearchParams({ username, ip, reason })
-    });
-  } catch (e) {}
+try {
+await fetch(BAN_API_URL, {
+method: 'POST',
+body: new URLSearchParams({ username, ip, reason })
+});
+} catch (e) {}
 }
 
 function showUserBanNotification() {
@@ -625,23 +625,23 @@ child.style.display = 'none';
 });
 var userBanNotification = document.getElementById('user-ban-notification');
 if (userBanNotification) {
-  userBanNotification.style.display = 'block';
-  // Show ban reason if available
-  fetch(BAN_API_URL)
-    .then(res => res.text())
-    .then(text => {
-      const username = document.getElementById('site-login-username').value.trim();
-      const lines = text.split('\n');
-      let reason = '';
-      lines.forEach(line => {
-        const parts = line.split(',');
-        if (parts.length >= 3 && parts[0].trim() === username && parts[2].trim().toLowerCase() === 'yes') {
-          reason = parts[1].trim();
-        }
-      });
-      const reasonElem = document.getElementById('user-ban-reason');
-      if (reasonElem) reasonElem.textContent = reason ? `Reason: ${reason}` : '';
-    });
+userBanNotification.style.display = 'block';
+// Show ban reason if available
+fetch(BAN_API_URL)
+.then(res => res.text())
+.then(text => {
+const username = document.getElementById('site-login-username').value.trim();
+const lines = text.split('\n');
+let reason = '';
+lines.forEach(line => {
+const parts = line.split(',');
+if (parts.length >= 3 && parts[0].trim() === username && parts[2].trim().toLowerCase() === 'yes') {
+reason = parts[1].trim();
+}
+});
+const reasonElem = document.getElementById('user-ban-reason');
+if (reasonElem) reasonElem.textContent = reason ? `Reason: ${reason}` : '';
+});
 }
 }
 
@@ -677,35 +677,35 @@ let username = document.getElementById('site-login-username').value.trim().toLow
 const password = document.getElementById('site-login-password').value;
 const errorDiv = document.getElementById('site-login-error');
 if (!username || !password) {
-  errorDiv.textContent = 'Please enter both username and password.';
-  return;
+errorDiv.textContent = 'Please enter both username and password.';
+return;
 }
 (async () => {
-  const bannedList = (await getBannedUsernames()).map(u => u.trim().toLowerCase());
-  if (bannedList.includes(username)) {
-    hideSiteLoginModal();
-    document.body.style.overflow = 'auto';
-    showUserBanNotification();
-    return;
-  }
-  if (SITE_LOGINS.hasOwnProperty(username) && SITE_LOGINS[username] === password) {
-    siteLoginPassed = true;
-    localStorage.setItem('userName', username); // Store normalized username
-    hideSiteLoginModal();
-    // Show admin menu button if user is admin
-    if (ADMIN_USERS.includes(username)) {
-      document.getElementById('admin-menu-btn').style.display = 'block';
-    } else {
-      document.getElementById('admin-menu-btn').style.display = 'none';
-    }
-    if (!getUserName()) {
-      showNameModal();
-    } else {
-      initIPLogging();
-    }
-  } else {
-    errorDiv.textContent = 'Invalid username or password.';
-  }
+const bannedList = (await getBannedUsernames()).map(u => u.trim().toLowerCase());
+if (bannedList.includes(username)) {
+hideSiteLoginModal();
+document.body.style.overflow = 'auto';
+showUserBanNotification();
+return;
+}
+if (SITE_LOGINS.hasOwnProperty(username) && SITE_LOGINS[username] === password) {
+siteLoginPassed = true;
+localStorage.setItem('userName', username); // Store normalized username
+hideSiteLoginModal();
+// Show admin menu button if user is admin
+if (ADMIN_USERS.includes(username)) {
+document.getElementById('admin-menu-btn').style.display = 'block';
+} else {
+document.getElementById('admin-menu-btn').style.display = 'none';
+}
+if (!getUserName()) {
+showNameModal();
+} else {
+initIPLogging();
+}
+} else {
+errorDiv.textContent = 'Invalid username or password.';
+}
 })();
 }
 
@@ -755,10 +755,10 @@ userName = getUserName();
 // Check if user is banned from Google Sheets right after login
 const bannedList = (await getBannedUsernames()).map(u => u.trim().toLowerCase());
 if (bannedList.includes(userName)) {
-  hideSiteLoginModal();
-  document.body.style.overflow = 'auto';
-  showUserBanNotification();
-  return;
+hideSiteLoginModal();
+document.body.style.overflow = 'auto';
+showUserBanNotification();
+return;
 }
 
 if (isIPBanned(userIP)) {
@@ -913,9 +913,9 @@ bannedIPs.forEach(ip => {
 const item = document.createElement('div');
 item.className = 'ban-item';
 item.innerHTML = `
-          <span>${ip}</span>
-          <button onclick="unbanIP('${ip}')">Unban</button>
-      `;
+         <span>${ip}</span>
+         <button onclick="unbanIP('${ip}')">Unban</button>
+     `;
 list.appendChild(item);
 });
 }
@@ -946,44 +946,45 @@ showSiteLoginModal();
 
 
 const games = [
-  {name: 'Slope', url: 'https://bigfoot9999.github.io/Slope-Game/'},
-  {name: 'Tung Tung Sahur', url: 'https://files.twoplayergames.org/files/games/h1/italian-brainrot-obby-parkour-v01l/index.html'},
-  {name: 'Wikirace', url: 'https://wiki-race.com'},
-  {name: 'Escape Road', url: 'https://unblockedescaperoads.com/#game'},
-  {name: 'Escape Road 2', url: 'https://escaperoad-2.github.io/'},
-  {name: 'Duck', url: 'https://duck.theducklair.com/'},
-  {name: 'Minecraft', url: 'https://irv77.github.io/?id=AmplerLauncher'},
-  {name: 'AGame', url: 'https://agame.com'},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: 'FNAF Launcher', url: 'https://irv77.github.io/FnafLauncher'},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: '2v2.io', url: 'https://2v2.io'},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: '', url: ''},
-  {name: 'Zombie', url: 'https://nzp.gay''},
-  {name: 'Calcslover', url: 'https://calcsolver.net'},
-  {name: '', url: '},
-  {name: 'PerplexityAI', url: 'https://www.perplexity.ai/'},
-  {name: 'MathGPT', url: 'https://math-gpt.org/'},
-  {name: 'Youtube (Unblock All Videos)', url: 'https://tube.rvere.com/'},
+{name: 'Slope', url: 'https://bigfoot9999.github.io/Slope-Game/'},
+{name: 'Tung Tung Sahur', url: 'https://files.twoplayergames.org/files/games/h1/italian-brainrot-obby-parkour-v01l/index.html'},
+{name: 'Wikirace', url: 'https://wiki-race.com'},
+{name: 'Escape Road', url: 'https://unblockedescaperoads.com/#game'},
+{name: 'Escape Road 2', url: 'https://escaperoad-2.github.io/'},
+{name: 'Duck', url: 'https://duck.theducklair.com/'},
+{name: 'Minecraft', url: 'https://irv77.github.io/?id=AmplerLauncher'},
+{name: 'AGame', url: 'https://agame.com'},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: 'FNAF Launcher', url: 'https://irv77.github.io/FnafLauncher'},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '2v2.io', url: 'https://2v2.io'},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: 'Zombie', url: 'https://nzp.gay''},
+{name: 'Calcslover', url: 'https://calcsolver.net'},
+{name: '', url: '},
+{name: '', url: ''},
+{name: 'MathGPT', url: 'https://math-gpt.org/'},
+{name: 'Youtube (Unblock All Videos)', url: 'https://tube.rvere.com/'},
 ];
 
 document.body.style.overflow = 'hidden';
 document.body.style.overflow = 'auto';
 const gameButtons = document.getElementById('game-buttons');
 games.forEach((game, idx) => {
-  const btn = document.createElement('button');
-  btn.textContent = game.name || `Game ${idx+1}`;
-  btn.onclick = () => openGame(idx);
-  gameButtons.appendChild(btn);
+const btn = document.createElement('button');
+btn.textContent = game.name || `Game ${idx+1}`;
+btn.onclick = () => openGame(idx);
+gameButtons.appendChild(btn);
 });
 
 const iframeContainer = document.getElementById('iframe-container');
@@ -993,28 +994,28 @@ const closeBtn = document.getElementById('close-btn');
 let currentGameIdx = null;
 
 function openGame(idx) {
-  if (!games[idx] || !games[idx].url) return;
-  currentGameIdx = idx;
-  gameIframe.src = games[idx].url;
-  iframeContainer.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-  refreshBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
-  closeBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
+if (!games[idx] || !games[idx].url) return;
+currentGameIdx = idx;
+gameIframe.src = games[idx].url;
+iframeContainer.style.display = 'flex';
+document.body.style.overflow = 'hidden';
+refreshBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
+closeBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
 }
 
 function closeGame() {
-  gameIframe.src = '';
-  iframeContainer.style.display = 'none';
-  document.body.style.overflow = 'auto';
-  currentGameIdx = null;
-  refreshBtn.style.display = 'none';
-  closeBtn.style.display = 'none';
+gameIframe.src = '';
+iframeContainer.style.display = 'none';
+document.body.style.overflow = 'auto';
+currentGameIdx = null;
+refreshBtn.style.display = 'none';
+closeBtn.style.display = 'none';
 }
 
 function refreshGame() {
-  if (currentGameIdx !== null && games[currentGameIdx]) {
-    gameIframe.src = games[currentGameIdx].url;
-  }
+if (currentGameIdx !== null && games[currentGameIdx]) {
+gameIframe.src = games[currentGameIdx].url;
+}
 }
 
 refreshBtn.onclick = refreshGame;
@@ -1069,10 +1070,10 @@ if (!ip) return;
 const item = document.createElement('div');
 item.className = 'ban-item';
 item.innerHTML = `
-           <span>${ip}</span>
-           <span>${name}</span>
-          <button onclick="banIPFromList('${ip}')">Ban</button>
-      `;
+          <span>${ip}</span>
+          <span>${name}</span>
+         <button onclick="banIPFromList('${ip}')">Ban</button>
+     `;
 list.appendChild(item);
 });
 }
@@ -1102,16 +1103,16 @@ function banUser() {
 const userInput = document.getElementById('ban-user-input');
 const username = userInput.value.trim();
 if (!username) {
-  alert('Please enter a username');
-  return;
+alert('Please enter a username');
+return;
 }
 fetch('https://api.ipify.org?format=json')
-  .then(res => res.json())
-  .then(data => {
-    addBan(username, data.ip, 'manual ban');
-    userInput.value = '';
-    alert(`User ${username} has been banned globally!`);
-  });
+.then(res => res.json())
+.then(data => {
+addBan(username, data.ip, 'manual ban');
+userInput.value = '';
+alert(`User ${username} has been banned globally!`);
+});
 }
 function unbanUser(username) {
 const bannedUsers = getBannedUsers();
@@ -1135,9 +1136,9 @@ bannedUsers.forEach(username => {
 const item = document.createElement('div');
 item.className = 'ban-item';
 item.innerHTML = `
-     <span>${username}</span>
-     <button onclick="unbanUser('${username}')">Unban</button>
-   `;
+    <span>${username}</span>
+    <button onclick="unbanUser('${username}')">Unban</button>
+  `;
 list.appendChild(item);
 });
 }
@@ -1148,8 +1149,8 @@ alert('All user bans cleared!');
 }
 
 const STATIC_BANNED_USERS = [
-  '',
-  '',
+'',
+'',
 
 ]
 
@@ -1158,4 +1159,4 @@ const STATIC_BANNED_USERS = [
 </html>
 
 
-
+~
