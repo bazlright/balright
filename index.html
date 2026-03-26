@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>chud games</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <style>
 body {
 background-color: #333333;
@@ -232,6 +235,195 @@ margin-left: 0.5rem;
 .user-ban-item button:hover {
 background-color: #ff5252;
 }
+
+/* Chat Styles */
+#chat-container {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 350px;
+  height: 500px;
+  background-color: #000;
+  border: 2px solid #000;
+  border-radius: 10px 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 999;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+  font-family: Arial, sans-serif;
+}
+
+#chat-container.minimized {
+  height: auto;
+}
+
+#chat-header {
+  background: #000;
+  color: #fff;
+  padding: 1rem;
+  border-bottom: 2px solid #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 8px 8px 0 0;
+  cursor: move;
+}
+
+#chat-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  user-select: none;
+}
+
+#chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  background-color: #000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chat-message {
+  padding: 0.75rem;
+  border-radius: 8px;
+  word-wrap: break-word;
+  font-size: 0.9rem;
+}
+
+.chat-message.own {
+  background-color: #1565c0;
+  color: #fff;
+  align-self: flex-end;
+  max-width: 80%;
+}
+
+.chat-message.other {
+  background-color: #5f6368;
+  color: #fff;
+  align-self: flex-start;
+  max-width: 80%;
+}
+
+.chat-message-user {
+  font-weight: bold;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+  opacity: 0.9;
+}
+
+#chat-input-area {
+  padding: 1rem;
+  border-top: 1px solid #000;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+}
+
+#chat-message-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid #5f6368;
+  border-radius: 4px;
+  background-color: #1f1f1f;
+  color: #fff;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+#chat-message-input::placeholder {
+  color: #999;
+}
+
+#chat-image-btn {
+  padding: 0.5rem 0.75rem;
+  background-color: #333;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+#chat-image-btn:hover {
+  background-color: #555;
+}
+
+.chat-message-image {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 8px;
+  margin-top: 0.35rem;
+  object-fit: contain;
+}
+
+.chat-message-caption {
+  margin-top: 0.5rem;
+}
+
+#chat-toggle-btn {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 998;
+  padding: 0.75rem 1.5rem;
+  background-color: #000;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: bold;
+  display: block;
+  margin-top: 0;
+}
+
+#chat-toggle-btn:hover {
+  background-color: #333;
+}
+
+#admin-menu-btn {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 999;
+}
+
+#chat-minimize-btn,
+#chat-close-btn {
+  background-color: #333;
+  border: none;
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+#chat-minimize-btn:hover,
+#chat-close-btn:hover {
+  background-color: #555;
+}
+
+@media (max-width: 500px) {
+  #chat-container {
+    width: 100%;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
+  }
+}
 </style>
 </head>
 <body>
@@ -240,35 +432,53 @@ background-color: #ff5252;
   <div style="background:#222; padding:2rem; border-radius:0.5rem; text-align:center; color:#fff; min-width:300px; box-shadow:0 8px 32px #000a;">
     <h2>Admin Ban Panel</h2>
     <input type="text" id="admin-ban-username" placeholder="Username" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" />
+    <div style="margin-bottom:0.5rem;">
+      <label for="admin-user-list" style="color:#ffb74d;">User List:</label>
+      <select id="admin-user-list" style="width:220px; padding:0.5rem; border:none; border-radius:0.25rem; margin-top:0.25rem;" onchange="document.getElementById('admin-ban-username').value=this.value;">
+        <option value="">-- Select a user --</option>
+      </select>
+    </div>
     <select id="admin-ban-reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" onchange="toggleCustomReason()">
       <option value="">Select reason</option>
       <option value="Gooning">Gooning</option>
       <option value="Nape Riggers">Nape Riggers</option>
       <option value="Other">Other</option>
     </select>
-      <input type="text" id="admin-ban-custom-reason" placeholder="Enter custom reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem; display:none;" autocomplete="off" />
-      <script>
-        function toggleCustomReason() {
-          const reasonSelect = document.getElementById('admin-ban-reason');
-          const customReasonInput = document.getElementById('admin-ban-custom-reason');
-          if (reasonSelect.value === 'Other') {
-            customReasonInput.style.display = 'block';
-            customReasonInput.disabled = false;
-            customReasonInput.focus();
-          } else {
-            customReasonInput.style.display = 'none';
-            customReasonInput.disabled = true;
-            customReasonInput.value = '';
-          }
+    <input type="text" id="admin-ban-custom-reason" placeholder="Enter custom reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem; display:none;" autocomplete="off" />
+    <script>
+      function toggleCustomReason() {
+        const reasonSelect = document.getElementById('admin-ban-reason');
+        const customReasonInput = document.getElementById('admin-ban-custom-reason');
+        if (reasonSelect.value === 'Other') {
+          customReasonInput.style.display = 'block';
+          customReasonInput.disabled = false;
+          customReasonInput.focus();
+        } else {
+          customReasonInput.style.display = 'none';
+          customReasonInput.disabled = true;
+          customReasonInput.value = '';
         }
-      </script>
+      }
+      // Populate user list dropdown from SITE_LOGINS
+      document.addEventListener('DOMContentLoaded', function() {
+        var userList = document.getElementById('admin-user-list');
+        if (userList && typeof SITE_LOGINS === 'object') {
+          Object.keys(SITE_LOGINS).forEach(function(username) {
+            var opt = document.createElement('option');
+            opt.value = username;
+            opt.textContent = username;
+            userList.appendChild(opt);
+          });
+        }
+      });
+    </script>
     <button onclick="adminBanUser()" style="padding:0.5rem 1.5rem; background:#d32f2f; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Ban Username</button>
     <button onclick="adminUnbanUser()" style="padding:0.5rem 1.5rem; background:#388e3c; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Unban Username</button>
+    <button onclick="adminClearChat()" style="padding:0.5rem 1.5rem; background:#111; color:#fff; border:none; border-radius:0.25rem; margin-top:1rem;">Clear All Chat</button>
     <button onclick="closeAdminMenu()" style="margin-top:1rem; background:#444; color:#fff; border:none; border-radius:0.25rem; padding:0.5rem 1.5rem;">Close</button>
     <div id="admin-ban-status" style="color:#ff9800; margin-top:0.75rem; min-height:1.5em;"></div>
   </div>
 </div>
-<button id="admin-menu-btn" onclick="openAdminMenu()" style="display:none; position:fixed; bottom:1rem; right:1rem; z-index:10000; background:#d32f2f; color:#fff; border:none; border-radius:0.5rem; padding:0.75rem 1.5rem; font-size:1rem;">Admin Menu</button>
 <div id="site-login-modal" style="display:flex; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:4000; align-items:center; justify-content:center; flex-direction:column;">
 <div style="background:#222; padding:2.5rem 2rem; border-radius:0.5rem; text-align:center; color:#fff; min-width:300px; box-shadow:0 8px 32px #000a;">
 <h2>Login Required</h2>
@@ -309,7 +519,6 @@ background-color: #ff5252;
 
 <h1>Games</h1>
 <div class="button-container" id="game-buttons"></div>
-
 
 <div style="margin-top:1rem; text-align:center;">
 <button
@@ -509,6 +718,34 @@ Suggest a Game
 <button class="refresh-btn" onclick="refreshGame(28)" style="display:none;">Refresh</button>
 <button class="close-btn" onclick="closeGame(28)" style="display:none;">Close Game</button>
 </div>
+</div>
+
+<!-- Live Chat -->
+<div id="chat-toggle-btn" onclick="toggleChat()">💬 Chat</div>
+<div id="chat-container" style="display:none;">
+  <div id="chat-header" onmousedown="startChatDrag(event)" ontouchstart="startChatDrag(event)">
+    <h3>Live Chat</h3>
+    <div id="chat-header-actions">
+      <button id="chat-minimize-btn" onclick="minimizeChat(event)">_</button>
+      <button id="chat-close-btn" onclick="closeChat(event)">✕</button>
+    </div>
+  </div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-area">
+    <input 
+      type="text" 
+      id="chat-message-input" 
+      placeholder="Type a message..." 
+      onkeypress="if(event.key==='Enter') sendMessage()"
+    />
+    <input type="file" id="chat-image-input" accept="image/*" style="display:none;" onchange="handleChatImageSelected(event)" />
+    <button id="chat-image-btn" onclick="openChatImagePicker()">Image</button>
+  </div>
+</div>
+
+<div style="text-align: center; margin-top: 2rem; margin-bottom: 2rem;">
+  <button id="admin-menu-btn" onclick="openAdminMenu()" style="display:none; background:#d32f2f; color:#fff; border:none; border-radius:0.5rem; padding:0.75rem 1.5rem; font-size:1rem;">Admin Menu</button>
+</div>
 
 <script>
 async function adminUnbanUser() {
@@ -566,6 +803,49 @@ async function adminBanUser() {
     customReasonInput.style.display = 'none';
   } catch (e) {
     statusDiv.textContent = 'Failed to ban user.';
+  }
+}
+
+async function adminClearChat() {
+  const statusDiv = document.getElementById('admin-ban-status');
+
+  if (!confirm('Delete every chat message for everyone? This cannot be undone.')) {
+    return;
+  }
+
+  try {
+    if (typeof firebase === 'undefined') {
+      statusDiv.textContent = 'Firebase is not available.';
+      return;
+    }
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    const db = firebase.firestore();
+    let deletedCount = 0;
+
+    while (true) {
+      const snapshot = await db.collection('site_messages').limit(250).get();
+      if (snapshot.empty) {
+        break;
+      }
+
+      const batch = db.batch();
+      snapshot.forEach(doc => {
+        batch.delete(doc.ref);
+        deletedCount += 1;
+      });
+      await batch.commit();
+    }
+
+    statusDiv.textContent = deletedCount
+      ? `Deleted ${deletedCount} chat messages.`
+      : 'Chat was already empty.';
+  } catch (e) {
+    console.error('Failed to clear chat:', e);
+    statusDiv.textContent = 'Failed to clear chat.';
   }
 }
 
@@ -655,6 +935,8 @@ const SITE_LOGINS = {
 'ileighlin': 'Leighlin123',
 'goon_sauce': 'goon1!',
 'eddiy': 'dino591511',
+'cameron': 'camgirl123',
+'garrett': 'jynxzisperm',
 };
 let siteLoginPassed = false;
 
@@ -703,6 +985,13 @@ if (!username || !password) {
     } else {
       initIPLogging();
     }
+    
+    // Initialize chat after successful login
+    console.log('Login successful, initializing chat...');
+    currentChatUser = getUserName();
+    waitForFirebase(() => {
+      initializeChat();
+    });
   } else {
     errorDiv.textContent = 'Invalid username or password.';
   }
@@ -952,8 +1241,8 @@ const games = [
   {name: 'Escape Road', url: 'https://unblockedescaperoads.com/#game'},
   {name: 'Escape Road 2', url: 'https://escaperoad-2.github.io/'},
   {name: 'Duck', url: 'https://duck.theducklair.com/'},
-  {name: 'Minecraft', url: 'https://irv77.github.io/?id=AmplerLauncher'},
-  {name: 'AGame', url: 'https://agame.com'},
+  {name: 'Minecraft', url: 'https://eaglercraft.ir/play/1.12.2wasm?touch=false&userscript'},
+  {name: '', url: ''},
   {name: '', url: ''},
   {name: '', url: ''},
   {name: '', url: ''},
@@ -968,9 +1257,9 @@ const games = [
   {name: '', url: ''},
   {name: '', url: ''},
   {name: '', url: ''},
-  {name: 'Zombie', url: 'https://nzp.gay''},
+  {name: 'Zombie', url: 'https://nzp.gay'},
   {name: 'Calcslover', url: 'https://calcsolver.net'},
-  {name: '', url: '},
+  {name: '', url: ''},
   {name: '', url: ''},
   {name: 'MathGPT', url: 'https://math-gpt.org/'},
   {name: 'Youtube (Unblock All Videos)', url: 'https://tube.rvere.com/'},
@@ -1152,6 +1441,352 @@ const STATIC_BANNED_USERS = [
   '',
 
 ]
+
+// ===== FIREBASE CHAT CONFIG =====
+const firebaseConfig = {
+  apiKey: "AIzaSyC7ivI30OuZuYiHQ_zm-AkvJVxmmI5rIyU",
+  authDomain: "balright-chat.firebaseapp.com",
+  projectId: "balright-chat",
+  storageBucket: "balright-chat.firebasestorage.app",
+  messagingSenderId: "506344188110",
+  appId: "1:506344188110:web:c7293b22e6fc730adb089f"
+};
+
+console.log('Firebase config loaded');
+
+let chatInitialized = false;
+let currentChatUser = '';
+let isChatDragging = false;
+let chatDragOffsetX = 0;
+let chatDragOffsetY = 0;
+const CHAT_IMAGE_MAX_WIDTH = 1280;
+const CHAT_IMAGE_MAX_HEIGHT = 1280;
+const CHAT_IMAGE_QUALITY = 0.82;
+const CHAT_IMAGE_SIZE_LIMIT = 700000;
+
+// Wait for Firebase to load
+function waitForFirebase(callback, maxWait = 5000) {
+  console.log('Waiting for Firebase...');
+  const start = Date.now();
+  
+  const check = () => {
+    if (typeof firebase !== 'undefined' && firebase.app) {
+      console.log('Firebase is available!');
+      callback();
+    } else if (Date.now() - start < maxWait) {
+      setTimeout(check, 100);
+    } else {
+      console.error('Firebase failed to load after 5 seconds');
+    }
+  };
+  
+  check();
+}
+
+// Initialize Firebase
+function initializeChat() {
+  console.log('initializeChat() called');
+  if (chatInitialized) {
+    console.log('Chat already initialized, skipping');
+    return;
+  }
+  
+  try {
+    console.log('Checking if Firebase is available...');
+    console.log('firebase object:', typeof firebase);
+    
+    if (!firebase.apps.length) {
+      console.log('Initializing Firebase app...');
+      firebase.initializeApp(firebaseConfig);
+    }
+    chatInitialized = true;
+    console.log('Firebase initialized successfully');
+    
+    // Sign in anonymously
+    firebase.auth().signInAnonymously().catch(err => {
+      console.log("Anonymous auth error:", err);
+    });
+    
+    loadChatMessages();
+    showChatButton();
+  } catch (err) {
+    console.error("Firebase initialization error:", err);
+  }
+}
+
+function showChatButton() {
+  // Show chat button only if user is logged in
+  if (siteLoginPassed) {
+    document.getElementById('chat-toggle-btn').style.display = 'block';
+  }
+}
+
+function toggleChat() {
+  const container = document.getElementById('chat-container');
+  if (container.style.display === 'none') {
+    container.style.display = 'flex';
+    if (!container.dataset.positioned) {
+      container.style.right = '0';
+      container.style.bottom = '0';
+      container.style.left = 'auto';
+      container.style.top = 'auto';
+    }
+    document.getElementById('chat-message-input').focus();
+  } else {
+    container.style.display = 'none';
+    document.getElementById('chat-toggle-btn').style.display = 'block';
+  }
+}
+
+function minimizeChat(event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const container = document.getElementById('chat-container');
+  const isMinimized = container.classList.contains('minimized');
+  
+  if (isMinimized) {
+    container.classList.remove('minimized');
+    document.getElementById('chat-messages').style.display = 'flex';
+    document.getElementById('chat-input-area').style.display = 'flex';
+  } else {
+    container.classList.add('minimized');
+    document.getElementById('chat-messages').style.display = 'none';
+    document.getElementById('chat-input-area').style.display = 'none';
+  }
+}
+
+function closeChat(event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const container = document.getElementById('chat-container');
+  container.style.display = 'none';
+  document.getElementById('chat-toggle-btn').style.display = 'block';
+}
+
+function openChatImagePicker() {
+  const imageInput = document.getElementById('chat-image-input');
+  imageInput.value = '';
+  imageInput.click();
+}
+
+function startChatDrag(event) {
+  const target = event.target;
+  if (target.closest('#chat-minimize-btn') || target.closest('#chat-close-btn')) {
+    return;
+  }
+
+  const container = document.getElementById('chat-container');
+  const rect = container.getBoundingClientRect();
+  const point = event.touches ? event.touches[0] : event;
+
+  isChatDragging = true;
+  chatDragOffsetX = point.clientX - rect.left;
+  chatDragOffsetY = point.clientY - rect.top;
+  container.style.left = `${rect.left}px`;
+  container.style.top = `${rect.top}px`;
+  container.style.right = 'auto';
+  container.style.bottom = 'auto';
+  container.dataset.positioned = 'true';
+  document.body.style.userSelect = 'none';
+
+  event.preventDefault();
+}
+
+function dragChat(event) {
+  if (!isChatDragging) {
+    return;
+  }
+
+  const container = document.getElementById('chat-container');
+  const point = event.touches ? event.touches[0] : event;
+  const maxLeft = window.innerWidth - container.offsetWidth;
+  const maxTop = window.innerHeight - container.offsetHeight;
+  const nextLeft = Math.min(Math.max(0, point.clientX - chatDragOffsetX), Math.max(0, maxLeft));
+  const nextTop = Math.min(Math.max(0, point.clientY - chatDragOffsetY), Math.max(0, maxTop));
+
+  container.style.left = `${nextLeft}px`;
+  container.style.top = `${nextTop}px`;
+  event.preventDefault();
+}
+
+function stopChatDrag() {
+  if (!isChatDragging) {
+    return;
+  }
+
+  isChatDragging = false;
+  document.body.style.userSelect = '';
+}
+
+document.addEventListener('mousemove', dragChat);
+document.addEventListener('mouseup', stopChatDrag);
+document.addEventListener('touchmove', dragChat, { passive: false });
+document.addEventListener('touchend', stopChatDrag);
+
+async function loadChatMessages() {
+  if (!chatInitialized) return;
+  
+  try {
+    const db = firebase.firestore();
+    const messagesRef = db.collection('site_messages')
+      .orderBy('timestamp', 'asc')
+      .limit(50);
+    
+    messagesRef.onSnapshot(snapshot => {
+      const messagesDiv = document.getElementById('chat-messages');
+      messagesDiv.innerHTML = '';
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const messageDiv = document.createElement('div');
+        const isOwn = data.user === currentChatUser;
+        const hasImage = typeof data.imageData === 'string' && data.imageData !== '';
+        const safeCaption = data.message ? escapeHtml(data.message) : '';
+        
+        messageDiv.className = `chat-message ${isOwn ? 'own' : 'other'}`;
+        messageDiv.innerHTML = `
+          <div class="chat-message-user">${escapeHtml(data.user || 'unknown')}</div>
+          ${hasImage ? `<img class="chat-message-image" src="${data.imageData}" alt="Chat image" />` : ''}
+          ${safeCaption ? `<div class="chat-message-caption">${safeCaption}</div>` : ''}
+        `;
+        messagesDiv.appendChild(messageDiv);
+      });
+      
+      // Scroll to bottom
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    });
+  } catch (err) {
+    console.error("Error loading messages:", err);
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-message-input');
+  const message = input.value.trim();
+  
+  if (!message) return;
+  if (!chatInitialized) {
+    alert('Chat not initialized. Please refresh the page.');
+    return;
+  }
+  
+  try {
+    const db = firebase.firestore();
+    await db.collection('site_messages').add({
+      user: currentChatUser,
+      message: message,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    input.value = '';
+    input.focus();
+  } catch (err) {
+    console.error("Error sending message:", err);
+    alert('Failed to send message: ' + err.message);
+  }
+}
+
+async function handleChatImageSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  const captionInput = document.getElementById('chat-message-input');
+  const caption = captionInput.value.trim();
+
+  if (!file) {
+    return;
+  }
+
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file.');
+    return;
+  }
+
+  if (!chatInitialized) {
+    alert('Chat not initialized. Please refresh the page.');
+    return;
+  }
+
+  try {
+    const imageData = await compressChatImage(file);
+    const db = firebase.firestore();
+    await db.collection('site_messages').add({
+      user: currentChatUser,
+      message: caption,
+      imageData,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    captionInput.value = '';
+    captionInput.focus();
+  } catch (err) {
+    console.error('Error sending image:', err);
+    alert(err.message || 'Failed to send image.');
+  }
+}
+
+function compressChatImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        let width = image.width;
+        let height = image.height;
+        const scale = Math.min(
+          1,
+          CHAT_IMAGE_MAX_WIDTH / width,
+          CHAT_IMAGE_MAX_HEIGHT / height
+        );
+
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+          reject(new Error('Could not process image.'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0, width, height);
+
+        let dataUrl = canvas.toDataURL('image/jpeg', CHAT_IMAGE_QUALITY);
+        if (dataUrl.length > CHAT_IMAGE_SIZE_LIMIT) {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+        }
+
+        if (dataUrl.length > CHAT_IMAGE_SIZE_LIMIT) {
+          reject(new Error('Image is too large. Choose a smaller image.'));
+          return;
+        }
+
+        resolve(dataUrl);
+      };
+
+      image.onerror = () => reject(new Error('Could not read image.'));
+      image.src = reader.result;
+    };
+
+    reader.onerror = () => reject(new Error('Could not load file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
 
 </script>
 </body>
