@@ -449,45 +449,6 @@ text-transform: uppercase;
 letter-spacing: 0.5px;
 }
 
-.cool-guy-tag {
-display: inline-block;
-background: #0288d1;
-color: #fff;
-font-size: 0.65rem;
-font-weight: bold;
-padding: 0.15rem 0.4rem;
-border-radius: 0.25rem;
-margin-left: 0.4rem;
-text-transform: uppercase;
-letter-spacing: 0.5px;
-}
-
-.dna-tag {
-display: inline-block;
-background: #e65100;
-color: #fff;
-font-size: 0.65rem;
-font-weight: bold;
-padding: 0.15rem 0.4rem;
-border-radius: 0.25rem;
-margin-left: 0.4rem;
-text-transform: uppercase;
-letter-spacing: 0.5px;
-}
-
-.femboy-tag {
-display: inline-block;
-background: #c2185b;
-color: #fff;
-font-size: 0.65rem;
-font-weight: bold;
-padding: 0.15rem 0.4rem;
-border-radius: 0.25rem;
-margin-left: 0.4rem;
-text-transform: uppercase;
-letter-spacing: 0.5px;
-}
-
 .party-action-row {
 display: flex;
 justify-content: center;
@@ -1203,7 +1164,6 @@ userList.appendChild(opt);
 <select id="admin-role-select" style="padding:0.5rem; border:none; border-radius:0.25rem;">
 <option value="cameronsbitch">Camerons's Bitch</option>
 <option value="chud">Chud</option>
-<option value="fact check">Fact Check</option>
 <option value="member">Member</option>
 <option value="helper">Helper</option>
 <option value="moderator">Moderator</option>
@@ -2108,12 +2068,12 @@ const games = [
 {name: '2v2.io', url: 'https://2v2.io'},
 {name: 'FNAF Launcher', url: 'https://irv77.github.io/FnafLauncher'},
 {name: 'Yoked', url: 'https://files.twoplayergames.org/files/games/o6/get-yoked/index.html'},
-{name: 'proxy', url: 'https://mathcalulator.b-cdn.net/games/game/?id=brotato'},
-{name: 'gamer', url: 'https://hope.takh.ee/g.html'},
-{name: 'gamers', url: 'https://forest.cautinvestitor.ro.cdn.cloudflare.net/'},
-{name: 'proxy', url: 'https://s3.amazonaws.com/lucidestatic/index.html#/'},
-{name: 'Beanwew', url: 'https://418x3tk5.beanweb.qzz.io.cdn.cloudflare.net/'},
-{name: 'Fernis', url: 'https://storage.googleapis.com/fernisbest/index.html'},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
 {name: '', url: ''},
 {name: '', url: ''},
 {name: '', url: ''},
@@ -2339,7 +2299,6 @@ let chatUnreadCount = 0;
 let typingTimeout = null;
 let currentPinnedMessage = null;
 let roleCache = {};
-let mutedUsersCache = new Set();
 let currentProfileViewUser = '';
 let moderationSettings = {
 readOnlyMode: false,
@@ -2856,7 +2815,7 @@ return;
 const username = resolveAdminTargetUsername('admin-role-username');
 const role = normalizeUsername(document.getElementById('admin-role-select').value || 'member');
 const statusDiv = document.getElementById('admin-ban-status');
-const allowed = ['cameronsbitch','chud','fact check','member', 'helper', 'moderator', 'admin'];
+const allowed = ['cameronsbitch','chud','member', 'helper', 'moderator', 'admin'];
 if (!username) {
 statusDiv.textContent = 'Enter a username for role assignment.';
 return;
@@ -3016,13 +2975,10 @@ const rank = idx + 1;
 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
 const ownerTag = entry.username === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
 const bTag = entry.username === 'luca' ? '<span class="b-tag">BITCH</span>' : '';
-const coolGuyTag = entry.username === 'jeremy_wade' ? '<span class="cool-guy-tag">COOL GUY</span>' : '';
-const dnaTag = entry.username === 'jeremiahh' ? '<span class="dna-tag">DONT GIVE ADMIN</span>' : '';
-const femBoyTag = entry.username === 'goon_sauce' ? '<span class="femboy-tag">FEMBOY</span>' : '';
 const levelDisplay = entry.level;
 return `<div class="leaderboard-entry">
        <div class="leaderboard-rank">${medal}</div>
-       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}${bTag}${coolGuyTag}${dnaTag}${femBoyTag}</div>
+       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}${bTag}</div>
        <div class="leaderboard-level">LVL ${levelDisplay}</div>
        <div class="leaderboard-points">${entry.points.toLocaleString()} pts</div>
      </div>`;
@@ -3197,7 +3153,6 @@ loadOnlineUsers();
 loadTypingUsers();
 loadRoleCache();
 loadModerationSettings();
-listenForMutedUsers();
 listenForKick();
 listenForTimedBan();
 listenForPinnedMessage();
@@ -3621,14 +3576,11 @@ const pinBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" style="co
 messageDiv.className = `chat-message ${isSystem ? 'system' : (isOwn ? 'own' : 'other')}`;
 const ownerTag = !isSystem && data.user === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
 const bTag = !isSystem && data.user === 'luca' ? '<span class="b-tag">BITCH</span>' : '';
-const coolGuyTag = !isSystem && data.user === 'jeremy_wade' ? '<span class="cool-guy-tag">COOL GUY</span>' : '';
-const dnaTag = !isSystem && data.user === 'jeremiahh' ? '<span class="dna-tag">DONT GIVE ADMIN</span>' : '';
-const femBoyTag = !isSystem && data.user === 'goon_sauce' ? '<span class="femboy-tag">FEMBOY</span>' : '';
 const profileTarget = encodeURIComponent(normalizeUsername(data.user || 'unknown'));
 const nameColor = isSystem ? '' : (/^#[0-9a-fA-F]{3,8}$/.test(messageColor) ? messageColor : (isOwn ? '#1565c0' : '#5f6368'));
 messageDiv.innerHTML = `
          ${replyHtml}
-         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}${bTag}${coolGuyTag}${dnaTag}${femBoyTag}</div>`}
+         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}${bTag}</div>`}
          ${hasImage ? `<img class="chat-message-image" src="${data.imageData}" alt="Chat image" />` : ''}
          ${hasVideo ? `<video class="chat-message-video" src="${data.videoData}" controls preload="metadata"></video>` : ''}
          ${hasGif ? `<img class="chat-message-image" src="${escapeHtml(data.gifUrl)}" alt="GIF" />` : ''}
@@ -4094,7 +4046,7 @@ db.collection('user_presence').onSnapshot(snapshot => {
 const now = Date.now();
 const onlineUsers = [];
 snapshot.forEach(doc => {
-const data = doc.data({ serverTimestamps: 'estimate' });
+const data = doc.data();
 if (data.online && data.lastSeen) {
 const lastSeen = data.lastSeen.toDate ? data.lastSeen.toDate().getTime() : 0;
 if (now - lastSeen < 45000) onlineUsers.push(doc.id);
@@ -4174,21 +4126,15 @@ statusDiv.textContent = 'Failed to unmute user.';
 }
 }
 
-function listenForMutedUsers() {
-if (!chatInitialized) return;
-const db = firebase.firestore();
-db.collection('muted_users').onSnapshot(snapshot => {
-mutedUsersCache = new Set();
-snapshot.forEach(doc => {
-if (doc.data().muted === true) mutedUsersCache.add(doc.id);
-});
-});
-}
-
 async function isUserMuted(username) {
 if (isProtectedUsername(username)) return false;
-const key = normalizeUsername(username);
-return key ? mutedUsersCache.has(key) : false;
+try {
+const db = firebase.firestore();
+const doc = await db.collection('muted_users').doc(username).get();
+return doc.exists && doc.data().muted === true;
+} catch (err) {
+return false;
+}
 }
 
 async function postSystemNotice(text) {
@@ -4286,12 +4232,11 @@ function listenForKick() {
 if (!chatInitialized || !currentChatUser) return;
 if (isProtectedUsername(currentChatUser)) return;
 const db = firebase.firestore();
-const kickRef = db.collection('kicked_users').doc(currentChatUser);
-kickRef.onSnapshot(doc => {
+db.collection('kicked_users').doc(currentChatUser).onSnapshot(doc => {
 if (doc.exists && doc.data().kicked === true) {
 alert('You have been kicked from the chat by an admin.');
 localStorage.removeItem('userName');
-kickRef.delete().catch(() => {}).finally(() => { location.reload(); });
+location.reload();
 }
 });
 }
