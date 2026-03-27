@@ -1572,6 +1572,7 @@ const ADMIN_USERS = ['kaiden', ''];
 const OWNER_USERS = ['kaiden'];
 const PROTECTED_USERNAMES = ['kaiden'];
 const USER_STATS_STORAGE_KEY = 'site_user_stats_v1';
+const USER_STATS_COLLECTION = 'user_stats';
 const UPDATE_NOTES_DOC_ID = 'update_notes';
 const MOD_SETTINGS_DOC_ID = 'mod_settings';
 const USER_ROLES_COLLECTION = 'user_roles';
@@ -2313,6 +2314,13 @@ function saveStatsStore(store) {
 localStorage.setItem(USER_STATS_STORAGE_KEY, JSON.stringify(store));
 }
 
+function pushUserStatsToFirestore(userKey, stats) {
+try {
+const db = firebase.firestore();
+db.collection(USER_STATS_COLLECTION).doc(userKey).set(stats, { merge: true }).catch(() => {});
+} catch (e) {}
+}
+
 function getStatsUserKey() {
 return (currentChatUser || getUserName() || '').trim().toLowerCase();
 }
@@ -2340,6 +2348,7 @@ const current = store[key] || getCurrentUserStats();
 current[stat] = (current[stat] || 0) + amount;
 store[key] = current;
 saveStatsStore(store);
+pushUserStatsToFirestore(key, current);
 renderProfileModal();
 }
 
@@ -2920,7 +2929,9 @@ const entriesDiv = document.getElementById('leaderboard-entries');
 if (!entriesDiv) return;
 try {
 const db = firebase.firestore();
-const allStats = getStatsStore();
+const snapshot = await db.collection(USER_STATS_COLLECTION).get();
+const allStats = {};
+snapshot.forEach(doc => { allStats[doc.id] = doc.data(); });
 const leaderboardData = Object.entries(allStats).map(([username, stats]) => {
 const { level, points } = calculateUserLevel(stats, username);
 return { username, level, points };
@@ -3162,6 +3173,7 @@ changed = true;
 if (changed) {
 store[userKey] = current;
 saveStatsStore(store);
+pushUserStatsToFirestore(userKey, current);
 }
 } catch (err) {
 console.error('Failed to backfill legacy message stats:', err);
