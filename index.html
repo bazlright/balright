@@ -449,6 +449,32 @@ text-transform: uppercase;
 letter-spacing: 0.5px;
 }
 
+.cool-guy-tag {
+display: inline-block;
+background: #0288d1;
+color: #fff;
+font-size: 0.65rem;
+font-weight: bold;
+padding: 0.15rem 0.4rem;
+border-radius: 0.25rem;
+margin-left: 0.4rem;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
+
+.dna-tag {
+display: inline-block;
+background: #e65100;
+color: #fff;
+font-size: 0.65rem;
+font-weight: bold;
+padding: 0.15rem 0.4rem;
+border-radius: 0.25rem;
+margin-left: 0.4rem;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
+
 .party-action-row {
 display: flex;
 justify-content: center;
@@ -1164,6 +1190,7 @@ userList.appendChild(opt);
 <select id="admin-role-select" style="padding:0.5rem; border:none; border-radius:0.25rem;">
 <option value="cameronsbitch">Camerons's Bitch</option>
 <option value="chud">Chud</option>
+<option value="fact check">Fact Check</option>
 <option value="member">Member</option>
 <option value="helper">Helper</option>
 <option value="moderator">Moderator</option>
@@ -2815,7 +2842,7 @@ return;
 const username = resolveAdminTargetUsername('admin-role-username');
 const role = normalizeUsername(document.getElementById('admin-role-select').value || 'member');
 const statusDiv = document.getElementById('admin-ban-status');
-const allowed = ['cameronsbitch','chud','member', 'helper', 'moderator', 'admin'];
+const allowed = ['cameronsbitch','chud','fact check','member', 'helper', 'moderator', 'admin'];
 if (!username) {
 statusDiv.textContent = 'Enter a username for role assignment.';
 return;
@@ -2975,10 +3002,12 @@ const rank = idx + 1;
 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
 const ownerTag = entry.username === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
 const bTag = entry.username === 'luca' ? '<span class="b-tag">BITCH</span>' : '';
+const coolGuyTag = entry.username === 'fact_check' ? '<span class="cool-guy-tag">COOL GUY</span>' : '';
+const dnaTag = entry.username === 'jeremiah' ? '<span class="dna-tag">DONT GIVE ADMIN</span>' : '';
 const levelDisplay = entry.level;
 return `<div class="leaderboard-entry">
        <div class="leaderboard-rank">${medal}</div>
-       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}${bTag}</div>
+       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}${bTag}${coolGuyTag}${dnaTag}</div>
        <div class="leaderboard-level">LVL ${levelDisplay}</div>
        <div class="leaderboard-points">${entry.points.toLocaleString()} pts</div>
      </div>`;
@@ -3576,11 +3605,13 @@ const pinBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" style="co
 messageDiv.className = `chat-message ${isSystem ? 'system' : (isOwn ? 'own' : 'other')}`;
 const ownerTag = !isSystem && data.user === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
 const bTag = !isSystem && data.user === 'luca' ? '<span class="b-tag">BITCH</span>' : '';
+const coolGuyTag = !isSystem && data.user === 'fact_check' ? '<span class="cool-guy-tag">COOL GUY</span>' : '';
+const dnaTag = !isSystem && data.user === 'jeremiah' ? '<span class="dna-tag">DONT GIVE ADMIN</span>' : '';
 const profileTarget = encodeURIComponent(normalizeUsername(data.user || 'unknown'));
 const nameColor = isSystem ? '' : (/^#[0-9a-fA-F]{3,8}$/.test(messageColor) ? messageColor : (isOwn ? '#1565c0' : '#5f6368'));
 messageDiv.innerHTML = `
          ${replyHtml}
-         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}${bTag}</div>`}
+         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}${bTag}${coolGuyTag}${dnaTag}</div>`}
          ${hasImage ? `<img class="chat-message-image" src="${data.imageData}" alt="Chat image" />` : ''}
          ${hasVideo ? `<video class="chat-message-video" src="${data.videoData}" controls preload="metadata"></video>` : ''}
          ${hasGif ? `<img class="chat-message-image" src="${escapeHtml(data.gifUrl)}" alt="GIF" />` : ''}
