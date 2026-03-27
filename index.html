@@ -425,6 +425,19 @@ text-transform: uppercase;
 letter-spacing: 0.5px;
 }
 
+.b-tag {
+display: inline-block;
+background: #8b5cf6;
+color: #fff;
+font-size: 0.65rem;
+font-weight: bold;
+padding: 0.15rem 0.4rem;
+border-radius: 0.25rem;
+margin-left: 0.4rem;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
+
 .party-action-row {
 display: flex;
 justify-content: center;
@@ -450,14 +463,14 @@ font-size: 0.9rem;
 }
 
 .chat-message.own {
-background-color: #1565c0;
+background-color: #1e2124;
 color: #fff;
 align-self: flex-end;
 max-width: 80%;
 }
 
 .chat-message.other {
-background-color: #5f6368;
+background-color: #1e2124;
 color: #fff;
 align-self: flex-start;
 max-width: 80%;
@@ -509,7 +522,6 @@ padding: 0.05rem 0.35rem;
 font-weight: bold;
 font-size: 0.85rem;
 margin-bottom: 0.25rem;
-opacity: 0.9;
 }
 
 .chat-user-link {
@@ -2921,10 +2933,11 @@ entriesDiv.innerHTML = leaderboardData.map((entry, idx) => {
 const rank = idx + 1;
 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
 const ownerTag = entry.username === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
+const bTag = entry.username === 'lukas' ? '<span class="b-tag">B</span>' : '';
 const levelDisplay = entry.level;
 return `<div class="leaderboard-entry">
        <div class="leaderboard-rank">${medal}</div>
-       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}</div>
+       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}${bTag}</div>
        <div class="leaderboard-level">LVL ${levelDisplay}</div>
        <div class="leaderboard-points">${entry.points.toLocaleString()} pts</div>
      </div>`;
@@ -3472,12 +3485,13 @@ const deleteBtn = isAdmin ? `<button class="chat-action-btn" style="color:#ff8a8
 const pinBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" style="color:#ffca28;" onclick="pinMessage('${docId}')">📌 Pin</button>` : '';
 
 messageDiv.className = `chat-message ${isSystem ? 'system' : (isOwn ? 'own' : 'other')}`;
-messageDiv.style.backgroundColor = messageColor;
 const ownerTag = !isSystem && data.user === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
+const bTag = !isSystem && data.user === 'lukas' ? '<span class="b-tag">B</span>' : '';
 const profileTarget = encodeURIComponent(normalizeUsername(data.user || 'unknown'));
+const nameColor = isSystem ? '' : (/^#[0-9a-fA-F]{3,8}$/.test(messageColor) ? messageColor : (isOwn ? '#1565c0' : '#5f6368'));
 messageDiv.innerHTML = `
          ${replyHtml}
-         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}</div>`}
+         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}${bTag}</div>`}
          ${hasImage ? `<img class="chat-message-image" src="${data.imageData}" alt="Chat image" />` : ''}
          ${hasVideo ? `<video class="chat-message-video" src="${data.videoData}" controls preload="metadata"></video>` : ''}
          ${hasGif ? `<img class="chat-message-image" src="${escapeHtml(data.gifUrl)}" alt="GIF" />` : ''}
