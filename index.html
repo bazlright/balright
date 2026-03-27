@@ -2933,7 +2933,7 @@ entriesDiv.innerHTML = leaderboardData.map((entry, idx) => {
 const rank = idx + 1;
 const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
 const ownerTag = entry.username === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
-const bTag = entry.username === 'lukas' ? '<span class="b-tag">B</span>' : '';
+const bTag = entry.username === 'lukas' ? '<span class="b-tag">BITCH</span>' : '';
 const levelDisplay = entry.level;
 return `<div class="leaderboard-entry">
        <div class="leaderboard-rank">${medal}</div>
@@ -3486,7 +3486,7 @@ const pinBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" style="co
 
 messageDiv.className = `chat-message ${isSystem ? 'system' : (isOwn ? 'own' : 'other')}`;
 const ownerTag = !isSystem && data.user === 'kaiden' ? '<span class="owner-tag">OWNER</span>' : '';
-const bTag = !isSystem && data.user === 'lukas' ? '<span class="b-tag">B</span>' : '';
+const bTag = !isSystem && data.user === 'lukas' ? '<span class="b-tag">BITCH</span>' : '';
 const profileTarget = encodeURIComponent(normalizeUsername(data.user || 'unknown'));
 const nameColor = isSystem ? '' : (/^#[0-9a-fA-F]{3,8}$/.test(messageColor) ? messageColor : (isOwn ? '#1565c0' : '#5f6368'));
 messageDiv.innerHTML = `
