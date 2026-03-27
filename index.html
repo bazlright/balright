@@ -475,6 +475,19 @@ text-transform: uppercase;
 letter-spacing: 0.5px;
 }
 
+.femboy-tag {
+display: inline-block;
+background: #c2185b;
+color: #fff;
+font-size: 0.65rem;
+font-weight: bold;
+padding: 0.15rem 0.4rem;
+border-radius: 0.25rem;
+margin-left: 0.4rem;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
+
 .party-action-row {
 display: flex;
 justify-content: center;
@@ -3004,10 +3017,11 @@ const ownerTag = entry.username === 'kaiden' ? '<span class="owner-tag">OWNER</s
 const bTag = entry.username === 'luca' ? '<span class="b-tag">BITCH</span>' : '';
 const coolGuyTag = entry.username === 'fact_check' ? '<span class="cool-guy-tag">COOL GUY</span>' : '';
 const dnaTag = entry.username === 'jeremiah' ? '<span class="dna-tag">DONT GIVE ADMIN</span>' : '';
+const femBoyTag = entry.username === 'goon_sauce' ? '<span class="femboy-tag">FEMBOY</span>' : '';
 const levelDisplay = entry.level;
 return `<div class="leaderboard-entry">
        <div class="leaderboard-rank">${medal}</div>
-       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}${bTag}${coolGuyTag}${dnaTag}</div>
+       <div class="leaderboard-username">${escapeHtml(entry.username)}${ownerTag}${bTag}${coolGuyTag}${dnaTag}${femBoyTag}</div>
        <div class="leaderboard-level">LVL ${levelDisplay}</div>
        <div class="leaderboard-points">${entry.points.toLocaleString()} pts</div>
      </div>`;
@@ -3607,11 +3621,12 @@ const ownerTag = !isSystem && data.user === 'kaiden' ? '<span class="owner-tag">
 const bTag = !isSystem && data.user === 'luca' ? '<span class="b-tag">BITCH</span>' : '';
 const coolGuyTag = !isSystem && data.user === 'fact_check' ? '<span class="cool-guy-tag">COOL GUY</span>' : '';
 const dnaTag = !isSystem && data.user === 'jeremiah' ? '<span class="dna-tag">DONT GIVE ADMIN</span>' : '';
+const femBoyTag = !isSystem && data.user === 'goon_sauce' ? '<span class="femboy-tag">FEMBOY</span>' : '';
 const profileTarget = encodeURIComponent(normalizeUsername(data.user || 'unknown'));
 const nameColor = isSystem ? '' : (/^#[0-9a-fA-F]{3,8}$/.test(messageColor) ? messageColor : (isOwn ? '#1565c0' : '#5f6368'));
 messageDiv.innerHTML = `
          ${replyHtml}
-         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}${bTag}${coolGuyTag}${dnaTag}</div>`}
+         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${escapeHtml(data.user || 'unknown')}${ownerTag}${bTag}${coolGuyTag}${dnaTag}${femBoyTag}</div>`}
          ${hasImage ? `<img class="chat-message-image" src="${data.imageData}" alt="Chat image" />` : ''}
          ${hasVideo ? `<video class="chat-message-video" src="${data.videoData}" controls preload="metadata"></video>` : ''}
          ${hasGif ? `<img class="chat-message-image" src="${escapeHtml(data.gifUrl)}" alt="GIF" />` : ''}
