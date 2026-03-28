@@ -3451,6 +3451,43 @@ localStorage.removeItem('lastGlobalAlertKey');
 } catch (err) {}
 }
 
+function getGlobalAlertStorageKey(text, updatedAtMs = 0) {
+const message = String(text || '').trim();
+if (!message) return '';
+const baseKey = `text:${message}`;
+const timestamp = Number(updatedAtMs) || 0;
+return timestamp > 0 ? `${baseKey}::${timestamp}` : baseKey;
+}
+
+function hasSeenGlobalAlert(text, updatedAtMs = 0) {
+const nextKey = getGlobalAlertStorageKey(text, updatedAtMs);
+if (!nextKey) return true;
+if (lastGlobalAlertKey === nextKey) return true;
+
+const baseKey = getGlobalAlertStorageKey(text, 0);
+const legacyBaseKey = String(text || '').trim();
+const legacyVersionedKey = legacyBaseKey && (Number(updatedAtMs) || 0) > 0 ? `${legacyBaseKey}::${Number(updatedAtMs) || 0}` : legacyBaseKey;
+if (!baseKey) return true;
+
+if (lastGlobalAlertKey === legacyVersionedKey || lastGlobalAlertKey === legacyBaseKey) {
+return true;
+}
+
+if (!updatedAtMs && lastGlobalAlertKey.startsWith(`${baseKey}::`)) {
+return true;
+}
+
+if (!updatedAtMs && legacyBaseKey && lastGlobalAlertKey.startsWith(`${legacyBaseKey}::`)) {
+return true;
+}
+
+if (updatedAtMs && lastGlobalAlertKey === baseKey) {
+return true;
+}
+
+return false;
+}
+
 function showGlobalAlertNotification(text, durationSeconds = 10) {
 const notification = document.getElementById('global-alert-notification');
 const textEl = document.getElementById('global-alert-text');
@@ -5442,8 +5479,8 @@ const alertDurationSeconds = Math.max(2, Math.min(30, parseInt(data.globalAlertD
 const alertUpdatedAt = data.globalAlertUpdatedAt && typeof data.globalAlertUpdatedAt.toDate === 'function'
 ? data.globalAlertUpdatedAt.toDate().getTime()
 : 0;
-const nextAlertKey = alertText ? `${alertText}::${alertUpdatedAt}` : '';
-if (nextAlertKey && nextAlertKey !== lastGlobalAlertKey) {
+const nextAlertKey = getGlobalAlertStorageKey(alertText, alertUpdatedAt);
+if (nextAlertKey && !hasSeenGlobalAlert(alertText, alertUpdatedAt)) {
 showGlobalAlertNotification(alertText, alertDurationSeconds);
 setLastSeenGlobalAlertKey(nextAlertKey);
 }
