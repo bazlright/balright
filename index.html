@@ -2237,6 +2237,16 @@ userList.appendChild(opt);
 <div id="admin-report-queue" style="margin-top:0.6rem; max-height:220px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.5rem; color:#ddd; font-size:0.82rem;"></div>
 </div>
 
+<div class="admin-section-card" data-admin-scope="moderator">
+<div class="admin-section-title">User History</div>
+<input type="text" id="admin-history-username" placeholder="Username to inspect" style="padding:0.5rem; border:none; border-radius:0.25rem;" />
+<div class="admin-button-row">
+<button onclick="loadAdminUserHistory()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Load History</button>
+<button onclick="copySelectedUserToHistory()" style="padding:0.45rem 0.8rem; background:#37474f; color:#fff; border:none; border-radius:0.25rem;">Use Selected User</button>
+</div>
+<div id="admin-user-history" style="margin-top:0.6rem; max-height:280px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.6rem; color:#ddd; font-size:0.82rem;"></div>
+</div>
+
 <div class="admin-section-card" data-admin-scope="admin">
 <div class="admin-section-title">Appeals</div>
 <button onclick="loadAppealsQueue()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Appeals</button>
@@ -2253,6 +2263,12 @@ userList.appendChild(opt);
 <div class="admin-section-title">Analytics</div>
 <button onclick="loadAdminAnalytics()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Analytics</button>
 <div id="admin-analytics-panel" style="margin-top:0.6rem; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.7rem; color:#ddd; font-size:0.82rem;"></div>
+</div>
+
+<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-title">Rooms</div>
+<button onclick="loadAdminRoomManager()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Rooms</button>
+<div id="admin-room-manager" style="margin-top:0.6rem; max-height:280px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.6rem; color:#ddd; font-size:0.82rem;"></div>
 </div>
 </div>
 
@@ -2324,6 +2340,7 @@ userList.appendChild(opt);
 </div>
 <div class="store-hero-actions">
 <button onclick="window.open('https://forms.gle/5CBgYQZ6VzrFKS3Y9','_blank')">Suggest a Game</button>
+<button onclick="openCustomUrlModal()">Open URL</button>
 <button class="store-hero-button-secondary" onclick="openUpdateNotesModal()">Update Notes</button>
 </div>
 </div>
@@ -2585,6 +2602,8 @@ userList.appendChild(opt);
 <label for="chat-room-select" style="font-size:0.76rem; color:#b0bec5;">Room</label>
 <select id="chat-room-select" class="chat-room-select" onchange="changeChatRoom(this.value)"></select>
 <button onclick="openCreateRoomModal()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">New Room</button>
+<button id="edit-room-btn" onclick="openEditRoomModal()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#424242; color:#fff; border:none; border-radius:0.35rem; display:none;">Edit Room</button>
+<button id="delete-room-btn" onclick="deleteCurrentRoom()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#8e0000; color:#fff; border:none; border-radius:0.35rem; display:none;">Delete Room</button>
 </div>
 </div>
 </div>
@@ -2724,10 +2743,10 @@ oninput="onChatInput()"
 <div id="create-room-modal" class="overlay-modal" onclick="if(event.target===this)closeCreateRoomModal()">
 <div class="overlay-panel">
 <div class="overlay-header">
-<h3>Create Room</h3>
+<h3 id="create-room-modal-title">Create Room</h3>
 <button onclick="closeCreateRoomModal()" style="padding:0.35rem 0.7rem;">Close</button>
 </div>
-<div class="overlay-subtle">General stays public for everyone. Create a new room and either open it to everyone or only specific usernames.</div>
+<div id="create-room-modal-subtle" class="overlay-subtle">General stays public for everyone. Create a new room and either open it to everyone or only specific usernames.</div>
 <div class="overlay-field">
 <label for="create-room-name">Room name</label>
 <input id="create-room-name" type="text" maxlength="32" placeholder="Movie night" />
@@ -2749,9 +2768,28 @@ oninput="onChatInput()"
 </div>
 <div class="overlay-actions">
 <button onclick="closeCreateRoomModal()" style="background:#444; color:#fff;">Cancel</button>
-<button onclick="submitCreateRoom()" style="background:#1565c0; color:#fff;">Create Room</button>
+<button id="create-room-submit-btn" onclick="submitCreateRoom()" style="background:#1565c0; color:#fff;">Create Room</button>
 </div>
 <div id="create-room-status" class="overlay-status"></div>
+</div>
+</div>
+
+<div id="custom-url-modal" class="overlay-modal" onclick="if(event.target===this)closeCustomUrlModal()">
+<div class="overlay-panel">
+<div class="overlay-header">
+<h3>Open URL</h3>
+<button onclick="closeCustomUrlModal()" style="padding:0.35rem 0.7rem;">Close</button>
+</div>
+<div class="overlay-subtle">Paste a full URL to open it in the fullscreen iframe. Some sites may block embeds.</div>
+<div class="overlay-field">
+<label for="custom-url-input">URL</label>
+<input id="custom-url-input" type="text" maxlength="500" placeholder="https://example.com" onkeydown="if(event.key==='Enter')submitCustomUrlModal()" />
+</div>
+<div class="overlay-actions">
+<button onclick="closeCustomUrlModal()" style="background:#444; color:#fff;">Cancel</button>
+<button onclick="submitCustomUrlModal()" style="background:#1565c0; color:#fff;">Open</button>
+</div>
+<div id="custom-url-status" class="overlay-status"></div>
 </div>
 </div>
 
@@ -3087,12 +3125,20 @@ const targetIds = [
 'admin-kick-username',
 'admin-warn-username',
 'admin-tempban-username',
-'admin-role-username'
+'admin-role-username',
+'admin-history-username'
 ];
 targetIds.forEach((id) => {
 const el = document.getElementById(id);
 if (el) el.value = selected;
 });
+}
+
+function copySelectedUserToHistory() {
+const selected = getSelectedAdminUser();
+const input = document.getElementById('admin-history-username');
+if (input) input.value = selected;
+if (selected) loadAdminUserHistory(selected);
 }
 
 function resolveAdminTargetUsername(primaryInputId) {
@@ -3115,6 +3161,7 @@ loadMessageReports();
 loadAppealsQueue();
 loadAuditLogs();
 loadAdminAnalytics();
+loadAdminRoomManager();
 document.getElementById('admin-menu').style.display = 'flex';
 }
 function closeAdminMenu() {
@@ -4146,10 +4193,68 @@ const gameIframe = document.getElementById('game-iframe');
 const refreshBtn = document.getElementById('refresh-btn');
 const closeBtn = document.getElementById('close-btn');
 let currentGameIdx = null;
+let currentCustomIframeUrl = '';
+
+function normalizeIframeUrl(value) {
+const raw = String(value || '').trim();
+if (!raw) return '';
+const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+try {
+const parsed = new URL(withProtocol);
+if (!/^https?:$/i.test(parsed.protocol)) return '';
+return parsed.toString();
+} catch (err) {
+return '';
+}
+}
+
+function openCustomUrlModal() {
+const input = document.getElementById('custom-url-input');
+const status = document.getElementById('custom-url-status');
+if (status) status.textContent = '';
+if (input) input.value = currentCustomIframeUrl || '';
+openModalById('custom-url-modal');
+if (input) setTimeout(() => input.focus(), 50);
+}
+
+function closeCustomUrlModal() {
+const status = document.getElementById('custom-url-status');
+if (status) status.textContent = '';
+closeModalById('custom-url-modal');
+}
+
+function openCustomUrlInIframe(url) {
+const nextUrl = normalizeIframeUrl(url);
+if (!nextUrl) return false;
+currentGameIdx = null;
+currentCustomIframeUrl = nextUrl;
+gameIframe.src = nextUrl;
+iframeContainer.style.display = 'flex';
+document.body.style.overflow = 'hidden';
+refreshBtn.style.display = 'inline-block';
+closeBtn.style.display = 'inline-block';
+return true;
+}
+
+function submitCustomUrlModal() {
+const input = document.getElementById('custom-url-input');
+const status = document.getElementById('custom-url-status');
+const nextUrl = normalizeIframeUrl(input ? input.value : '');
+if (!nextUrl) {
+if (status) status.textContent = 'Enter a valid http or https URL.';
+return;
+}
+if (!openCustomUrlInIframe(nextUrl)) {
+if (status) status.textContent = 'Could not open that URL.';
+return;
+}
+closeCustomUrlModal();
+}
 
 function openGame(idx) {
 if (!games[idx] || !games[idx].url) return;
 currentGameIdx = idx;
+currentCustomIframeUrl = '';
 gameIframe.src = games[idx].url;
 iframeContainer.style.display = 'flex';
 document.body.style.overflow = 'hidden';
@@ -4163,6 +4268,7 @@ gameIframe.src = '';
 iframeContainer.style.display = 'none';
 document.body.style.overflow = 'auto';
 currentGameIdx = null;
+currentCustomIframeUrl = '';
 refreshBtn.style.display = 'none';
 closeBtn.style.display = 'none';
 }
@@ -4170,6 +4276,10 @@ closeBtn.style.display = 'none';
 function refreshGame() {
 if (currentGameIdx !== null && games[currentGameIdx]) {
 gameIframe.src = games[currentGameIdx].url;
+return;
+}
+if (currentCustomIframeUrl) {
+gameIframe.src = currentCustomIframeUrl;
 }
 }
 
@@ -4444,6 +4554,7 @@ const CHAT_VIDEO_SIZE_LIMIT = 700000;
 const CHAT_ROOMS_COLLECTION = 'chat_rooms';
 let chatRoomsCache = {};
 let chatRoomsUnsub = null;
+let activeRoomEditorId = '';
 let chatSlowModeMs = DEFAULT_SLOW_MODE_SECONDS * 1000;
 const GIPHY_API_KEY = 'pvSwWmExkUp8gCMWWKoh8xYzGeexgOTN'; // Restrict this Giphy API key by domain in the Giphy developer console.
 // Note: API keys in client-side code are visible to users. Restrict your Giphy key by domain in the Giphy developer console.
@@ -4496,6 +4607,22 @@ members: []
 };
 }
 
+function getDefaultAdminRoom() {
+return {
+id: 'admin-room',
+name: 'Admin Room',
+description: 'Staff-only room for moderators, admins, and the owner.',
+isPublic: false,
+createdBy: 'system',
+members: []
+};
+}
+
+function isProtectedRoomId(roomId) {
+const normalizedId = normalizeUsername(roomId);
+return normalizedId === 'general' || normalizedId === 'admin-room';
+}
+
 function sanitizeRoomName(value) {
 return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 32);
 }
@@ -4512,11 +4639,12 @@ return (normalized || 'room').slice(0, 36);
 function buildChatRoomConfig(roomId, raw = {}) {
 const fallback = getDefaultGeneralRoom();
 const id = normalizeUsername(roomId) || fallback.id;
+const protectedDefaults = id === 'admin-room' ? getDefaultAdminRoom() : fallback;
 return {
 id,
-name: sanitizeRoomName(raw.name || (id === 'general' ? fallback.name : roomId)) || fallback.name,
-description: sanitizeRoomDescription(raw.description || (id === 'general' ? fallback.description : 'Custom chat room')),
-isPublic: id === 'general' ? true : raw.isPublic !== false,
+name: sanitizeRoomName(raw.name || ((id === 'general' || id === 'admin-room') ? protectedDefaults.name : roomId)) || protectedDefaults.name,
+description: sanitizeRoomDescription(raw.description || ((id === 'general' || id === 'admin-room') ? protectedDefaults.description : 'Custom chat room')),
+isPublic: id === 'general' ? true : (id === 'admin-room' ? false : raw.isPublic !== false),
 createdBy: normalizeUsername(raw.createdBy || ''),
 members: Array.isArray(raw.members) ? raw.members.map(normalizeUsername).filter(Boolean) : []
 };
@@ -4526,17 +4654,30 @@ function canAccessRoom(room, username = currentChatUser) {
 const targetRoom = buildChatRoomConfig(room && room.id ? room.id : 'general', room || {});
 const me = normalizeUsername(username);
 if (targetRoom.id === 'general') return true;
+if (targetRoom.id === 'admin-room') return getRoleRank(getUserRole(me)) >= 2;
 if (canAdminSettings(me)) return true;
 if (targetRoom.isPublic) return true;
 if (!me) return false;
 return targetRoom.createdBy === me || targetRoom.members.includes(me);
 }
 
+function canManageRoom(room, username = currentChatUser) {
+const targetRoom = buildChatRoomConfig(room && room.id ? room.id : 'general', room || {});
+const me = normalizeUsername(username);
+if (!me) return false;
+if (targetRoom.id === 'general') return getUserRole(me) === 'owner';
+if (targetRoom.id === 'admin-room') return getUserRole(me) === 'owner';
+if (canAdminSettings(me)) return true;
+return targetRoom.createdBy === me;
+}
+
 function getAllChatRooms() {
-const merged = { general: getDefaultGeneralRoom(), ...chatRoomsCache };
+const merged = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom(), ...chatRoomsCache };
 return Object.values(merged).map((room) => buildChatRoomConfig(room.id, room)).sort((a, b) => {
 if (a.id === 'general') return -1;
 if (b.id === 'general') return 1;
+if (a.id === 'admin-room') return -1;
+if (b.id === 'admin-room') return 1;
 return a.name.localeCompare(b.name);
 });
 }
@@ -4547,12 +4688,15 @@ return getAllChatRooms().filter((room) => canAccessRoom(room, username));
 
 function getChatRoomConfig(roomId) {
 const normalizedId = normalizeUsername(roomId) || 'general';
-const merged = { general: getDefaultGeneralRoom(), ...chatRoomsCache };
+const merged = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom(), ...chatRoomsCache };
 if (merged[normalizedId]) {
 return buildChatRoomConfig(normalizedId, merged[normalizedId]);
 }
 if (normalizedId === 'general') {
 return getDefaultGeneralRoom();
+}
+if (normalizedId === 'admin-room') {
+return getDefaultAdminRoom();
 }
 return buildChatRoomConfig(normalizedId, {
 name: normalizedId.replace(/-/g, ' '),
@@ -4571,12 +4715,20 @@ select.innerHTML = rooms.map((room) => `<option value="${escapeHtml(room.id)}">$
 function renderChatRoomSummary() {
 const summary = document.getElementById('chat-room-summary');
 const select = document.getElementById('chat-room-select');
+const editButton = document.getElementById('edit-room-btn');
+const deleteButton = document.getElementById('delete-room-btn');
 const room = getChatRoomConfig(currentChatRoom);
 renderChatRoomOptions();
 if (select) select.value = room.id;
+const canManageCurrentRoom = canManageRoom(room);
+const canDeleteCurrentRoom = canManageCurrentRoom && !isProtectedRoomId(room.id);
+if (editButton) editButton.style.display = canManageCurrentRoom ? 'inline-flex' : 'none';
+if (deleteButton) deleteButton.style.display = canDeleteCurrentRoom ? 'inline-flex' : 'none';
 if (summary) {
 const summaryParts = room.id === 'general'
 ? ['General room']
+: room.id === 'admin-room'
+? ['Admin room', 'Staff only']
 : [room.name, room.isPublic ? 'Public room' : 'Private room'];
 if (room.id !== 'general' && room.description) {
 summaryParts.push(room.description);
@@ -4631,17 +4783,51 @@ const name = document.getElementById('create-room-name');
 const description = document.getElementById('create-room-description');
 const members = document.getElementById('create-room-members');
 const privacy = document.getElementById('create-room-privacy');
+const title = document.getElementById('create-room-modal-title');
+const subtle = document.getElementById('create-room-modal-subtle');
+const submitButton = document.getElementById('create-room-submit-btn');
+activeRoomEditorId = '';
 if (status) status.textContent = '';
 if (name) name.value = '';
 if (description) description.value = '';
 if (members) members.value = '';
 if (privacy) privacy.value = 'public';
+if (title) title.textContent = 'Create Room';
+if (subtle) subtle.textContent = 'General stays public for everyone. Admin Room is staff-only. Create a new room and either open it to everyone or only specific usernames.';
+if (submitButton) submitButton.textContent = 'Create Room';
+updateCreateRoomMembersVisibility();
+openModalById('create-room-modal');
+if (name) setTimeout(() => name.focus(), 50);
+}
+
+function openEditRoomModal(encodedRoomId = '') {
+const status = document.getElementById('create-room-status');
+const name = document.getElementById('create-room-name');
+const description = document.getElementById('create-room-description');
+const members = document.getElementById('create-room-members');
+const privacy = document.getElementById('create-room-privacy');
+const title = document.getElementById('create-room-modal-title');
+const subtle = document.getElementById('create-room-modal-subtle');
+const submitButton = document.getElementById('create-room-submit-btn');
+const requestedRoomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
+const room = getChatRoomConfig(requestedRoomId || currentChatRoom);
+if (!canManageRoom(room)) return;
+activeRoomEditorId = room.id;
+if (status) status.textContent = '';
+if (name) name.value = room.name;
+if (description) description.value = room.description === 'Custom chat room' ? '' : room.description;
+if (members) members.value = room.members.filter(member => member !== room.createdBy).join(', ');
+if (privacy) privacy.value = room.isPublic ? 'public' : 'private';
+if (title) title.textContent = 'Edit Room';
+if (subtle) subtle.textContent = 'Update the room name, description, or who can join.';
+if (submitButton) submitButton.textContent = 'Save Room';
 updateCreateRoomMembersVisibility();
 openModalById('create-room-modal');
 if (name) setTimeout(() => name.focus(), 50);
 }
 
 function closeCreateRoomModal() {
+activeRoomEditorId = '';
 closeModalById('create-room-modal');
 }
 
@@ -4650,7 +4836,7 @@ try {
 const db = getAdminDb();
 if (chatRoomsUnsub) chatRoomsUnsub();
 chatRoomsUnsub = db.collection(CHAT_ROOMS_COLLECTION).onSnapshot((snapshot) => {
-const next = { general: getDefaultGeneralRoom() };
+const next = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom() };
 snapshot.forEach((doc) => {
 next[normalizeUsername(doc.id)] = buildChatRoomConfig(doc.id, doc.data() || {});
 });
@@ -4661,11 +4847,17 @@ currentChatRoom = 'general';
 localStorage.setItem('chatRoom', currentChatRoom);
 }
 renderChatRoomSummary();
+if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canAdminSettings(currentChatUser)) {
+loadAdminRoomManager();
+}
 if (chatInitialized) loadChatMessages();
 });
 } catch (err) {
-chatRoomsCache = { general: getDefaultGeneralRoom() };
+chatRoomsCache = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom() };
 renderChatRoomSummary();
+if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canAdminSettings(currentChatUser)) {
+loadAdminRoomManager();
+}
 }
 }
 
@@ -4681,29 +4873,69 @@ const name = sanitizeRoomName(nameEl.value);
 const description = sanitizeRoomDescription(descriptionEl.value);
 const isPublic = privacyEl.value !== 'private';
 const requestedMembers = membersEl.value.split(',').map(normalizeUsername).filter(Boolean);
-const memberSet = new Set([me, ...requestedMembers]);
 if (!name) {
 statusEl.textContent = 'Enter a room name.';
 return;
 }
+const isEditing = !!activeRoomEditorId;
+const roomId = isEditing ? activeRoomEditorId : (() => {
 const baseId = normalizeRoomId(name);
-const roomId = baseId === 'general' ? `room-${Date.now()}` : `${baseId}-${Date.now().toString().slice(-5)}`;
+return isProtectedRoomId(baseId) ? `room-${Date.now()}` : `${baseId}-${Date.now().toString().slice(-5)}`;
+})();
 try {
 const db = getAdminDb();
-await db.collection(CHAT_ROOMS_COLLECTION).doc(roomId).set({
+const existingRoom = isEditing ? getChatRoomConfig(roomId) : null;
+if (isEditing) {
+if (!canManageRoom(existingRoom, me)) {
+statusEl.textContent = 'You cannot edit this room.';
+return;
+}
+}
+const roomOwner = isEditing ? normalizeUsername(existingRoom.createdBy || '') || me : me;
+const memberSet = new Set([roomOwner, me, ...requestedMembers]);
+const payload = {
 name,
 description: description || 'Custom chat room',
 isPublic,
 members: Array.from(memberSet),
-createdBy: me,
-createdAt: firebase.firestore.FieldValue.serverTimestamp()
-}, { merge: true });
+createdBy: roomOwner,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+};
+if (!isEditing) {
+payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+}
+await db.collection(CHAT_ROOMS_COLLECTION).doc(roomId).set(payload, { merge: true });
 currentChatRoom = roomId;
 localStorage.setItem('chatRoom', currentChatRoom);
 closeCreateRoomModal();
+if (canAdminSettings(currentChatUser)) loadAdminRoomManager();
 loadChatMessages();
 } catch (err) {
-statusEl.textContent = 'Failed to create room.';
+statusEl.textContent = isEditing ? 'Failed to update room.' : 'Failed to create room.';
+}
+}
+
+async function deleteCurrentRoom(encodedRoomId = '') {
+const requestedRoomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
+const room = getChatRoomConfig(requestedRoomId || currentChatRoom);
+const me = normalizeUsername(currentChatUser);
+if (!canManageRoom(room, me)) return;
+if (isProtectedRoomId(room.id)) {
+alert(`${room.name} cannot be deleted.`);
+return;
+}
+if (!confirm(`Delete the room "${room.name}"?`)) return;
+try {
+const db = getAdminDb();
+await db.collection(CHAT_ROOMS_COLLECTION).doc(room.id).delete();
+currentChatRoom = 'general';
+localStorage.setItem('chatRoom', currentChatRoom);
+clearReply();
+renderChatRoomSummary();
+if (canAdminSettings(currentChatUser)) loadAdminRoomManager();
+loadChatMessages();
+} catch (err) {
+alert('Failed to delete room.');
 }
 }
 
@@ -5700,6 +5932,196 @@ container.textContent = 'Failed to load analytics.';
 }
 }
 
+async function loadAdminUserHistory(targetUsername = '') {
+const container = document.getElementById('admin-user-history');
+if (!container) return;
+if (!canModerate(currentChatUser)) {
+container.textContent = 'Insufficient permissions.';
+return;
+}
+const username = normalizeUsername(targetUsername || resolveAdminTargetUsername('admin-history-username'));
+if (!username) {
+container.textContent = 'Enter a username to inspect.';
+return;
+}
+const input = document.getElementById('admin-history-username');
+if (input) input.value = username;
+container.textContent = 'Loading user history...';
+try {
+const db = getAdminDb();
+const primaryDb = firebase.firestore();
+const [
+messagesSnapshot,
+reportsSnapshot,
+appealsSnapshot,
+auditSnapshot,
+warningsDoc,
+strikesDoc,
+flagsDoc,
+stats,
+muteInfo,
+timedBanInfo
+] = await Promise.all([
+primaryDb.collection('site_messages').orderBy('timestamp', 'desc').limit(250).get(),
+db.collection(MESSAGE_REPORTS_COLLECTION).orderBy('reportedAt', 'desc').limit(120).get(),
+db.collection(APPEALS_COLLECTION).orderBy('submittedAt', 'desc').limit(120).get(),
+db.collection(AUDIT_LOG_COLLECTION).orderBy('at', 'desc').limit(160).get(),
+db.collection(USER_WARNINGS_COLLECTION).doc(username).get(),
+db.collection(USER_STRIKES_COLLECTION).doc(username).get(),
+db.collection(USER_FLAGS_COLLECTION).doc(username).get(),
+fetchStatsFromFirestore(username),
+getActiveMuteInfo(username),
+getActiveTimedBan(username)
+]);
+
+const recentMessages = messagesSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.user) === username)
+  .slice(0, 12);
+const reportsAbout = reportsSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.reportedUser) === username)
+  .slice(0, 8);
+const reportsBy = reportsSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.reportedBy) === username)
+  .slice(0, 6);
+const appeals = appealsSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.username) === username)
+  .slice(0, 6);
+const auditEntries = auditSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.target) === username || normalizeUsername(item.by) === username)
+  .slice(0, 10);
+
+const warningData = warningsDoc.exists ? (warningsDoc.data() || {}) : {};
+const strikeData = strikesDoc.exists ? (strikesDoc.data() || {}) : {};
+const flagData = flagsDoc.exists ? (flagsDoc.data() || {}) : {};
+const role = getUserRole(username);
+const warningCount = parseInt(warningData.count, 10) || 0;
+const strikeCount = parseInt(strikeData.count, 10) || 0;
+const trusted = !!flagData.trusted;
+const offender = !!flagData.offender;
+const adminNote = sanitizeNullableText(flagData.note, '');
+const tagLabel = getUserProfileTagKey(username) ? PROFILE_TAGS[getUserProfileTagKey(username)].label : '';
+const muteLabel = muteInfo
+  ? `${sanitizeNullableText(muteInfo.reason, 'Muted')}${muteInfo.expiresAt ? ` • ${formatRemainingDuration(muteInfo.expiresAt.getTime() - Date.now())} left` : ' • permanent'}`
+  : 'Not muted';
+const tempBanLabel = timedBanInfo
+  ? `${sanitizeNullableText(timedBanInfo.reason, 'Temporary ban')} • ${formatRemainingDuration(timedBanInfo.expiresAt.getTime() - Date.now())} left`
+  : 'No active temp ban';
+const statsHtml = [
+  ['Messages', stats.messagesSent || 0],
+  ['Games', stats.gamesOpened || 0],
+  ['Media', stats.mediaShared || 0],
+  ['Reactions', stats.reactionsUsed || 0],
+  ['Warnings', warningCount],
+  ['Strikes', strikeCount]
+].map(([label, value]) => `<div style="padding:0.45rem; background:#151515; border:1px solid #2f2f2f; border-radius:0.3rem;"><div style="color:#999; font-size:0.72rem;">${escapeHtml(label)}</div><div style="font-size:1.05rem; font-weight:bold; margin-top:0.18rem;">${escapeHtml(String(value))}</div></div>`).join('');
+
+container.innerHTML = `
+<div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap; margin-bottom:0.6rem;">
+<div>
+<div style="font-size:1rem; font-weight:bold; color:#ffca28;">${escapeHtml(username)}${getOwnerTagHtml(username)}${getUserTagHtml(username)}</div>
+<div style="margin-top:0.18rem; color:#aaa;">Role: ${escapeHtml(role)}${tagLabel ? ` • Tag: ${escapeHtml(tagLabel)}` : ''}${trusted ? ' • Trusted' : ''}${offender ? ' • Repeat offender' : ''}</div>
+<div style="margin-top:0.18rem; color:#bbb;">Mute: ${escapeHtml(muteLabel)}</div>
+<div style="margin-top:0.18rem; color:#bbb;">Temp ban: ${escapeHtml(tempBanLabel)}</div>
+${adminNote ? `<div style="margin-top:0.3rem; color:#ddd;">Note: ${escapeHtml(adminNote.slice(0, 180))}</div>` : ''}
+</div>
+<div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+<button onclick="openUserProfileFromChat('${encodeURIComponent(username)}', event)" style="padding:0.3rem 0.6rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Profile</button>
+${hasRolePermission(currentChatUser, 'warn') ? `<button onclick="quickWarnFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#8e24aa; color:#fff; border:none; border-radius:0.25rem;">Warn</button>` : ''}
+${hasRolePermission(currentChatUser, 'mute') ? `<button onclick="quickMuteFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#e65100; color:#fff; border:none; border-radius:0.25rem;">Mute</button>` : ''}
+${hasRolePermission(currentChatUser, 'kick') ? `<button onclick="quickKickFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#7b1fa2; color:#fff; border:none; border-radius:0.25rem;">Kick</button>` : ''}
+${hasRolePermission(currentChatUser, 'tempBan') ? `<button onclick="quickTempBanFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#6a1b9a; color:#fff; border:none; border-radius:0.25rem;">Temp Ban</button>` : ''}
+</div>
+</div>
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(90px, 1fr)); gap:0.4rem; margin-bottom:0.75rem;">${statsHtml}</div>
+<div style="display:grid; gap:0.7rem;">
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Recent Messages</div>
+${recentMessages.length ? recentMessages.map((item) => {
+  const timeText = item.timestamp && typeof item.timestamp.toDate === 'function' ? item.timestamp.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const roomName = getChatRoomConfig(item.room || 'general').name;
+  const body = sanitizeNullableText(item.message, '') || (item.imageData ? '[image]' : item.videoData ? '[video]' : '[media]');
+  return `<div style="padding:0.4rem; background:#151515; border:1px solid #2f2f2f; border-radius:0.3rem; margin-bottom:0.25rem;"><div style="color:#999; font-size:0.72rem;">${escapeHtml(timeText)} • ${escapeHtml(roomName)}</div><div style="color:#eee; margin-top:0.18rem;">${escapeHtml(body.slice(0, 180))}</div></div>`;
+}).join('') : '<div style="color:#777;">No recent messages found.</div>'}
+</div>
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Report Activity</div>
+<div style="color:#bbb; margin-bottom:0.2rem;">Reports about user: ${reportsAbout.length} • Reports by user: ${reportsBy.length}</div>
+${reportsAbout.length ? reportsAbout.map((item) => `<div style="padding:0.35rem 0; border-bottom:1px solid #2a2a2a;"><span style="color:#ef9a9a;">${escapeHtml(sanitizeNullableText(item.reason, 'No reason'))}</span> <span style="color:#bbb;">${escapeHtml(sanitizeNullableText(item.messageText, '').slice(0, 100) || '(no message text)')}</span></div>`).join('') : '<div style="color:#777;">No recent reports about this user.</div>'}
+</div>
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Appeals</div>
+${appeals.length ? appeals.map((item) => `<div style="padding:0.35rem 0; border-bottom:1px solid #2a2a2a;"><span style="color:#ffca28;">${escapeHtml(sanitizeNullableText(item.status, 'pending'))}</span> <span style="color:#bbb;">${escapeHtml(sanitizeNullableText(item.appealText, '').slice(0, 140))}</span></div>`).join('') : '<div style="color:#777;">No recent appeals.</div>'}
+</div>
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Audit Trail</div>
+${auditEntries.length ? auditEntries.map((item) => {
+  const timeText = item.at && typeof item.at.toDate === 'function' ? item.at.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  return `<div style="padding:0.35rem 0; border-bottom:1px solid #2a2a2a;"><span style="color:#ffca28;">${escapeHtml(sanitizeNullableText(item.action, '?'))}</span> <span style="color:#bbb;">${escapeHtml(sanitizeNullableText(item.details, '').slice(0, 140))}</span><div style="font-size:0.72rem; color:#777;">${escapeHtml(timeText)} • by ${escapeHtml(sanitizeNullableText(item.by, '?'))}</div></div>`;
+}).join('') : '<div style="color:#777;">No audit entries for this user in the recent log.</div>'}
+</div>
+</div>`;
+} catch (err) {
+container.textContent = 'Failed to load user history.';
+}
+}
+
+async function loadAdminRoomManager() {
+const container = document.getElementById('admin-room-manager');
+if (!container) return;
+if (!canAdminSettings(currentChatUser)) {
+container.textContent = 'Insufficient permissions.';
+return;
+}
+container.textContent = 'Loading rooms...';
+try {
+const primaryDb = firebase.firestore();
+const snapshot = await primaryDb.collection('site_messages').orderBy('timestamp', 'desc').limit(400).get();
+const roomCounts = {};
+snapshot.forEach((doc) => {
+const data = doc.data() || {};
+const roomId = getChatRoomConfig(data.room || 'general').id;
+roomCounts[roomId] = (roomCounts[roomId] || 0) + 1;
+});
+const rooms = getAllChatRooms();
+container.innerHTML = rooms.map((room) => {
+  const safeRoomId = encodeURIComponent(room.id);
+  const canManageThisRoom = canManageRoom(room);
+  const canDeleteThisRoom = canManageThisRoom && !isProtectedRoomId(room.id);
+  const ownerLabel = sanitizeNullableText(room.createdBy, room.id === 'general' || room.id === 'admin-room' ? 'system' : 'unknown');
+  const roomTypeLabel = room.id === 'general' ? 'Public' : room.id === 'admin-room' ? 'Staff only' : room.isPublic ? 'Public' : 'Private';
+  return `<div style="padding:0.5rem 0; border-bottom:1px solid #2a2a2a;">
+  <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+  <div>
+  <div style="font-weight:bold; color:#ffca28;">${escapeHtml(room.name)}</div>
+  <div style="margin-top:0.18rem; color:#aaa;">#${escapeHtml(room.id)} • ${escapeHtml(roomTypeLabel)} • Owner: ${escapeHtml(ownerLabel)}</div>
+  <div style="margin-top:0.18rem; color:#bbb;">Members: ${escapeHtml(String(room.members.length || 0))} • Recent messages: ${escapeHtml(String(roomCounts[room.id] || 0))}</div>
+  ${room.description ? `<div style="margin-top:0.18rem; color:#ddd;">${escapeHtml(room.description)}</div>` : ''}
+  </div>
+  <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+  <button onclick="openAdminRoomById('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Open</button>
+  ${canManageThisRoom ? `<button onclick="openEditRoomModal('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Edit</button>` : ''}
+  ${canDeleteThisRoom ? `<button onclick="deleteCurrentRoom('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}
+  </div>
+  </div>
+  </div>`;
+}).join('') || 'No rooms found.';
+} catch (err) {
+container.textContent = 'Failed to load rooms.';
+}
+}
+
+function openAdminRoomById(encodedRoomId) {
+const roomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
+if (!roomId) return;
+changeChatRoom(roomId);
+loadAdminRoomManager();
+}
+
 // === MESSAGE REPORTS ===
 async function loadMessageReports() {
 const container = document.getElementById('admin-report-queue');
@@ -5728,6 +6150,7 @@ const entryMessageText = sanitizeNullableText(entry.message, '');
 return `<div style="margin-bottom:0.2rem;"><span style="color:#90caf9;">${escapeHtml(entryUserText)}</span> <span style="color:#607d8b;">#${escapeHtml(getChatRoomConfig(entry.room || 'general').name)}</span>: ${escapeHtml(entryMessageText.slice(0, 140) || '(media message)')}</div>`;
 }).join('')}</div>` : ''}
 <div style="margin-top:0.25rem; display:flex; gap:0.4rem;">
+<button onclick="openAdminUserHistoryFor('${encodeURIComponent(normalizeUsername(reportedUserText))}')" style="padding:0.2rem 0.5rem; background:#37474f; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">User</button>
 <button onclick="dismissReport('${safeId}')" style="padding:0.2rem 0.5rem; background:#455a64; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Dismiss</button>
 <button onclick="warnFromReport('${safeId}','${encodeURIComponent(normalizeUsername(reportedUserText))}')" style="padding:0.2rem 0.5rem; background:#8e24aa; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Warn</button>
 <button onclick="strikeFromReport('${safeId}','${encodeURIComponent(normalizeUsername(reportedUserText))}','${encodeURIComponent(reasonText)}')" style="padding:0.2rem 0.5rem; background:#ef6c00; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Strike</button>
@@ -7551,7 +7974,15 @@ return `<span class="reaction-pill ${hasReacted ? 'reacted' : ''}" onclick="togg
 const replyBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="setReplyTo('${docId}')">↩ Reply</button>`;
 const reactBtns = isSystem ? '' : ['❤️','😂','😢','🔥'].map(e => `<button class="chat-action-btn" onclick="toggleReaction('${docId}','${e}')">${e}</button>`).join('');
 const imageReactBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="promptImageReaction('${docId}')">🖼 Img</button>`;
-const deleteBtn = isAdmin ? `<button class="chat-action-btn" style="color:#ff8a80;" onclick="adminDeleteMessage('${docId}')">🗑 Delete</button>` : '';
+const canDeleteMessage = hasRolePermission(currentChatUser, 'deleteMessage');
+const canMuteUser = hasRolePermission(currentChatUser, 'mute');
+const canKickUser = hasRolePermission(currentChatUser, 'kick');
+const canTempBanUser = hasRolePermission(currentChatUser, 'tempBan');
+const modUserBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" onclick="openAdminUserHistoryFor('${encodeURIComponent(displayUser)}')">👤 User</button>` : '';
+const muteBtn = isAdmin && canMuteUser && !isSystem && !isOwn ? `<button class="chat-action-btn" style="color:#ffb74d;" onclick="quickMuteFromUser('${encodeURIComponent(displayUser)}')">🔇 Mute</button>` : '';
+const kickBtn = isAdmin && canKickUser && !isSystem && !isOwn ? `<button class="chat-action-btn" style="color:#ce93d8;" onclick="quickKickFromUser('${encodeURIComponent(displayUser)}')">👢 Kick</button>` : '';
+const tempBanBtn = isAdmin && canTempBanUser && !isSystem && !isOwn ? `<button class="chat-action-btn" style="color:#f48fb1;" onclick="quickTempBanFromUser('${encodeURIComponent(displayUser)}')">⏱ Temp</button>` : '';
+const deleteBtn = isAdmin && canDeleteMessage ? `<button class="chat-action-btn" style="color:#ff8a80;" onclick="adminDeleteMessage('${docId}')">🗑 Delete</button>` : '';
 const pinBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" style="color:#ffca28;" onclick="pinMessage('${docId}')">📌 Pin</button>` : '';
 const reportBtn = !isSystem && !isAdmin && !isOwn ? `<button class="chat-action-btn" style="color:#ff8a80; opacity:0.75;" onclick="reportMessage('${docId}')">⚑ Report</button>` : '';
 const timestampMs = data.timestamp && typeof data.timestamp.toDate === 'function' ? data.timestamp.toDate().getTime() : 0;
@@ -7575,7 +8006,7 @@ messageDiv.innerHTML = `
          ${linkPreviewHtml}
          ${!isSystem && timeStr ? `<div class="chat-message-meta-row">${roomBadge}<div class="chat-message-time">${timeStr}</div>${editedMarker}</div>` : ''}
          ${(reactionsHtml || imageReactionsHtml) ? `<div class="chat-reactions">${reactionsHtml}${imageReactionsHtml}</div>` : ''}
-         ${(isSystem && isAdmin) || !isSystem ? `<div class="chat-message-actions">${replyBtn}${reactBtns}${imageReactBtn}${editBtn}${historyBtn}${pinBtn}${deleteBtn}${reportBtn}</div>` : ''}
+         ${(isSystem && isAdmin) || !isSystem ? `<div class="chat-message-actions">${replyBtn}${reactBtns}${imageReactBtn}${editBtn}${historyBtn}${modUserBtn}${muteBtn}${kickBtn}${tempBanBtn}${pinBtn}${deleteBtn}${reportBtn}</div>` : ''}
        `;
 messagesDiv.appendChild(messageDiv);
 });
@@ -8090,6 +8521,73 @@ const panel = document.getElementById('online-users-panel');
 if (!panel) return;
 panel.innerHTML = `<div class="online-count">${users.length} online</div>` +
 users.map(u => `<div class="online-user-item">🟢 ${escapeHtml(u)}</div>`).join('');
+}
+
+function openAdminUserHistoryFor(encodedUsername) {
+if (!canModerate(currentChatUser)) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const input = document.getElementById('admin-history-username');
+if (input) input.value = username;
+openAdminMenu();
+loadAdminUserHistory(username);
+}
+
+async function quickWarnFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'warn')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-warn-username');
+const reasonInput = document.getElementById('admin-warn-reason');
+const reason = (prompt(`Warning reason for ${username}:`, 'Rule violation') || '').trim().slice(0, 120);
+if (!reason) return;
+if (usernameInput) usernameInput.value = username;
+if (reasonInput) reasonInput.value = reason;
+await adminWarnUser();
+loadAdminUserHistory(username);
+}
+
+async function quickMuteFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'mute')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-mute-username');
+if (usernameInput) usernameInput.value = username;
+await adminMuteUser();
+loadAdminUserHistory(username);
+}
+
+async function quickKickFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'kick')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-kick-username');
+if (usernameInput) usernameInput.value = username;
+await adminKickUser();
+loadAdminUserHistory(username);
+}
+
+async function quickTempBanFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'tempBan')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-tempban-username');
+const minutesInput = document.getElementById('admin-tempban-minutes');
+const reasonInput = document.getElementById('admin-tempban-reason');
+const rawMinutes = prompt(`Temp ban ${username} for how many minutes?`, '60');
+if (rawMinutes === null) return;
+const parsedMinutes = parseInt(String(rawMinutes).trim(), 10) || 0;
+if (!parsedMinutes) return;
+const minutes = Math.max(1, Math.min(10080, parsedMinutes));
+const rawReason = prompt(`Temp ban reason for ${username}:`, 'Temporary ban');
+if (rawReason === null) return;
+const reason = String(rawReason).trim().slice(0, 120);
+if (!reason) return;
+if (usernameInput) usernameInput.value = username;
+if (minutesInput) minutesInput.value = String(minutes);
+if (reasonInput) reasonInput.value = reason;
+await adminTempBanUser();
+loadAdminUserHistory(username);
 }
 
 async function adminDeleteMessage(docId) {
