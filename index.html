@@ -4150,8 +4150,8 @@ oninput="onChatInput()"
 <div style="background:#222; width:min(48rem, calc(100vw - 2rem)); max-height:calc(100vh - 2rem); overflow:auto; padding:1.5rem; border-radius:0.8rem; color:#fff; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
 <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
 <div>
-<h2 style="margin:0;">Submit a Game</h2>
-<div style="margin-top:0.25rem; color:#98adc4; font-size:0.85rem;">Send a game directly into the site queue instead of using an external form.</div>
+<h2 id="game-submission-heading" style="margin:0;">Submit a Game</h2>
+<div id="game-submission-subtitle" style="margin-top:0.25rem; color:#98adc4; font-size:0.85rem;">Send a game directly into the site queue instead of using an external form.</div>
 </div>
 <button onclick="closeGameSubmissionModal()" style="padding:0.45rem 0.8rem;">Close</button>
 </div>
@@ -4163,7 +4163,7 @@ oninput="onChatInput()"
 <textarea id="submission-notes" class="full-span" maxlength="220" placeholder="Anything the reviewer should know? Optional."></textarea>
 </div>
 <div class="submission-actions">
-<button type="button" onclick="submitGameSuggestion()" style="padding:0.55rem 0.9rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">Submit Game</button>
+<button id="game-submission-submit-btn" type="button" onclick="submitGameSuggestion()" style="padding:0.55rem 0.9rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">Submit Game</button>
 <button type="button" onclick="closeGameSubmissionModal()" style="padding:0.55rem 0.9rem; background:#444; color:#fff; border:none; border-radius:0.35rem;">Cancel</button>
 </div>
 </div>
@@ -5396,11 +5396,11 @@ let profileGifQuery = 'trending';
 let profileGifOffset = 0;
 let profileGifTotalCount = 0;
 let profileGifLoading = false;
+let activeGameSubmissionEditId = '';
 let storeFilters = {
 search: '',
 sort: 'featured',
-favoritesOnly: false,
-communityOnly: false
+favoritesOnly: false
 };
 
 function readJsonStorage(key, fallback) {
@@ -5449,8 +5449,7 @@ if (stored && typeof stored === 'object') {
 storeFilters = {
 search: String(stored.search || ''),
 sort: String(stored.sort || 'featured'),
-favoritesOnly: !!stored.favoritesOnly,
-communityOnly: !!stored.communityOnly
+favoritesOnly: !!stored.favoritesOnly
 };
 }
 }
@@ -5513,7 +5512,7 @@ const community = communityGameSubmissionsCache
       index: null,
       name: String(item.title || '').trim(),
       url: String(item.url || '').trim(),
-      description: String(item.description || 'Community-submitted game.').trim(),
+      description: String(item.description || 'Launch instantly from your library.').trim(),
       featured: 3,
       source: 'community',
       submitter: sanitizeNullableText(item.submittedByName || item.submittedBy, 'community'),
@@ -5531,7 +5530,7 @@ return getStoreGames().find((game) => game.id === gameId) || null;
 
 function getGameSubtitle(game) {
 if (!game) return '';
-return game.source === 'community' ? `Community pick by ${game.submitter || 'community'}` : 'Ready to launch';
+return 'Ready to launch';
 }
 
 function getMyProfileKey() {
@@ -5617,8 +5616,7 @@ const sortSelect = document.getElementById('store-sort-select');
 if (searchInput) searchInput.value = storeFilters.search;
 if (sortSelect) sortSelect.value = storeFilters.sort;
 const states = [
-['store-filter-favorites', storeFilters.favoritesOnly],
-['store-filter-community', storeFilters.communityOnly]
+['store-filter-favorites', storeFilters.favoritesOnly]
 ];
 states.forEach(([id, active]) => {
   const el = document.getElementById(id);
@@ -5643,7 +5641,6 @@ renderGameStorefront();
 
 function toggleStoreFilter(key) {
 if (key === 'favorites') storeFilters.favoritesOnly = !storeFilters.favoritesOnly;
-if (key === 'community') storeFilters.communityOnly = !storeFilters.communityOnly;
 saveStoreFilters();
 syncStoreFilterControls();
 renderGameStorefront();
@@ -5659,7 +5656,6 @@ let list = getStoreGames().filter((game) => {
   const haystack = [game.name, game.description, game.submitter].join(' ').toLowerCase();
   if (query && !haystack.includes(query)) return false;
   if (storeFilters.favoritesOnly && !favorites.has(game.id)) return false;
-  if (storeFilters.communityOnly && game.source !== 'community') return false;
   return true;
 });
 
@@ -5884,13 +5880,46 @@ saveLocalNotifications();
 renderNotificationCenter();
 }
 
-function openGameSubmissionModal() {
+function openGameSubmissionModal(encodedId = '') {
+const heading = document.getElementById('game-submission-heading');
+const subtitle = document.getElementById('game-submission-subtitle');
+const submitBtn = document.getElementById('game-submission-submit-btn');
 const status = document.getElementById('game-submission-status');
-if (status) status.textContent = '';
+const titleEl = document.getElementById('submission-title');
+const urlEl = document.getElementById('submission-url');
+const descriptionEl = document.getElementById('submission-description');
+const notesEl = document.getElementById('submission-notes');
+const rawId = decodeURIComponent(encodedId || '');
+const item = rawId ? communityGameSubmissionsCache.find((entry) => entry && entry.id === rawId) : null;
+activeGameSubmissionEditId = item ? item.id : '';
+if (heading) heading.textContent = item ? 'Edit Game Submission' : 'Submit a Game';
+if (subtitle) subtitle.textContent = item
+? 'Update the title, URL, description, or notes for this game submission.'
+: 'Send a game directly into the site queue instead of using an external form.';
+if (submitBtn) submitBtn.textContent = item ? 'Save Changes' : 'Submit Game';
+if (titleEl) titleEl.value = item ? sanitizeNullableText(item.title, '') : '';
+if (urlEl) urlEl.value = item ? sanitizeNullableText(item.url, '') : '';
+if (descriptionEl) descriptionEl.value = item ? sanitizeNullableText(item.description, '') : '';
+if (notesEl) notesEl.value = item ? sanitizeNullableText(item.notes, '') : '';
+if (status) status.textContent = item || !rawId ? '' : 'Game submission not found.';
 openModalById('game-submission-modal');
 }
 
 function closeGameSubmissionModal() {
+activeGameSubmissionEditId = '';
+const heading = document.getElementById('game-submission-heading');
+const subtitle = document.getElementById('game-submission-subtitle');
+const submitBtn = document.getElementById('game-submission-submit-btn');
+const status = document.getElementById('game-submission-status');
+const fields = ['submission-title', 'submission-url', 'submission-description', 'submission-notes'];
+if (heading) heading.textContent = 'Submit a Game';
+if (subtitle) subtitle.textContent = 'Send a game directly into the site queue instead of using an external form.';
+if (submitBtn) submitBtn.textContent = 'Submit Game';
+if (status) status.textContent = '';
+fields.forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.value = '';
+});
 closeModalById('game-submission-modal');
 }
 
@@ -6093,12 +6122,16 @@ const safeId = encodeURIComponent(item.id || '');
 const status = normalizeReviewStatus(item.status);
 const reviewer = sanitizeNullableText(item.reviewedBy, '');
 const reviewMeta = reviewer ? `${status} by ${reviewer}` : status;
+const editAction = canReviewSubmissions(currentChatUser)
+? `<button onclick="openGameSubmissionModal('${safeId}')" style="padding:0.3rem 0.55rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Edit</button>`
+: '';
 return `<div class="admin-compact-card">
   <div style="font-weight:bold; color:#ffca28;">${escapeHtml(item.title || 'Untitled')}</div>
   <div style="color:#bbb; font-size:0.8rem; margin-top:0.2rem;">${escapeHtml(item.url || '')}</div>
   <div style="color:#90a4ae; font-size:0.76rem; margin-top:0.2rem;">${escapeHtml(reviewMeta)} • by ${escapeHtml(item.submittedByName || item.submittedBy || 'unknown')}</div>
   <div style="color:#ddd; font-size:0.82rem; margin-top:0.35rem;">${escapeHtml((item.description || '').slice(0, 180))}</div>
-  ${(showActions || allowDelete) ? `<div class="admin-compact-actions">
+  ${(showActions || allowDelete || editAction) ? `<div class="admin-compact-actions">
+    ${editAction}
     ${showActions ? `<button onclick="reviewGameSubmission('${safeId}','approve')" style="padding:0.3rem 0.55rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Approve</button>
     <button onclick="reviewGameSubmission('${safeId}','reject')" style="padding:0.3rem 0.55rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Reject</button>` : ''}
     ${allowDelete ? `<button onclick="deleteRejectedGameSubmission('${safeId}')" style="padding:0.3rem 0.55rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}
@@ -6427,25 +6460,48 @@ const payload = {
   url,
   description,
   notes,
-  status: 'pending',
   submittedBy: getMyProfileKey() || 'guest',
   submittedByName: currentChatUser || getUserName() || 'guest',
   submittedAtMs: Date.now()
 };
 try {
   const db = getAdminDb();
-  await db.collection(GAME_SUBMISSIONS_COLLECTION).add({
-    ...payload,
-    submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  if (activeGameSubmissionEditId) {
+    if (!canReviewSubmissions(currentChatUser)) {
+      if (statusEl) statusEl.textContent = 'You do not have permission to edit game submissions.';
+      return;
+    }
+    await db.collection(GAME_SUBMISSIONS_COLLECTION).doc(activeGameSubmissionEditId).set({
+      title,
+      url,
+      description,
+      notes,
+      updatedBy: currentChatUser || getUserName() || 'guest',
+      updatedAtMs: Date.now(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } else {
+    await db.collection(GAME_SUBMISSIONS_COLLECTION).add({
+      ...payload,
+      status: 'pending',
+      submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
   gameSubmissionsLoaded = true;
-  if (statusEl) statusEl.textContent = 'Game submitted for review.';
-  addSiteActivity('submission', `${payload.submittedByName} submitted ${title}`, description);
-  pushNotification({ type: 'submission', title: 'Game submitted', body: `${title} was sent to the review queue.`, read: false });
-  [titleEl, urlEl, descriptionEl, notesEl].forEach((el) => { if (el) el.value = ''; });
-  loadGameSubmissionsOnce();
+  if (activeGameSubmissionEditId) {
+    if (statusEl) statusEl.textContent = 'Game submission updated.';
+    addSiteActivity('submission_edit', `${currentChatUser || getUserName() || 'guest'} updated ${title}`, description);
+    loadGameSubmissionsOnce(true);
+    renderGameStorefront();
+  } else {
+    if (statusEl) statusEl.textContent = 'Game submitted for review.';
+    addSiteActivity('submission', `${payload.submittedByName} submitted ${title}`, description);
+    pushNotification({ type: 'submission', title: 'Game submitted', body: `${title} was sent to the review queue.`, read: false });
+    [titleEl, urlEl, descriptionEl, notesEl].forEach((el) => { if (el) el.value = ''; });
+    loadGameSubmissionsOnce();
+  }
 } catch (err) {
-  if (statusEl) statusEl.textContent = 'Failed to submit game to Firestore.';
+  if (statusEl) statusEl.textContent = activeGameSubmissionEditId ? 'Failed to update game in Firestore.' : 'Failed to submit game to Firestore.';
 }
 }
 
@@ -7192,11 +7248,9 @@ meta.textContent = `${gamesList.length} games • ${getActiveThumbnailPollCount(
 }
 gameButtons.innerHTML = gamesList.map((game) => {
 const state = getGameThumbnailPollState(game.id) || {};
-const thumb = game.source === 'community' && game.thumbnailUrl ? game.thumbnailUrl : getGameSelectedThumbnail(game);
+const thumb = game.thumbnailUrl || getGameSelectedThumbnail(game);
 const hasSelection = !!(state.selectedThumbnail && state.selectedThumbnail.url);
-const pollLabel = game.source === 'community'
-  ? 'Community'
-  : (state.pollActive ? 'Poll Live' : (hasSelection ? 'Locked Choice' : ''));
+const pollLabel = state.pollActive ? 'Poll Live' : (hasSelection ? 'Locked Choice' : '');
 const pollClass = state.pollActive ? 'thumbnail-poll-chip is-live' : (hasSelection ? 'game-thumb-win-badge' : 'thumbnail-poll-chip');
 const totalVotes = getTotalThumbnailVoteCount(state);
 const subtitle = getGameSubtitle(game);
@@ -7210,15 +7264,13 @@ ${pollLabel ? `<span class="${pollClass}">${escapeHtml(pollLabel)}</span>` : ''}
 <div class="game-store-content">
 <div class="game-store-title-row">
 <h3 class="game-store-title">${escapeHtml(game.name)}</h3>
-<span class="thumbnail-poll-chip">${game.source === 'community' ? escapeHtml(game.submitter || 'community') : `${totalVotes} vote${totalVotes === 1 ? '' : 's'}`}</span>
+<span class="thumbnail-poll-chip">${totalVotes} vote${totalVotes === 1 ? '' : 's'}</span>
 </div>
 <p class="game-store-description">${escapeHtml(game.description || getGameSummary(game))}</p>
 <div class="game-store-meta-row"><span>${escapeHtml(subtitle || 'Ready to launch')}</span></div>
 <div class="game-store-footer">
 <button onclick="openGameById('${escapeHtml(game.id)}')">Play Now</button>
-${game.source === 'community'
-? `<button class="secondary-button" onclick="openGameSubmissionModal()">Submit More</button>`
-: `<button class="secondary-button" onclick="openGameThumbnailPollModal('${game.id}')">${state.pollActive ? 'Vote Thumbnail' : 'Thumbnail Poll'}</button>`}
+<button class="secondary-button" onclick="openGameThumbnailPollModal('${game.id}')">${state.pollActive ? 'Vote Thumbnail' : 'Thumbnail Poll'}</button>
 </div>
 </div>
 </article>`;
@@ -7261,7 +7313,7 @@ closeModalById('game-thumbnail-poll-modal');
 }
 
 function renderGameThumbnailPollModal() {
-const game = getGameById(activeGameThumbnailPollId);
+const game = getStoreGameById(activeGameThumbnailPollId);
 const title = document.getElementById('game-thumbnail-poll-title');
 const subtitle = document.getElementById('game-thumbnail-poll-subtitle');
 const selected = document.getElementById('game-thumbnail-poll-selected');
@@ -7346,7 +7398,7 @@ renderGameStorefront();
 
 async function startGameThumbnailPoll(gameId) {
 if (!canAdminSettings(currentChatUser)) return;
-const game = getGameById(gameId);
+const game = getStoreGameById(gameId);
 if (!game) return;
 const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(gameId);
 const existing = await ref.get();
@@ -7431,7 +7483,7 @@ if (status) status.textContent = err && err.message ? err.message : 'Failed to u
 
 async function voteForGameThumbnail(candidateId) {
 if (!currentChatUser || !activeGameThumbnailPollId) return;
-const game = getGameById(activeGameThumbnailPollId);
+const game = getStoreGameById(activeGameThumbnailPollId);
 if (!game) return;
 const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(game.id);
 const snap = await ref.get();
@@ -7453,7 +7505,7 @@ await ref.set(updates, { merge: true });
 
 async function finalizeGameThumbnailPoll(gameId) {
 if (!canAdminSettings(currentChatUser)) return;
-const game = getGameById(gameId);
+const game = getStoreGameById(gameId);
 if (!game) return;
 const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(gameId);
 const snap = await ref.get();
