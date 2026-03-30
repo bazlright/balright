@@ -145,6 +145,171 @@ background: transparent !important;
 color: #78a2ff !important;
 }
 
+#name-modal,
+#profile-modal,
+#leaderboard-modal,
+#update-notes-modal,
+#credits-modal,
+#friends-modal,
+#game-submission-modal,
+#login-request-modal,
+#dm-modal,
+.overlay-modal,
+#media-modal {
+background: rgba(0, 0, 0, 0.88) !important;
+backdrop-filter: blur(8px);
+}
+
+#name-modal > div,
+#profile-modal > div,
+#leaderboard-modal > div,
+#update-notes-modal > div,
+#credits-modal > div,
+#friends-modal > div,
+#game-submission-modal > div,
+#login-request-modal > div,
+#dm-modal > div,
+.overlay-panel,
+.media-modal-box {
+background: rgba(6, 8, 13, 0.98) !important;
+border: 1px solid rgba(55, 97, 255, 0.72);
+border-radius: 1.05rem !important;
+box-shadow: 0 0 0 1px rgba(29, 51, 126, 0.3), 0 24px 70px rgba(0, 0, 0, 0.58) !important;
+color: #f5f7fb !important;
+}
+
+#profile-modal h2,
+#leaderboard-modal h2,
+#update-notes-modal h2,
+#credits-modal h2,
+#friends-modal h2,
+#game-submission-modal h2,
+.overlay-header h2,
+.overlay-header h3,
+.media-modal-box h3,
+#dm-modal h2 {
+color: #f5f7fb;
+letter-spacing: -0.02em;
+}
+
+#profile-modal > div > div[style*="color:#bbb"],
+#leaderboard-modal > div > div[style*="color:#bbb"],
+#update-notes-modal > div > div[style*="color:#bbb"],
+#game-submission-modal div[style*="color:#98adc4"],
+.overlay-subtle,
+.gif-page-status,
+.media-modal-box .gif-search-input::placeholder {
+color: #71809b !important;
+}
+
+.overlay-field input,
+.overlay-field select,
+.overlay-field textarea,
+.submission-form input,
+.submission-form textarea,
+.submission-form select,
+#dm-input,
+.gif-search-input {
+background: rgba(3, 5, 10, 0.92) !important;
+color: #f5f7fb !important;
+border: 1px solid rgba(39, 48, 68, 0.98) !important;
+border-radius: 0.7rem !important;
+}
+
+.overlay-field input::placeholder,
+.overlay-field textarea::placeholder,
+.submission-form input::placeholder,
+.submission-form textarea::placeholder,
+#dm-input::placeholder,
+.gif-search-input::placeholder {
+color: #566174;
+}
+
+.overlay-field input:focus,
+.overlay-field select:focus,
+.overlay-field textarea:focus,
+.submission-form input:focus,
+.submission-form textarea:focus,
+.submission-form select:focus,
+#dm-input:focus,
+.gif-search-input:focus {
+outline: none;
+border-color: rgba(69, 113, 255, 0.95) !important;
+box-shadow: 0 0 0 1px rgba(69, 113, 255, 0.18);
+}
+
+#profile-flags-panel,
+.profile-section,
+.friends-inbox-section,
+#friend-requests-section,
+.message-preview-card,
+.modal-history-item,
+.activity-feed-item,
+.notification-item,
+.submission-card,
+.admin-section-card,
+.admin-compact-card,
+.room-member-row,
+.store-mini-card,
+.analytics-section,
+.analytics-card,
+.analytics-mini-card,
+.dm-sidebar,
+.dm-conversation-item,
+.dm-conversation-item.is-active,
+.dm-conversation-item:hover {
+background: rgba(10, 14, 22, 0.94) !important;
+border-color: rgba(44, 54, 76, 0.92) !important;
+}
+
+.site-request-card {
+position: relative;
+width: min(21rem, calc(100vw - 2rem));
+padding: 1.8rem 1.55rem 1.25rem;
+}
+
+.site-request-card .site-login-brand {
+margin-top: 0.2rem;
+}
+
+.site-request-status {
+min-height: 1rem;
+margin-top: 0.8rem;
+font-size: 0.78rem;
+color: #8fb1ff;
+}
+
+.site-request-status.has-error {
+color: #ff8a80;
+}
+
+.site-request-status.has-success {
+color: #8de29b;
+}
+
+.site-request-footer {
+margin-top: 0.8rem;
+}
+
+.chud-corner-close {
+position: absolute;
+top: 0.75rem;
+right: 0.75rem;
+padding: 0.38rem 0.7rem;
+border-radius: 999px;
+background: #0d1119 !important;
+border: 1px solid rgba(41, 50, 69, 0.98) !important;
+color: #d9e5f5 !important;
+font-size: 0.72rem;
+line-height: 1;
+box-shadow: none !important;
+}
+
+.chud-corner-close:hover {
+background: #151b27 !important;
+color: #fff !important;
+}
+
 .button-container {
 display: grid;
 grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
@@ -357,13 +522,18 @@ border-color: rgba(85, 118, 191, 0.82);
 .game-store-thumb {
 position: relative;
 aspect-ratio: 1.08 / 1;
-background-size: cover;
-background-position: center;
 margin: 0.6rem 0.6rem 0;
 border-radius: 0.82rem;
 overflow: hidden;
 border: 1px solid rgba(33, 38, 52, 0.95);
 background-color: #080a0f;
+}
+
+.game-store-thumb img {
+width: 100%;
+height: 100%;
+object-fit: cover;
+display: block;
 }
 
 .game-store-thumb::after {
@@ -519,8 +689,15 @@ flex-direction: column;
 
 .thumbnail-vote-image {
 aspect-ratio: 16 / 9;
-background-size: cover;
-background-position: center;
+overflow: hidden;
+background: #080a0f;
+}
+
+.thumbnail-vote-image img {
+width: 100%;
+height: 100%;
+object-fit: cover;
+display: block;
 }
 
 .thumbnail-vote-content {
@@ -1184,10 +1361,10 @@ line-height: 1;
 #chat-timeout-status {
 display: none;
 padding: 0.45rem 0.75rem;
-background: #151515;
-border-top: 1px solid #2d2d2d;
-border-bottom: 1px solid #2d2d2d;
-color: #ffcc80;
+background: rgba(40, 22, 10, 0.92);
+border-top: 1px solid #5a3a1a;
+border-bottom: 1px solid #5a3a1a;
+color: #ffd08a;
 font-size: 0.78rem;
 }
 
@@ -1211,8 +1388,8 @@ flex-direction: column;
 align-items: stretch;
 gap: 0.75rem;
 padding: 0.45rem 0.75rem;
-background: #171717;
-border-bottom: 1px solid #2b2b2b;
+background: rgba(14, 21, 34, 0.98);
+border-bottom: 1px solid #24324a;
 flex-wrap: wrap;
 }
 
@@ -1238,9 +1415,9 @@ display: none;
 
 .chat-room-toggle {
 padding: 0.35rem 0.75rem;
-background: #101010;
-color: #e3edf7;
-border: 1px solid #343434;
+background: rgba(255,255,255,0.05);
+color: #dbe8f8;
+border: 1px solid #2d3b57;
 border-radius: 999px;
 font-size: 0.76rem;
 font-weight: 700;
@@ -1248,12 +1425,18 @@ cursor: pointer;
 }
 
 .chat-room-select {
-background: #0f0f0f;
-color: #fff;
-border: 1px solid #3b3b3b;
+background: #0f1725;
+color: #eef5ff;
+border: 1px solid #2e3d5b;
 border-radius: 0.35rem;
 padding: 0.38rem 0.6rem;
 font-size: 0.78rem;
+}
+
+#chat-room-summary {
+color: #dbe8f8;
+font-weight: 700;
+letter-spacing: 0.02em;
 }
 
 .chat-room-summary {
@@ -1898,14 +2081,15 @@ bottom: 0;
 right: 0;
 width: min(460px, calc(100vw - 1rem));
 height: min(640px, calc(100vh - 1rem));
-background-color: #000;
-border: 2px solid #000;
-border-radius: 10px 10px 0 0;
+background: linear-gradient(180deg, rgba(16, 20, 31, 0.98), rgba(8, 11, 18, 0.99));
+border: 1px solid #24324a;
+border-radius: 14px 14px 0 0;
 display: flex;
 flex-direction: column;
 z-index: 999;
-box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.58);
 font-family: Arial, sans-serif;
+overflow: hidden;
 }
 
 #chat-container.minimized {
@@ -2025,16 +2209,16 @@ padding: 0.55rem 0.75rem;
 }
 
 #chat-header {
-background: #000;
+background: linear-gradient(180deg, rgba(19, 28, 43, 0.98), rgba(11, 17, 28, 0.98));
 color: #fff;
 padding: 1rem;
-border-bottom: 2px solid #000;
+border-bottom: 1px solid #24324a;
 display: flex;
 justify-content: space-between;
 align-items: flex-start;
 gap: 0.75rem;
 flex-wrap: wrap;
-border-radius: 8px 8px 0 0;
+border-radius: 14px 14px 0 0;
 cursor: move;
 }
 
@@ -2043,6 +2227,7 @@ margin: 0;
 font-size: 1rem;
 user-select: none;
 flex-shrink: 0;
+letter-spacing: 0.03em;
 }
 
 #chat-header-actions {
@@ -2064,14 +2249,21 @@ margin-left: auto;
 #chat-close-btn {
 flex-shrink: 0;
 white-space: nowrap;
+background: rgba(255,255,255,0.05);
+border: 1px solid #2d3b57;
+color: #dbe8f8;
+padding: 0.45rem 0.7rem;
+border-radius: 0.45rem;
+cursor: pointer;
+transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
 #pinned-message-bar {
 display: none;
 padding: 0.55rem 0.75rem;
-background: #111;
-border-bottom: 1px solid #222;
-color: #ddd;
+background: rgba(15, 23, 37, 0.96);
+border-bottom: 1px solid #24324a;
+color: #d9e6f6;
 font-size: 0.78rem;
 gap: 0.5rem;
 align-items: flex-start;
@@ -2092,11 +2284,13 @@ word-break: break-word;
 
 
 .utility-btn {
-background-color: #111;
+background-color: rgba(255,255,255,0.05);
+border: 1px solid #2d3b57;
+color: #dbe8f8;
 }
 
 .utility-btn:hover {
-background-color: #fff;
+background-color: rgba(46, 124, 221, 0.18);
 }
 
 .profile-stat-grid {
@@ -2139,19 +2333,19 @@ border-color: #66bb6a;
 
 #chat-leaderboard-btn,
 #chat-profile-btn {
-background: none;
-border: none;
-color: #ddd;
-cursor: pointer;
-padding: 0.5rem 0.7rem;
 font-size: 0.85rem;
-border-radius: 0.3rem;
-transition: all 0.2s;
 }
 
+#chat-header-actions button:hover,
 #chat-leaderboard-btn:hover,
-#chat-profile-btn:hover {
-background-color: #2d2d2d;
+#chat-profile-btn:hover,
+#chat-friends-btn:hover,
+#chat-online-btn:hover,
+#chat-fullscreen-btn:hover,
+#chat-minimize-btn:hover,
+#chat-close-btn:hover {
+background-color: rgba(46, 124, 221, 0.18);
+border-color: #3d5d90;
 color: #fff;
 }
 
@@ -2278,7 +2472,7 @@ flex-wrap: wrap;
 flex: 1;
 overflow-y: auto;
 padding: 1rem;
-background-color: #000;
+background: linear-gradient(180deg, rgba(8, 12, 19, 0.98), rgba(11, 15, 24, 0.98));
 display: flex;
 flex-direction: column;
 gap: 0.75rem;
@@ -2286,28 +2480,30 @@ gap: 0.75rem;
 
 .chat-message {
 padding: 0.75rem;
-border-radius: 8px;
+border-radius: 12px;
 word-wrap: break-word;
 font-size: 0.9rem;
+border: 1px solid rgba(44, 58, 86, 0.72);
+box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
 }
 
 .chat-message.own {
-background-color: #1e2124;
-color: #fff;
+background: linear-gradient(180deg, rgba(21, 42, 73, 0.96), rgba(15, 32, 57, 0.96));
+color: #f7fbff;
 align-self: flex-end;
 max-width: 80%;
 }
 
 .chat-message.other {
-background-color: #1e2124;
-color: #fff;
+background: linear-gradient(180deg, rgba(19, 24, 37, 0.98), rgba(13, 17, 27, 0.98));
+color: #eef4fb;
 align-self: flex-start;
 max-width: 80%;
 }
 
 .chat-message.system {
 background-color: transparent;
-color: #9aa0a6;
+color: #93a6bc;
 align-self: center;
 max-width: 96%;
 border: none;
@@ -2321,7 +2517,7 @@ display: none;
 
 .chat-message.system .chat-message-caption {
 font-size: 0.74rem;
-color: #9aa0a6;
+color: #93a6bc;
 margin-top: 0;
 }
 
@@ -2413,9 +2609,10 @@ text-decoration: underline;
 
 .chat-message-time {
 font-size: 0.6rem;
-opacity: 0.55;
+opacity: 0.72;
 margin-top: 0.2rem;
 text-align: right;
+color: #9eb0c7;
 }
 
 .chat-message-actions {
@@ -2428,21 +2625,21 @@ flex-wrap: wrap;
 display: flex;
 }
 .chat-action-btn {
-background: rgba(255,255,255,0.18);
-border: none;
-border-radius: 4px;
-color: #fff;
+background: rgba(255,255,255,0.06);
+border: 1px solid rgba(62, 84, 120, 0.82);
+border-radius: 999px;
+color: #eef5ff;
 font-size: 0.7rem;
-padding: 0.15rem 0.4rem;
+padding: 0.15rem 0.48rem;
 cursor: pointer;
 line-height: 1.3;
 }
 .chat-action-btn:hover {
-background: rgba(255,255,255,0.35);
+background: rgba(46, 124, 221, 0.18);
 }
 .chat-message-reply-quote {
-background: rgba(0,0,0,0.25);
-border-left: 3px solid rgba(255,255,255,0.5);
+background: rgba(255,255,255,0.04);
+border-left: 3px solid #4f8fda;
 padding: 0.25rem 0.5rem;
 border-radius: 0 4px 4px 0;
 margin-bottom: 0.35rem;
@@ -2451,10 +2648,10 @@ opacity: 0.85;
 }
 #reply-preview-bar {
 display: none;
-background: #111;
+background: rgba(15, 23, 37, 0.96);
 padding: 0.4rem 0.75rem;
-border-top: 1px solid #333;
-color: #ccc;
+border-top: 1px solid #24324a;
+color: #dbe6f6;
 font-size: 0.8rem;
 align-items: center;
 gap: 0.5rem;
@@ -2467,10 +2664,10 @@ text-overflow: ellipsis;
 white-space: nowrap;
 }
 #reply-cancel-btn {
-background: #333;
-border: none;
-color: #fff;
-border-radius: 4px;
+background: rgba(255,255,255,0.06);
+border: 1px solid #2d3b57;
+color: #eef5ff;
+border-radius: 999px;
 padding: 0.15rem 0.4rem;
 cursor: pointer;
 font-size: 0.75rem;
@@ -2483,8 +2680,8 @@ gap: 0.25rem;
 margin-top: 0.3rem;
 }
 .reaction-pill {
-background: rgba(255,255,255,0.12);
-border: 1px solid rgba(255,255,255,0.2);
+background: rgba(255,255,255,0.05);
+border: 1px solid rgba(62, 84, 120, 0.75);
 border-radius: 10px;
 padding: 0.1rem 0.45rem;
 font-size: 0.78rem;
@@ -2502,13 +2699,13 @@ position: absolute;
 bottom: calc(100% + 5px);
 left: 50%;
 transform: translateX(-50%);
-background: #222;
-color: #fff;
+background: #101926;
+color: #f1f7ff;
 font-size: 0.72rem;
 padding: 0.3rem 0.6rem;
 border-radius: 6px;
 white-space: nowrap;
-border: 1px solid #444;
+border: 1px solid #2d3b57;
 pointer-events: none;
 z-index: 9999;
 max-width: 200px;
@@ -2516,8 +2713,8 @@ overflow: hidden;
 text-overflow: ellipsis;
 }
 .reaction-pill.reacted {
-background: rgba(255,255,255,0.3);
-border-color: rgba(255,255,255,0.6);
+background: rgba(46, 124, 221, 0.22);
+border-color: rgba(79, 143, 218, 0.95);
 }
 .reaction-image-thumb {
 width: 128px;
@@ -2530,45 +2727,36 @@ border: 1px solid rgba(255,255,255,0.4);
 }
 #online-users-panel {
 display: none;
-background: #0a0a0a;
+background: rgba(13, 19, 30, 0.98);
 padding: 0.5rem 0.75rem;
-border-bottom: 1px solid #222;
+border-bottom: 1px solid #24324a;
 max-height: 110px;
 overflow-y: auto;
 flex-shrink: 0;
 }
 #online-users-panel .online-user-item {
 font-size: 0.8rem;
-color: #66bb6a;
+color: #84d19f;
 padding: 0.1rem 0;
 }
 #online-users-panel .online-count {
 font-size: 0.75rem;
-color: #999;
+color: #9db0c8;
 margin-bottom: 0.3rem;
 }
 #chat-online-btn {
-background: #333;
-border: none;
-color: #66bb6a;
-padding: 0.25rem 0.5rem;
-cursor: pointer;
-border-radius: 4px;
 font-size: 0.8rem;
 flex-shrink: 0;
-}
-#chat-online-btn:hover {
-background: #555;
 }
 
 #typing-indicator {
 padding: 0.2rem 0.75rem;
-color: #aaa;
+color: #94a9c3;
 font-size: 0.72rem;
 font-style: italic;
 min-height: 1.2rem;
 flex-shrink: 0;
-background: #000;
+background: rgba(9, 13, 22, 0.96);
 }
 
 #chat-unread-badge {
@@ -2592,8 +2780,8 @@ pointer-events: none;
 
 #chat-input-area {
 padding: 1rem;
-border-top: 1px solid #000;
-background-color: #000;
+border-top: 1px solid #24324a;
+background: linear-gradient(180deg, rgba(13, 18, 28, 0.98), rgba(9, 13, 20, 0.99));
 display: flex;
 align-items: center;
 gap: 0.5rem;
@@ -2603,32 +2791,38 @@ box-sizing: border-box;
 #chat-message-input {
 flex: 1;
 min-width: 0;
-padding: 0.5rem;
-border: 1px solid #5f6368;
-border-radius: 4px;
-background-color: #1f1f1f;
-color: #fff;
+padding: 0.6rem 0.7rem;
+border: 1px solid #2e3d5b;
+border-radius: 0.5rem;
+background-color: #0f1725;
+color: #eef5ff;
 font-size: 0.9rem;
 box-sizing: border-box;
 }
 
 #chat-message-input::placeholder {
-color: #999;
+color: #8095b0;
+}
+
+#chat-message-input:focus {
+outline: none;
+border-color: #4f8fda;
+box-shadow: 0 0 0 3px rgba(79, 143, 218, 0.18);
 }
 
 #chat-image-btn {
 padding: 0.5rem 0.75rem;
-background-color: #333;
-color: #fff;
-border: none;
-border-radius: 4px;
+background: rgba(255,255,255,0.06);
+color: #eef5ff;
+border: 1px solid #2d3b57;
+border-radius: 0.45rem;
 cursor: pointer;
 font-weight: bold;
 flex-shrink: 0;
 }
 
 #chat-image-btn:hover {
-background-color: #555;
+background-color: rgba(46, 124, 221, 0.18);
 }
 
 .chat-message-image {
@@ -2659,18 +2853,19 @@ bottom: 1rem;
 left: 1rem;
 z-index: 998;
 padding: 0.75rem 1.5rem;
-background-color: #000;
+background: linear-gradient(180deg, rgba(19, 28, 43, 0.98), rgba(11, 17, 28, 0.98));
 color: #fff;
-border: none;
+border: 1px solid #24324a;
 border-radius: 0.5rem;
 cursor: pointer;
 font-weight: bold;
 display: block;
 margin-top: 0;
+box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 #chat-toggle-btn:hover {
-background-color: #333;
+background-color: rgba(46, 124, 221, 0.18);
 }
 
 #admin-menu-btn {
@@ -2714,28 +2909,53 @@ background-color: #555;
 }
 
 #admin-menu .admin-menu-panel {
-background: #222;
-padding: 1.25rem;
-border-radius: 0.5rem;
+background: linear-gradient(180deg, rgba(18, 23, 34, 0.98), rgba(10, 13, 20, 0.98));
+padding: 1.2rem;
+border-radius: 0.75rem;
+border: 1px solid #233049;
 color: #fff;
-width: min(980px, calc(100vw - 2rem));
-max-height: calc(100vh - 2rem);
+width: min(1480px, calc(100vw - 1.5rem));
+max-height: calc(100vh - 1.5rem);
 overflow: auto;
-box-shadow: 0 8px 32px #000a;
+box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+}
+
+#admin-menu .admin-toolbar {
+display: block;
+padding-bottom: 1rem;
+margin-bottom: 0.9rem;
+border-bottom: 1px solid rgba(82, 112, 170, 0.28);
+}
+
+#admin-menu .admin-toolbar-copy h2 {
+margin: 0;
+font-size: 1.35rem;
+}
+
+#admin-menu .admin-toolbar-copy p {
+margin: 0.35rem 0 0;
+color: #97a7c3;
+font-size: 0.88rem;
+line-height: 1.45;
 }
 
 #admin-menu .admin-grid {
 display: grid;
-grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-gap: 0.75rem;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 0.9rem;
 margin-top: 1rem;
+align-items: start;
 }
 
 #admin-menu .admin-section-card {
-background: #2b2b2b;
-border: 1px solid #3c3c3c;
-border-radius: 0.5rem;
-padding: 0.75rem;
+background: linear-gradient(180deg, rgba(16, 20, 31, 0.98), rgba(10, 13, 21, 0.98));
+border: 1px solid #25314a;
+border-radius: 0.65rem;
+padding: 0.85rem;
+display: flex;
+flex-direction: column;
+min-height: 0;
+box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 #admin-menu .admin-section-card.is-collapsed .admin-section-body {
@@ -2753,6 +2973,8 @@ margin-bottom: 0.5rem;
 #admin-menu .admin-section-title {
 color: #ffb74d;
 font-size: 0.9rem;
+font-weight: 700;
+line-height: 1.35;
 margin-bottom: 0;
 }
 
@@ -2773,6 +2995,7 @@ cursor: pointer;
 #admin-menu .admin-section-card button {
 width: 100%;
 margin: 0.35rem 0;
+box-sizing: border-box;
 }
 
 #admin-menu .admin-button-row {
@@ -2781,12 +3004,49 @@ grid-template-columns: 1fr 1fr;
 gap: 0.5rem;
 }
 
+#admin-menu .admin-scroll-panel {
+margin-top: 0.6rem;
+max-height: 260px;
+overflow: auto;
+background: rgba(255,255,255,0.04);
+border: 1px solid #273349;
+border-radius: 0.45rem;
+padding: 0.6rem;
+color: #ddd;
+font-size: 0.82rem;
+}
+
 #admin-menu .admin-footer {
-margin-top: 0.75rem;
+margin-top: 1rem;
+padding-top: 1rem;
+border-top: 1px solid rgba(82, 112, 170, 0.28);
 }
 
 #admin-menu .admin-footer button {
 width: 100%;
+}
+
+@media (max-width: 960px) {
+#admin-menu {
+align-items: stretch !important;
+justify-content: flex-start !important;
+padding: 0.75rem;
+box-sizing: border-box;
+overflow-y: auto;
+}
+
+#admin-menu .admin-menu-panel {
+width: 100%;
+max-height: none;
+}
+
+}
+
+@media (max-width: 700px) {
+#admin-menu .admin-grid,
+#admin-menu .admin-button-row {
+grid-template-columns: 1fr;
+}
 }
 
 @media (max-width: 500px) {
@@ -2930,23 +3190,14 @@ outline: 2px solid #5865f2;
 </head>
 <body>
 <!-- Admin Menu -->
-<div id="admin-menu" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); z-index:5000; align-items:center; justify-content:center; flex-direction:column;">
+<div id="admin-menu" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(2,5,10,0.82); z-index:5000; align-items:center; justify-content:center; flex-direction:column; padding:0.75rem; box-sizing:border-box;">
 <div class="admin-menu-panel" style="text-align:left;">
-<h2>Admin Ban Panel</h2>
-<input type="text" id="admin-ban-username" placeholder="Username" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" />
-<div style="margin-bottom:0.5rem;">
-<label for="admin-user-list" style="color:#ffb74d;">User List:</label>
-<select id="admin-user-list" style="width:220px; padding:0.5rem; border:none; border-radius:0.25rem; margin-top:0.25rem;" onchange="applySelectedAdminUser(this.value)">
-<option value="">-- Select a user --</option>
-</select>
+<div class="admin-toolbar">
+<div class="admin-toolbar-copy">
+<h2>Admin Panel</h2>
+<p>Moderation, review queues, account tools, and site controls all live here. User targeting and ban inputs now sit with the moderation cards instead of floating above them.</p>
 </div>
-<select id="admin-ban-reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem;" onchange="toggleCustomReason()">
-<option value="">Select reason</option>
-<option value="Gooning">Gooning</option>
-<option value="Nape Riggers">Nape Riggers</option>
-<option value="Other">Other</option>
-</select>
-<input type="text" id="admin-ban-custom-reason" placeholder="Enter custom reason" style="padding:0.5rem; margin:0.5rem 0; width:220px; border:none; border-radius:0.25rem; display:none;" autocomplete="off" />
+</div>
 <script>
 let siteLoginPassed = false;
 
@@ -3051,16 +3302,38 @@ document.getElementById('name-modal').style.display = 'none';
 initIPLogging();
 }
 
+window.openLoginRequestModal = window.openLoginRequestModal || function() {
+const modal = document.getElementById('login-request-modal');
+const status = document.getElementById('login-request-status');
+if (status) status.textContent = '';
+if (modal) modal.style.display = 'flex';
+};
+
 document.addEventListener('DOMContentLoaded', function() {
 var userList = document.getElementById('admin-user-list');
-bootHighValueFeatureState();
-renderGameStorefront();
+if (typeof bootHighValueFeatureState === 'function') bootHighValueFeatureState();
+if (typeof renderGameStorefront === 'function') renderGameStorefront();
 if (userList) userList.innerHTML = '<option value="">-- Select a user --</option>';
 });
 </script>
 <div class="admin-grid">
+<div class="admin-section-card" data-admin-scope="moderator">
+<div class="admin-section-title">Selected User</div>
+<input type="text" id="admin-ban-username" placeholder="Username" />
+<select id="admin-user-list" onchange="applySelectedAdminUser(this.value)">
+<option value="">-- Select a user --</option>
+</select>
+</div>
+
 <div class="admin-section-card" data-admin-scope="admin">
 <div class="admin-section-title">Ban Controls</div>
+<select id="admin-ban-reason" onchange="toggleCustomReason()">
+<option value="">Select reason</option>
+<option value="Gooning">Gooning</option>
+<option value="Nape Riggers">Nape Riggers</option>
+<option value="Other">Other</option>
+</select>
+<input type="text" id="admin-ban-custom-reason" placeholder="Enter custom reason" style="display:none;" autocomplete="off" />
 <button onclick="adminBanUser()" style="padding:0.5rem 1rem; background:#d32f2f; color:#fff; border:none; border-radius:0.25rem;">Ban Username</button>
 <button onclick="adminUnbanUser()" style="padding:0.5rem 1rem; background:#388e3c; color:#fff; border:none; border-radius:0.25rem;">Unban Username</button>
 <button onclick="adminClearChat()" style="padding:0.5rem 1rem; background:#111; color:#fff; border:none; border-radius:0.25rem;">Clear All Chat</button>
@@ -3096,7 +3369,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div class="admin-section-card" data-admin-scope="admin">
 <div class="admin-section-title">Active Temp Bans</div>
 <button onclick="loadActiveTempBans()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Temp Bans</button>
-<div id="admin-tempban-list" style="margin-top:0.6rem; max-height:220px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.5rem; color:#ddd; font-size:0.82rem;"></div>
+<div id="admin-tempban-list" class="admin-scroll-panel"></div>
 </div>
 
 <div class="admin-section-card" data-admin-scope="owner">
@@ -3128,26 +3401,17 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
-<div class="admin-section-title">UI Poll Votes</div>
-<div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-<button onclick="loadAdminUiPollVotes()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Votes</button>
-<button onclick="restartUiUpdatePoll()" style="padding:0.45rem 0.8rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Restart Vote</button>
-</div>
-<div id="admin-ui-poll-votes" style="margin-top:0.6rem; max-height:260px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.6rem; color:#ddd; font-size:0.82rem;"></div>
-</div>
-
 <div class="admin-section-card" data-admin-scope="owner">
 <div class="admin-section-title">Role Permissions</div>
 <div style="font-size:0.8rem; color:#bbb;">Toggle what each role can do.</div>
-<div id="admin-role-permissions" style="margin-top:0.5rem; max-height:240px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.5rem;"></div>
+<div id="admin-role-permissions" class="admin-scroll-panel" style="margin-top:0.5rem;"></div>
 <button onclick="adminSaveRolePermissions()" style="padding:0.5rem 1rem; background:#00695c; color:#fff; border:none; border-radius:0.25rem;">Save Permissions</button>
 </div>
 
 <div class="admin-section-card" data-admin-scope="moderator">
 <div class="admin-section-title">Message Reports</div>
 <button onclick="loadMessageReports()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Reports</button>
-<div id="admin-report-queue" style="margin-top:0.6rem; max-height:220px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.5rem; color:#ddd; font-size:0.82rem;"></div>
+<div id="admin-report-queue" class="admin-scroll-panel"></div>
 </div>
 
 <div class="admin-section-card" data-admin-scope="moderator">
@@ -3157,7 +3421,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <button onclick="loadAdminUserHistory()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Load History</button>
 <button onclick="copySelectedUserToHistory()" style="padding:0.45rem 0.8rem; background:#37474f; color:#fff; border:none; border-radius:0.25rem;">Use Selected User</button>
 </div>
-<div id="admin-user-history" style="margin-top:0.6rem; max-height:280px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.6rem; color:#ddd; font-size:0.82rem;"></div>
+<div id="admin-user-history" class="admin-scroll-panel" style="max-height:280px;"></div>
 </div>
 
 <div class="admin-section-card" data-admin-scope="admin" data-admin-section-id="accounts">
@@ -3182,16 +3446,22 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
+<div class="admin-section-card" data-admin-scope="owner">
+<div class="admin-section-title">Leaderboard</div>
+<div style="font-size:0.8rem; color:#bbb; margin-bottom:0.35rem;">Reset all saved leaderboard points and levels for everyone.</div>
+<button onclick="adminRestartLeaderboard()" style="padding:0.5rem 1rem; background:#8b0000; color:#fff; border:none; border-radius:0.25rem;">Restart Leaderboard</button>
+</div>
+
 <div class="admin-section-card" data-admin-scope="admin">
 <div class="admin-section-title">Appeals</div>
 <button onclick="loadAppealsQueue()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Appeals</button>
-<div id="admin-appeals-queue" style="margin-top:0.6rem; max-height:220px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.5rem; color:#ddd; font-size:0.82rem;"></div>
+<div id="admin-appeals-queue" class="admin-scroll-panel"></div>
 </div>
 
 <div class="admin-section-card" data-admin-scope="admin">
 <div class="admin-section-title">Audit Log</div>
 <button onclick="loadAuditLogs()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Log</button>
-<div id="admin-audit-log" style="margin-top:0.6rem; max-height:220px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.5rem; color:#ddd; font-size:0.82rem;"></div>
+<div id="admin-audit-log" class="admin-scroll-panel"></div>
 </div>
 
 <div class="admin-section-card" data-admin-scope="admin" data-admin-section-id="analytics">
@@ -3201,7 +3471,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 <div class="admin-section-body">
 <button onclick="loadAdminAnalytics()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Analytics</button>
-<div id="admin-analytics-panel" style="margin-top:0.6rem; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.7rem; color:#ddd; font-size:0.82rem;"></div>
+<div id="admin-analytics-panel" class="admin-scroll-panel" style="max-height:none;"></div>
 </div>
 </div>
 
@@ -3245,7 +3515,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div class="admin-section-card" data-admin-scope="admin">
 <div class="admin-section-title">Rooms</div>
 <button onclick="loadAdminRoomManager()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Rooms</button>
-<div id="admin-room-manager" style="margin-top:0.6rem; max-height:280px; overflow:auto; background:#1b1b1b; border:1px solid #333; border-radius:0.35rem; padding:0.6rem; color:#ddd; font-size:0.82rem;"></div>
+<div id="admin-room-manager" class="admin-scroll-panel" style="max-height:280px;"></div>
 </div>
 </div>
 
@@ -3321,7 +3591,6 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <button onclick="openGameSubmissionModal()">Suggest a Game</button>
 <button onclick="openCustomUrlModal()">Open URL</button>
 <button class="store-hero-button-secondary" onclick="openUpdateNotesModal()">Update Notes</button>
-<button class="store-hero-button-secondary" onclick="openUiUpdatePollModal()">UI Poll</button>
 <button class="store-hero-button-secondary" onclick="openCreditsModal()">Credits</button>
 </div>
 </div>
@@ -3582,9 +3851,9 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
 <label for="chat-room-select" style="font-size:0.76rem; color:#b0bec5;">Room</label>
 <select id="chat-room-select" class="chat-room-select" onchange="changeChatRoom(this.value)"></select>
-<button onclick="openCreateRoomModal()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">New Room</button>
-<button id="edit-room-btn" onclick="openEditRoomModal()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#424242; color:#fff; border:none; border-radius:0.35rem; display:none;">Edit Room</button>
-<button id="delete-room-btn" onclick="deleteCurrentRoom()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#8e0000; color:#fff; border:none; border-radius:0.35rem; display:none;">Delete Room</button>
+<button onclick="openCreateRoomModal()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#1f4f89; color:#fff; border:1px solid #3a67a0; border-radius:0.35rem;">New Room</button>
+<button id="edit-room-btn" onclick="openEditRoomModal()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#182231; color:#eef5ff; border:1px solid #31425f; border-radius:0.35rem; display:none;">Edit Room</button>
+<button id="delete-room-btn" onclick="deleteCurrentRoom()" style="padding:0.35rem 0.6rem; font-size:0.76rem; background:#5e1821; color:#fff; border:1px solid #8c3542; border-radius:0.35rem; display:none;">Delete Room</button>
 </div>
 </div>
 </div>
@@ -3610,7 +3879,7 @@ onkeypress="if(event.key==='Enter') sendMessage()"
 oninput="onChatInput()"
 />
 <input type="file" id="chat-image-input" accept="image/*,video/*" style="display:none;" onchange="handleChatImageSelected(event)" />
-<button id="chat-color-btn" onclick="openColorPicker()" style="padding:0.5rem 0.75rem; background-color:#333; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold; flex-shrink:0;">Color</button>
+<button id="chat-color-btn" onclick="openColorPicker()" style="padding:0.5rem 0.75rem; background:rgba(255,255,255,0.06); color:#eef5ff; border:1px solid #2d3b57; border-radius:0.45rem; cursor:pointer; font-weight:bold; flex-shrink:0;">Color</button>
 <button id="chat-image-btn" onclick="openMediaModal()">Media</button>
 </div>
 
@@ -3742,21 +4011,6 @@ oninput="onChatInput()"
 </div>
 </div>
 
-<div id="ui-update-poll-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.78); z-index:6500; align-items:center; justify-content:center;">
-<div style="background:#222; width:min(32rem, calc(100vw - 2rem)); max-height:calc(100vh - 2rem); overflow:auto; padding:1.5rem; border-radius:0.8rem; color:#fff; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-<div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
-<h2 style="margin:0;">UI Poll</h2>
-<button onclick="closeUiUpdatePollModal()" style="padding:0.45rem 0.8rem;">Close</button>
-</div>
-<div style="margin-top:0.8rem; color:#ddd; font-size:1rem; line-height:1.5;">Should i update my ui?</div>
-<div style="display:flex; gap:0.75rem; margin-top:1rem; flex-wrap:wrap;">
-<button onclick="voteOnUiUpdatePoll('yes')" style="padding:0.6rem 1.1rem; background:#2e7d32; color:#fff; border:none; border-radius:0.35rem;">Yes</button>
-<button onclick="voteOnUiUpdatePoll('no')" style="padding:0.6rem 1.1rem; background:#8e0000; color:#fff; border:none; border-radius:0.35rem;">No</button>
-</div>
-<div id="ui-update-poll-status" style="margin-top:0.9rem; color:#9fb0c2; font-size:0.9rem;"></div>
-</div>
-</div>
-
 <div id="credits-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.78); z-index:6500; align-items:center; justify-content:center;">
 <div style="background:#222; width:min(32rem, calc(100vw - 2rem)); max-height:calc(100vh - 2rem); overflow:auto; padding:1.5rem; border-radius:0.8rem; color:#fff; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
 <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
@@ -3764,8 +4018,8 @@ oninput="onChatInput()"
 <button onclick="closeCreditsModal()" style="padding:0.45rem 0.8rem;">Close</button>
 </div>
 <div style="margin-top:0.95rem; color:#ddd; line-height:1.65; font-size:0.98rem;">
-<div><strong>kaiden</strong> owner</div>
-<div style="margin-top:0.45rem;"><strong>jeremy_wade/kyler</strong> contributor</div>
+<div><strong>kaiden - owner</strong></div>
+<div style="margin-top:0.45rem;"><strong>jeremy_wade/kyler - contributed</strong> the profile improvements, UI rework, and game suggestions/login to server (makes it easier to approve and add logins/games)</div>
 </div>
 </div>
 </div>
@@ -3928,23 +4182,20 @@ oninput="onChatInput()"
 </div>
 
 <div id="login-request-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.82); z-index:7200; align-items:center; justify-content:center;">
-<div style="background:#222; width:min(32rem, calc(100vw - 2rem)); max-height:calc(100vh - 2rem); overflow:auto; padding:1.5rem; border-radius:0.8rem; color:#fff; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
-<div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
-<div>
-<h2 style="margin:0;">Request an Account</h2>
-<div style="margin-top:0.25rem; color:#98adc4; font-size:0.85rem;">Send a username and password request into the reviewer queue.</div>
+<div class="site-login-card site-request-card">
+<button type="button" class="chud-corner-close" onclick="closeLoginRequestModal()">Close</button>
+<div class="site-login-brand">Join <span class="site-login-brand-accent">ChudGames</span></div>
+<div class="site-login-subtitle">Create an account for access</div>
+<div class="site-login-stack" style="margin-top:1.25rem;">
+<input id="login-request-username" class="site-login-field" type="text" maxlength="32" placeholder="Choose Username" autocomplete="username" />
+<input id="login-request-password" class="site-login-field" type="password" maxlength="64" placeholder="Choose Password" autocomplete="new-password" />
+<textarea id="login-request-notes" maxlength="220" placeholder="Anything the reviewer should know? Optional." style="display:none;"></textarea>
 </div>
-<button onclick="closeLoginRequestModal()" style="padding:0.45rem 0.8rem;">Close</button>
-</div>
-<div id="login-request-status" class="overlay-status" style="margin-top:0.85rem;"></div>
-<div class="submission-form">
-<input id="login-request-username" type="text" maxlength="32" placeholder="Requested username" autocomplete="username" />
-<input id="login-request-password" type="password" maxlength="64" placeholder="Requested password" autocomplete="new-password" />
-<textarea id="login-request-notes" class="full-span" maxlength="220" placeholder="Anything the reviewer should know? Optional."></textarea>
-</div>
-<div class="submission-actions">
-<button type="button" onclick="submitLoginRequest()" style="padding:0.55rem 0.9rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">Send Request</button>
-<button type="button" onclick="closeLoginRequestModal()" style="padding:0.55rem 0.9rem; background:#444; color:#fff; border:none; border-radius:0.35rem;">Cancel</button>
+<button type="button" class="site-login-primary" onclick="submitLoginRequest()">Create Account</button>
+<div id="login-request-status" class="site-request-status"></div>
+<div class="site-login-footer site-request-footer">
+<span>Already have an account?</span>
+<button type="button" class="site-login-link" onclick="closeLoginRequestModal()">Sign In</button>
 </div>
 </div>
 </div>
@@ -4292,6 +4543,53 @@ if (input) input.value = selected;
 if (selected) loadAdminUserHistory(selected);
 }
 
+async function loadAdminUserList() {
+const userList = document.getElementById('admin-user-list');
+if (!userList) return;
+const previousSelection = normalizeUsername(userList.value || resolveAdminTargetUsername('admin-ban-username'));
+userList.innerHTML = '<option value="">Loading users...</option>';
+
+const knownUsers = new Set();
+const addUser = (value) => {
+const key = normalizeUsername(value);
+if (key) knownUsers.add(key);
+};
+
+addUser(currentChatUser || getUserName() || '');
+Object.keys(getStatsStore() || {}).forEach(addUser);
+Object.keys(roleCache || {}).forEach(addUser);
+Object.keys(userTagCache || {}).forEach(addUser);
+(loginRequestsCache || []).forEach((item) => {
+if (normalizeReviewStatus(item && item.status) === 'approved') addUser(item && item.username);
+});
+(adminAccountManagerCache || []).forEach((entry) => addUser(entry && entry.username));
+
+try {
+const adminDb = getAdminDb();
+const primaryDb = getPrimaryDb();
+const [loginSnapshot, statsSnapshot] = await Promise.all([
+adminDb.collection(LOGIN_REQUESTS_COLLECTION).where('status', '==', 'approved').limit(250).get(),
+primaryDb.collection(USER_STATS_COLLECTION).limit(350).get()
+]);
+loginSnapshot.forEach((doc) => addUser(doc.id));
+statsSnapshot.forEach((doc) => addUser(doc.id));
+} catch (_) {
+}
+
+const options = Array.from(knownUsers).filter(Boolean).sort((a, b) => a.localeCompare(b));
+if (!options.length) {
+userList.innerHTML = '<option value="">-- No users found --</option>';
+return;
+}
+
+userList.innerHTML = '<option value="">-- Select a user --</option>' + options.map((username) => `<option value="${escapeHtml(username)}">${escapeHtml(username)}</option>`).join('');
+
+if (previousSelection && knownUsers.has(previousSelection)) {
+userList.value = previousSelection;
+applySelectedAdminUser(previousSelection);
+}
+}
+
 function resolveAdminTargetUsername(primaryInputId) {
 const inputEl = document.getElementById(primaryInputId);
 const directValue = normalizeUsername(inputEl ? inputEl.value : '');
@@ -4335,12 +4633,12 @@ renderAdminProjectStatus();
 renderAdminRolePermissions();
 updateAdminSectionVisibility();
 syncAdminSectionCardStates();
+loadAdminUserList();
 loadActiveTempBans();
 loadMessageReports();
 loadAppealsQueue();
 loadAuditLogs();
 loadAdminAnalytics();
-loadAdminUiPollVotes();
 loadAdminRoomManager();
 loadAdminAccountManager();
 listenForGameSubmissions();
@@ -4465,6 +4763,54 @@ statusDiv.textContent = deletedCount
 } catch (e) {
 console.error('Failed to clear chat:', e);
 statusDiv.textContent = 'Failed to clear chat.';
+}
+}
+
+async function adminRestartLeaderboard() {
+if (!canManageRoles(currentChatUser)) {
+alert('Only the owner can restart the leaderboard.');
+return;
+}
+
+const statusDiv = document.getElementById('admin-ban-status');
+if (!confirm('Reset the leaderboard for everyone? This clears all saved points and levels.')) {
+return;
+}
+
+try {
+const db = getPrimaryDb();
+let deletedCount = 0;
+
+while (true) {
+const snapshot = await db.collection(USER_STATS_COLLECTION).limit(250).get();
+if (!snapshot || snapshot.empty) break;
+
+const batch = db.batch();
+snapshot.forEach((doc) => {
+batch.delete(doc.ref);
+deletedCount += 1;
+});
+await batch.commit();
+}
+
+localStorage.removeItem(USER_STATS_STORAGE_KEY);
+await writeAuditLog('restart_leaderboard', '', `Deleted ${deletedCount} leaderboard stat documents`);
+
+if (document.getElementById('leaderboard-modal')?.style.display === 'flex') {
+await loadLeaderboard();
+}
+if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
+if (typeof loadAdminAccountManager === 'function') loadAdminAccountManager();
+if (typeof renderProfileModal === 'function') renderProfileModal(currentProfileViewUser || getStatsUserKey());
+
+if (statusDiv) {
+statusDiv.textContent = deletedCount
+? `Leaderboard restarted. Cleared ${deletedCount} stat records.`
+: 'Leaderboard restarted. No stat records were found.';
+}
+} catch (err) {
+console.error('Failed to restart leaderboard:', err);
+if (statusDiv) statusDiv.textContent = 'Failed to restart leaderboard.';
 }
 }
 
@@ -5004,8 +5350,6 @@ const USER_PROFILES_COLLECTION = 'user_profiles';
 const GAME_SUBMISSIONS_COLLECTION = 'game_submissions';
 const LOGIN_REQUESTS_COLLECTION = 'login_requests';
 const SITE_ACTIVITY_COLLECTION = 'site_activity';
-const SITE_POLLS_COLLECTION = 'site_polls';
-const UI_UPDATE_POLL_DOC_ID = 'ui_update';
 const MAX_LOCAL_NOTIFICATIONS = 80;
 const MAX_ACTIVITY_ITEMS = 30;
 const GAME_FEATURED_SCORES = {
@@ -5571,7 +5915,10 @@ const status = document.getElementById('login-request-status');
 if (modalUser) modalUser.value = normalizeUsername(usernameInput ? usernameInput.value : '');
 if (modalPassword) modalPassword.value = '';
 if (modalNotes) modalNotes.value = '';
-if (status) status.textContent = '';
+if (status) {
+status.textContent = '';
+status.classList.remove('has-error', 'has-success');
+}
 openModalById('login-request-modal');
 }
 
@@ -6021,15 +6368,22 @@ const usernameEl = document.getElementById('login-request-username');
 const passwordEl = document.getElementById('login-request-password');
 const notesEl = document.getElementById('login-request-notes');
 const statusEl = document.getElementById('login-request-status');
+if (statusEl) statusEl.classList.remove('has-error', 'has-success');
 const username = normalizeUsername(usernameEl ? usernameEl.value : '');
 const password = sanitizeNullableText(passwordEl && passwordEl.value, '').slice(0, 64);
 const notes = sanitizeNullableText(notesEl && notesEl.value, '').slice(0, 220);
 if (!username || !password) {
-  if (statusEl) statusEl.textContent = 'Enter both a username and password.';
+  if (statusEl) {
+    statusEl.textContent = 'Enter both a username and password.';
+    statusEl.classList.add('has-error');
+  }
   return;
 }
 if (isProtectedUsername(username)) {
-  if (statusEl) statusEl.textContent = 'That username is unavailable.';
+  if (statusEl) {
+    statusEl.textContent = 'That username is unavailable.';
+    statusEl.classList.add('has-error');
+  }
   return;
 }
 try {
@@ -6037,7 +6391,10 @@ try {
   const existing = await db.collection(LOGIN_REQUESTS_COLLECTION).doc(username).get();
   const existingData = existing.exists ? (existing.data() || {}) : {};
   if (normalizeReviewStatus(existingData.status) === 'approved') {
-    if (statusEl) statusEl.textContent = 'That username is already approved.';
+    if (statusEl) {
+      statusEl.textContent = 'That username is already approved.';
+      statusEl.classList.add('has-error');
+    }
     return;
   }
   await db.collection(LOGIN_REQUESTS_COLLECTION).doc(username).set({
@@ -6050,10 +6407,16 @@ try {
     submittedAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
   loginRequestsLoaded = true;
-  if (statusEl) statusEl.textContent = 'Login request sent for review.';
+  if (statusEl) {
+    statusEl.textContent = 'Login request sent for review.';
+    statusEl.classList.add('has-success');
+  }
   loadLoginRequestsOnce(true);
 } catch (err) {
-  if (statusEl) statusEl.textContent = 'Failed to submit login request.';
+  if (statusEl) {
+    statusEl.textContent = 'Failed to submit login request.';
+    statusEl.classList.add('has-error');
+  }
 }
 }
 
@@ -6850,7 +7213,8 @@ const pollClass = state.pollActive ? 'thumbnail-poll-chip is-live' : (hasSelecti
 const totalVotes = getTotalThumbnailVoteCount(state);
 const subtitle = getGameSubtitle(game);
 return `<article class="game-store-card">
-<div class="game-store-thumb" style="background-image:url('${escapeHtml(thumb)}')">
+<div class="game-store-thumb">
+<img src="${escapeHtml(thumb)}" alt="${escapeHtml(game.name)} thumbnail" loading="lazy" />
 <div class="game-store-thumb-top">
 ${pollLabel ? `<span class="${pollClass}">${escapeHtml(pollLabel)}</span>` : ''}
 </div>
@@ -6960,7 +7324,7 @@ const candidateTitle = candidate.label || `${uploaderName} upload`;
 const metaText = `Uploaded by ${uploaderName}${uploadedAt ? ` · ${uploadedAt}` : ''}`;
 const buttonLabel = state.pollActive ? (hasVoted ? 'Voted' : 'Vote for this') : (isChosen ? 'Selected thumbnail' : 'Poll closed');
 return `<div class="thumbnail-vote-card">
-<div class="thumbnail-vote-image" style="background-image:url('${escapeHtml(candidate.url)}')"></div>
+<div class="thumbnail-vote-image"><img src="${escapeHtml(candidate.url)}" alt="${escapeHtml(candidateTitle)}" loading="lazy" /></div>
 <div class="thumbnail-vote-content">
 <div style="display:flex; justify-content:space-between; gap:0.5rem; align-items:center;">
 <strong>${escapeHtml(candidateTitle)}</strong>
@@ -8472,193 +8836,6 @@ loadUpdateNotes();
 
 function closeUpdateNotesModal() {
 document.getElementById('update-notes-modal').style.display = 'none';
-}
-
-function openUiUpdatePollModal() {
-document.getElementById('ui-update-poll-modal').style.display = 'flex';
-loadUiUpdatePollState();
-renderUiUpdatePollStatus();
-}
-
-function closeUiUpdatePollModal() {
-document.getElementById('ui-update-poll-modal').style.display = 'none';
-}
-
-let uiUpdatePollCache = null;
-let uiUpdatePollLoading = false;
-
-function getUiUpdatePollRef() {
-return getPrimaryDb().collection(SITE_POLLS_COLLECTION).doc(UI_UPDATE_POLL_DOC_ID);
-}
-
-function normalizeUiUpdatePollData(data = {}) {
-const votes = data && typeof data.votes === 'object' && data.votes ? data.votes : {};
-const normalizedVotes = {};
-Object.keys(votes).forEach((key) => {
-const username = normalizeUsername(key);
-const value = votes[key] === 'yes' ? 'yes' : (votes[key] === 'no' ? 'no' : '');
-if (username && value) normalizedVotes[username] = value;
-});
-return {
-question: sanitizeNullableText(data.question, 'Should i update my ui?') || 'Should i update my ui?',
-votes: normalizedVotes,
-updatedBy: sanitizeNullableText(data.updatedBy, ''),
-updatedAtMs: getTimestampMs(data.updatedAt) || Number(data.updatedAtMs) || 0
-};
-}
-
-function getUiUpdatePollSummary(data = uiUpdatePollCache) {
-const state = normalizeUiUpdatePollData(data || {});
-const entries = Object.entries(state.votes);
-const yesVotes = entries.filter(([, value]) => value === 'yes');
-const noVotes = entries.filter(([, value]) => value === 'no');
-return {
-state,
-entries,
-yesCount: yesVotes.length,
-noCount: noVotes.length,
-totalCount: entries.length,
-recentEntries: entries.sort((a, b) => a[0].localeCompare(b[0]))
-};
-}
-
-function renderUiUpdatePollStatus() {
-const status = document.getElementById('ui-update-poll-status');
-if (!status) return;
-if (!currentChatUser) {
-status.textContent = 'Log in to vote.';
-return;
-}
-const summary = getUiUpdatePollSummary();
-const myVote = summary.state.votes[normalizeUsername(currentChatUser)] || '';
-if (uiUpdatePollLoading && !summary.totalCount && !myVote) {
-status.textContent = 'Loading current votes...';
-return;
-}
-if (myVote) {
-status.textContent = `Your vote: ${myVote}. Current totals: ${summary.yesCount} yes / ${summary.noCount} no.`;
-return;
-}
-status.textContent = `Pick yes or no. Current totals: ${summary.yesCount} yes / ${summary.noCount} no.`;
-}
-
-function renderAdminUiPollVotes() {
-const container = document.getElementById('admin-ui-poll-votes');
-if (!container) return;
-if (!canAdminSettings(currentChatUser)) {
-container.textContent = 'Insufficient permissions.';
-return;
-}
-if (uiUpdatePollLoading && !uiUpdatePollCache) {
-container.textContent = 'Loading votes...';
-return;
-}
-const summary = getUiUpdatePollSummary();
-const updatedText = summary.state.updatedAtMs ? new Date(summary.state.updatedAtMs).toLocaleString() : 'No votes yet';
-const voteList = summary.recentEntries.length
-? summary.recentEntries.map(([username, value]) => `<div style="display:flex; justify-content:space-between; gap:0.75rem; padding:0.3rem 0; border-bottom:1px solid #2b2b2b;"><span>${escapeHtml(username)}</span><strong style="color:${value === 'yes' ? '#81c784' : '#ef9a9a'};">${escapeHtml(value)}</strong></div>`).join('')
-: '<div style="color:#78909c;">No votes recorded yet.</div>';
-container.innerHTML = `
-<div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.55rem; margin-bottom:0.75rem;">
-<div style="background:#233238; border:1px solid #35515b; border-radius:0.4rem; padding:0.55rem;"><div style="color:#90caf9; font-size:0.74rem;">Question</div><div style="margin-top:0.25rem; color:#fff; font-weight:600;">${escapeHtml(summary.state.question)}</div></div>
-<div style="background:#1f3525; border:1px solid #355b3d; border-radius:0.4rem; padding:0.55rem;"><div style="color:#a5d6a7; font-size:0.74rem;">Yes</div><div style="margin-top:0.25rem; color:#fff; font-size:1.2rem; font-weight:700;">${summary.yesCount}</div></div>
-<div style="background:#3a2222; border:1px solid #5b3535; border-radius:0.4rem; padding:0.55rem;"><div style="color:#ef9a9a; font-size:0.74rem;">No</div><div style="margin-top:0.25rem; color:#fff; font-size:1.2rem; font-weight:700;">${summary.noCount}</div></div>
-</div>
-<div style="margin-bottom:0.6rem; color:#9fb0c2;">Total votes: ${summary.totalCount} · Updated: ${escapeHtml(updatedText)}</div>
-<div>${voteList}</div>`;
-}
-
-async function loadUiUpdatePollState() {
-uiUpdatePollLoading = true;
-renderUiUpdatePollStatus();
-renderAdminUiPollVotes();
-try {
-const doc = await getUiUpdatePollRef().get();
-uiUpdatePollCache = doc.exists ? normalizeUiUpdatePollData(doc.data() || {}) : normalizeUiUpdatePollData({});
-} catch (err) {
-console.error('Failed to load UI poll votes:', err);
-if (!uiUpdatePollCache) uiUpdatePollCache = normalizeUiUpdatePollData({});
-} finally {
-uiUpdatePollLoading = false;
-renderUiUpdatePollStatus();
-renderAdminUiPollVotes();
-}
-}
-
-async function voteOnUiUpdatePoll(vote) {
-const normalizedVote = vote === 'yes' ? 'yes' : 'no';
-const status = document.getElementById('ui-update-poll-status');
-if (!currentChatUser) {
-renderUiUpdatePollStatus();
-return;
-}
-uiUpdatePollLoading = true;
-if (status) status.textContent = 'Saving vote...';
-renderUiUpdatePollStatus();
-renderAdminUiPollVotes();
-try {
-const pollRef = getUiUpdatePollRef();
-const pollSnap = await pollRef.get();
-const pollData = pollSnap.exists ? normalizeUiUpdatePollData(pollSnap.data() || {}) : normalizeUiUpdatePollData({});
-const nextVotes = { ...(pollData.votes || {}) };
-nextVotes[normalizeUsername(currentChatUser)] = normalizedVote;
-await pollRef.set({
-question: 'Should i update my ui?',
-votes: nextVotes,
-updatedBy: currentChatUser,
-updatedAtMs: Date.now(),
-updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-}, { merge: true });
-uiUpdatePollCache = normalizeUiUpdatePollData({
-...pollData,
-question: 'Should i update my ui?',
-votes: nextVotes,
-updatedBy: currentChatUser,
-updatedAtMs: Date.now()
-});
-if (status) status.textContent = `Your vote: ${normalizedVote}. Saved.`;
-await loadUiUpdatePollState();
-} catch (err) {
-console.error('Failed to save UI poll vote:', err);
-uiUpdatePollLoading = false;
-if (status) status.textContent = 'Could not save vote right now.';
-renderUiUpdatePollStatus();
-renderAdminUiPollVotes();
-}
-}
-
-function loadAdminUiPollVotes() {
-renderAdminUiPollVotes();
-loadUiUpdatePollState();
-}
-
-async function restartUiUpdatePoll() {
-if (!canAdminSettings(currentChatUser)) return;
-if (!confirm('Restart the UI poll and clear all current votes?')) return;
-uiUpdatePollLoading = true;
-renderUiUpdatePollStatus();
-renderAdminUiPollVotes();
-try {
-await getUiUpdatePollRef().set({
-question: 'Should i update my ui?',
-votes: {},
-updatedBy: currentChatUser,
-updatedAtMs: Date.now(),
-updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-}, { merge: true });
-uiUpdatePollCache = normalizeUiUpdatePollData({
-question: 'Should i update my ui?',
-votes: {},
-updatedBy: currentChatUser,
-updatedAtMs: Date.now()
-});
-await loadUiUpdatePollState();
-} catch (err) {
-console.error('Failed to restart UI poll:', err);
-uiUpdatePollLoading = false;
-renderUiUpdatePollStatus();
-renderAdminUiPollVotes();
-}
 }
 
 function openCreditsModal() {
