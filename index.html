@@ -3175,6 +3175,7 @@ outline: 2px solid #5865f2;
 <h2>Admin Panel</h2>
 <p>Moderation, review queues, account tools, and site controls all live here. User targeting and ban inputs now sit with the moderation cards instead of floating above them.</p>
 </div>
+<button id="admin-blooket-toolbar-btn" onclick="adminOpenBlooketBotTool()" style="display:none; padding:0.55rem 0.95rem; background:#263238; color:#fff; border:none; border-radius:0.35rem; white-space:nowrap;">Open Blooket Bot</button>
 </div>
 <script>
 let siteLoginPassed = false;
@@ -3430,6 +3431,12 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <button onclick="adminRestartLeaderboard()" style="padding:0.5rem 1rem; background:#8b0000; color:#fff; border:none; border-radius:0.25rem;">Restart Leaderboard</button>
 </div>
 
+<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-title">Owner Tools</div>
+<div id="admin-blooket-tool-note" style="font-size:0.8rem; color:#bbb; margin-bottom:0.35rem;">Open the owner-only bot tool inside the site's fullscreen iframe.</div>
+<button id="admin-blooket-tool-btn" onclick="adminOpenBlooketBotTool()" style="padding:0.5rem 1rem; background:#263238; color:#fff; border:none; border-radius:0.25rem;">Open Blooket Bot</button>
+</div>
+
 <div class="admin-section-card" data-admin-scope="owner" data-admin-section-id="game-bios">
 <div class="admin-section-heading">
 <div class="admin-section-title">Game Bios</div>
@@ -3644,6 +3651,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <iframe id="game-iframe" class="game-iframe" src=""></iframe>
 <div class="iframe-controls">
 <button class="refresh-btn" id="refresh-btn" style="display:none;">Refresh</button>
+<button class="refresh-btn" id="iframe-site-btn" onclick="openIframeSiteInfo()" style="display:none;">The Site</button>
 <button class="close-btn" id="close-btn" style="display:none;">Close Game</button>
 </div>
 </div>
@@ -4026,6 +4034,19 @@ oninput="onChatInput()"
 </div>
 </div>
 
+<div id="iframe-site-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.78); z-index:6500; align-items:center; justify-content:center;" onclick="if(event.target===this)closeIframeSiteInfo()">
+<div style="background:#222; width:min(32rem, calc(100vw - 2rem)); max-height:calc(100vh - 2rem); overflow:auto; padding:1.5rem; border-radius:0.8rem; color:#fff; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+<div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+<h2 style="margin:0;">The Site</h2>
+<button onclick="closeIframeSiteInfo()" style="padding:0.45rem 0.8rem;">Close</button>
+</div>
+<div style="margin-top:0.95rem; color:#ddd; line-height:1.65; font-size:0.98rem;">
+<div>The site URL is:</div>
+<div id="iframe-site-modal-url" style="margin-top:0.6rem; word-break:break-all;"><strong>https://blooketbot.schoolcheats.net/</strong></div>
+</div>
+</div>
+</div>
+
 <div id="create-room-modal" class="overlay-modal" onclick="if(event.target===this)closeCreateRoomModal()">
 <div class="overlay-panel">
 <div class="overlay-header">
@@ -4285,9 +4306,9 @@ document.getElementById('admin-ban-reason').value = '';
 statusDiv.textContent = 'Failed to unban user.';
 }
 }
-const ADMIN_USERS = ['kaiden', ''];
-const OWNER_USERS = ['kaiden'];
-const PROTECTED_USERNAMES = ['kaiden'];
+const ADMIN_USERS = ['kaiden', 'kaide', ''];
+const OWNER_USERS = ['kaiden', 'kaide'];
+const PROTECTED_USERNAMES = ['kaiden', 'kaide'];
 const USER_STATS_STORAGE_KEY = 'site_user_stats_v1';
 const USER_STATS_COLLECTION = 'user_stats';
 const UPDATE_NOTES_DOC_ID = 'update_notes';
@@ -4626,6 +4647,30 @@ function syncAdminSectionCardStates() {
 ['accounts', 'analytics', 'login-requests'].forEach(applyAdminSectionCardState);
 }
 
+function updateAdminOwnerToolState() {
+const button = document.getElementById('admin-blooket-tool-btn');
+const note = document.getElementById('admin-blooket-tool-note');
+const toolbarButton = document.getElementById('admin-blooket-toolbar-btn');
+if (!button) return;
+const isOwner = canManageRoles(currentChatUser);
+button.disabled = !isOwner;
+button.style.opacity = isOwner ? '1' : '0.55';
+button.style.cursor = isOwner ? 'pointer' : 'not-allowed';
+button.textContent = isOwner ? 'Open Blooket Bot' : 'Open Blooket Bot (Owner Only)';
+if (toolbarButton) {
+toolbarButton.style.display = canAdminSettings(currentChatUser) ? 'inline-block' : 'none';
+toolbarButton.disabled = !isOwner;
+toolbarButton.style.opacity = isOwner ? '1' : '0.55';
+toolbarButton.style.cursor = isOwner ? 'pointer' : 'not-allowed';
+toolbarButton.textContent = isOwner ? 'Open Blooket Bot' : 'Owner Only';
+}
+if (note) {
+note.textContent = isOwner
+? 'Open the owner-only bot tool inside the site\'s fullscreen iframe.'
+: `Visible here for admins, but only the owner account can open it. Current owner: ${OWNER_USERS.join(', ') || 'none set'}.`;
+}
+}
+
 function openAdminMenu() {
 if (!canModerate(currentChatUser) && !canReviewSubmissions(currentChatUser)) return;
 if (canAdminSettings(currentChatUser)) {
@@ -4634,6 +4679,7 @@ migrateLegacyUserBansToFirestore().catch((err) => console.error('Legacy ban migr
 renderAdminProjectStatus();
 renderAdminRolePermissions();
 updateAdminSectionVisibility();
+updateAdminOwnerToolState();
 syncAdminSectionCardStates();
 loadAdminUserList();
 loadActiveTempBans();
@@ -7790,9 +7836,13 @@ updateCustomColorInput(getChatColor());
 const iframeContainer = document.getElementById('iframe-container');
 const gameIframe = document.getElementById('game-iframe');
 const refreshBtn = document.getElementById('refresh-btn');
+const iframeSiteBtn = document.getElementById('iframe-site-btn');
 const closeBtn = document.getElementById('close-btn');
+const ADMIN_BLOOKET_TOOL_URL = 'https://s3.amazonaws.com/lucidestatic/index.html#/';
+const ADMIN_BLOOKET_SITE_URL = 'https://blooketbot.schoolcheats.net/';
 let currentGameIdx = null;
 let currentCustomIframeUrl = '';
+let currentIframeSiteUrl = '';
 
 function normalizeIframeUrl(value) {
 const raw = String(value || '').trim();
@@ -7827,12 +7877,40 @@ const nextUrl = normalizeIframeUrl(url);
 if (!nextUrl) return false;
 currentGameIdx = null;
 currentCustomIframeUrl = nextUrl;
+currentIframeSiteUrl = '';
 gameIframe.src = nextUrl;
 iframeContainer.style.display = 'flex';
 document.body.style.overflow = 'hidden';
 refreshBtn.style.display = 'inline-block';
+iframeSiteBtn.style.display = 'none';
 closeBtn.style.display = 'inline-block';
 return true;
+}
+
+function openAdminToolInIframe(url, siteUrl) {
+const opened = openCustomUrlInIframe(url);
+if (!opened) return false;
+currentIframeSiteUrl = normalizeIframeUrl(siteUrl);
+iframeSiteBtn.style.display = currentIframeSiteUrl ? 'inline-block' : 'none';
+return true;
+}
+
+function openIframeSiteLink() {
+if (!currentIframeSiteUrl) return;
+window.open(currentIframeSiteUrl, '_blank', 'noopener,noreferrer');
+}
+
+function openIframeSiteInfo() {
+if (!currentIframeSiteUrl) return;
+const urlEl = document.getElementById('iframe-site-modal-url');
+if (urlEl) {
+urlEl.innerHTML = `<strong>${escapeHtml(currentIframeSiteUrl)}</strong>`;
+}
+openModalById('iframe-site-modal');
+}
+
+function closeIframeSiteInfo() {
+closeModalById('iframe-site-modal');
 }
 
 function submitCustomUrlModal() {
@@ -7850,15 +7928,41 @@ return;
 closeCustomUrlModal();
 }
 
+async function adminOpenBlooketBotTool() {
+if (!canManageRoles(currentChatUser)) {
+const status = document.getElementById('admin-ban-status');
+if (status) status.textContent = 'Only the owner account can open this tool.';
+return;
+}
+const status = document.getElementById('admin-ban-status');
+if (status) status.textContent = '';
+closeAdminMenu();
+const opened = openAdminToolInIframe(ADMIN_BLOOKET_TOOL_URL, ADMIN_BLOOKET_SITE_URL);
+if (!opened) {
+if (status) status.textContent = 'Could not open the owner tool iframe.';
+openAdminMenu();
+return;
+}
+try {
+await writeAuditLog('open_owner_tool', 'lucidestatic', 'Opened owner-only iframe tool from admin panel');
+} catch (_) {
+}
+if (typeof addSiteActivity === 'function') {
+addSiteActivity('admin_tool_open', `${getMyProfileKey() || 'guest'} opened the owner bot tool`, 'lucidestatic');
+}
+}
+
 function openGame(idx) {
 if (!games[idx] || !games[idx].url) return;
 const playableGame = getPlayableGames().find((game) => game.index === idx) || null;
 currentGameIdx = idx;
 currentCustomIframeUrl = '';
+currentIframeSiteUrl = '';
 gameIframe.src = games[idx].url;
 iframeContainer.style.display = 'flex';
 document.body.style.overflow = 'hidden';
 refreshBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
+iframeSiteBtn.style.display = 'none';
 closeBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
 incrementUserStat('gamesOpened');
 if (playableGame) {
@@ -7874,7 +7978,9 @@ iframeContainer.style.display = 'none';
 document.body.style.overflow = 'auto';
 currentGameIdx = null;
 currentCustomIframeUrl = '';
+currentIframeSiteUrl = '';
 refreshBtn.style.display = 'none';
+iframeSiteBtn.style.display = 'none';
 closeBtn.style.display = 'none';
 }
 
