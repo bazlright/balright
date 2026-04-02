@@ -4124,6 +4124,20 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div id="admin-user-history" class="admin-scroll-panel" style="max-height:280px;"></div>
 </div>
 
+<div class="admin-section-card" data-admin-scope="admin" data-admin-section-id="chat-archives">
+<div class="admin-section-heading">
+<div class="admin-section-title">Archived Chats</div>
+<button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('chat-archives')">Minimize</button>
+</div>
+<div class="admin-section-body">
+<div class="admin-note-text">Browse archive sessions saved when chat is cleared. Open a session to view its archived messages.</div>
+<div class="admin-button-row" style="margin-top:0.55rem;">
+<button onclick="loadAdminChatArchives()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Archives</button>
+</div>
+<div id="admin-chat-archives" class="admin-scroll-panel" style="max-height:340px; margin-top:0.55rem;"></div>
+</div>
+</div>
+
 <div class="admin-section-card" data-admin-scope="admin" data-admin-section-id="accounts">
 <div class="admin-section-heading">
 <div class="admin-section-title">Accounts</div>
@@ -4888,7 +4902,7 @@ oninput="onChatInput()"
 </div>
 <div style="margin-top:0.95rem; color:#ddd; line-height:1.65; font-size:0.98rem;">
 <div><strong>kaiden - owner</strong></div>
-<div style="margin-top:0.45rem;"><strong>jeremy_wade/kyler - contributed</strong> the profile improvements, UI rework, and game suggestions/login to server (makes it easier to approve and add logins/games), and the casino idea.</div>
+<div style="margin-top:0.45rem;"><strong>jeremy_wade/kyler - contributed</strong> the profile improvements, UI rework, game suggestions/login to server (makes it easier to approve and add logins/games), and the casino idea.</div>
 </div>
 </div>
 </div>
@@ -8197,6 +8211,7 @@ loadActiveTempBans();
 loadMessageReports();
 loadAppealsQueue();
 loadAuditLogs();
+loadAdminChatArchives();
 loadAdminAnalytics();
 loadAdminRoomManager();
 loadAdminAccountManager();
@@ -8214,6 +8229,125 @@ document.getElementById('admin-menu').style.display = 'flex';
 function closeAdminMenu() {
 document.getElementById('admin-menu').style.display = 'none';
 }
+
+function getArchiveTimestampLabel(value) {
+if (!value) return 'Unknown time';
+if (value instanceof Date) return value.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+if (value && typeof value.toDate === 'function') {
+  const nextDate = value.toDate();
+  return nextDate instanceof Date ? nextDate.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Unknown time';
+}
+return 'Unknown time';
+}
+
+function getArchiveMessageBodyText(data = {}) {
+const body = sanitizeNullableText(data.message, '');
+if (body) return body;
+if (data.imageData) return '[image]';
+if (data.mediaUrl || data.videoUrl || data.audioUrl) return '[media]';
+return '[empty message]';
+}
+
+function renderAdminArchiveSessions(sessions = []) {
+const container = document.getElementById('admin-chat-archives');
+if (!container) return;
+if (!canAdminSettings(currentChatUser)) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+if (!sessions.length) {
+  container.innerHTML = '<div class="activity-feed-empty">No archived chat sessions found yet.</div>';
+  return;
+}
+container.innerHTML = sessions.map((session) => {
+  const isExpanded = adminArchiveExpandedSessionId === session.id;
+  const archivedAt = getArchiveTimestampLabel(session.archivedAt);
+  const details = sanitizeNullableText(session.reason, 'Archive session');
+  return `<div style="padding:0.7rem; border:1px solid ${isExpanded ? '#5b8cff' : '#2b3442'}; background:${isExpanded ? '#162338' : '#10151d'}; border-radius:0.75rem; display:grid; gap:0.45rem; margin-bottom:0.55rem;">
+    <div style="display:flex; justify-content:space-between; gap:0.65rem; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:700; color:#fff;">${escapeHtml(session.id)}</div>
+        <div style="margin-top:0.18rem; font-size:0.78rem; color:#9fb0c2;">Archived by ${escapeHtml(sanitizeNullableText(session.archivedBy, 'admin'))} • ${escapeHtml(archivedAt)}</div>
+        <div style="margin-top:0.18rem; font-size:0.78rem; color:#c5d2e1;">${escapeHtml(details)}</div>
+      </div>
+      <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+        <button onclick="toggleAdminArchiveSession('${encodeURIComponent(session.id)}')" style="padding:0.35rem 0.7rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">${isExpanded ? 'Hide Messages' : 'View Messages'}</button>
+      </div>
+    </div>
+    ${isExpanded ? `<div id="admin-archive-session-${encodeURIComponent(session.id)}" class="admin-compact-list">${adminArchiveMessagesCache[session.id] || '<div class="activity-feed-empty">Loading archived messages...</div>'}</div>` : ''}
+  </div>`;
+}).join('');
+}
+
+async function loadAdminChatArchives() {
+const container = document.getElementById('admin-chat-archives');
+if (!container) return;
+if (!canAdminSettings(currentChatUser)) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+const archiveDb = getArchiveDb();
+if (!archiveDb) {
+  container.textContent = 'Archive project is not configured.';
+  return;
+}
+container.textContent = 'Loading archived chats...';
+try {
+  const snapshot = await archiveDb.collection('chat_archives').orderBy('archivedAt', 'desc').limit(40).get();
+  const sessions = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+  renderAdminArchiveSessions(sessions);
+} catch (err) {
+  console.error('Failed to load archived chats:', err);
+  container.textContent = 'Failed to load archived chats.';
+}
+}
+
+async function toggleAdminArchiveSession(encodedArchiveId) {
+if (!canAdminSettings(currentChatUser)) return;
+const archiveId = decodeURIComponent(encodedArchiveId || '');
+if (!archiveId) return;
+if (adminArchiveExpandedSessionId === archiveId) {
+  adminArchiveExpandedSessionId = '';
+  await loadAdminChatArchives();
+  return;
+}
+adminArchiveExpandedSessionId = archiveId;
+await loadAdminChatArchives();
+if (adminArchiveMessagesCache[archiveId]) return;
+const container = document.getElementById(`admin-archive-session-${encodeURIComponent(archiveId)}`);
+if (container) {
+  container.innerHTML = '<div class="activity-feed-empty">Loading archived messages...</div>';
+}
+try {
+  const archiveDb = getArchiveDb();
+  if (!archiveDb) {
+    if (container) container.textContent = 'Archive project is not configured.';
+    return;
+  }
+  const snapshot = await archiveDb.collection('chat_archives').doc(archiveId).collection('messages').orderBy('timestamp', 'desc').limit(120).get();
+  const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+  const html = messages.length ? messages.map((item) => {
+    const timeText = item.timestamp && typeof item.timestamp.toDate === 'function'
+      ? item.timestamp.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : getArchiveTimestampLabel(item.archivedAt);
+    const roomName = getChatRoomConfig(item.room || 'general').name;
+    const userText = sanitizeNullableText(item.user, '?');
+    const body = getArchiveMessageBodyText(item).slice(0, 220);
+    return `<div style="padding:0.45rem; background:#111720; border:1px solid #2b3442; border-radius:0.35rem; margin-bottom:0.35rem;">
+      <div style="font-size:0.74rem; color:#90a4ae;">${escapeHtml(timeText)} • ${escapeHtml(roomName)} • @${escapeHtml(userText)}</div>
+      <div style="margin-top:0.2rem; color:#e5eef8;">${escapeHtml(body)}</div>
+    </div>`;
+  }).join('') : '<div class="activity-feed-empty">No archived messages found in this session.</div>';
+  adminArchiveMessagesCache[archiveId] = html;
+  const refreshed = document.getElementById(`admin-archive-session-${encodeURIComponent(archiveId)}`);
+  if (refreshed) refreshed.innerHTML = html;
+} catch (err) {
+  console.error('Failed to load archive messages:', err);
+  const refreshed = document.getElementById(`admin-archive-session-${encodeURIComponent(archiveId)}`);
+  if (refreshed) refreshed.textContent = 'Failed to load archived messages.';
+}
+}
+
 async function adminBanUser() {
 if (!canAdminSettings(currentChatUser)) return;
 const username = resolveAdminTargetUsername('admin-ban-username');
@@ -9024,6 +9158,8 @@ let adminAccountFilters = {
 search: '',
 source: 'all'
 };
+let adminArchiveExpandedSessionId = '';
+let adminArchiveMessagesCache = {};
 let adminAccountManagerCache = [];
 let adminAccountManagerWarnings = [];
 let activeRoomModerationId = '';
@@ -9066,7 +9202,7 @@ const ROOM_FAVORITES_STORAGE_KEY = 'roomFavorites';
 const CHAT_READ_STORAGE_KEY = 'chatReadMarkers';
 const GAME_RATINGS_STORAGE_KEY = 'gameRatings';
 const GAME_REPORTS_COLLECTION = 'game_reports';
-const UX_WHATS_NEW_VERSION = '2026-04-01';
+const UX_WHATS_NEW_VERSION = '2026-04-03';
 const UX_WHATS_NEW_ITEMS = [
 'A persistent what\'s new panel and detailed notes view now make recent site changes easier to review.',
 'Store browsing now includes density and accent preferences, a visible favorites-only toggle, personal ratings, and broken-game reporting.',
@@ -9074,6 +9210,8 @@ const UX_WHATS_NEW_ITEMS = [
 'Private rooms now support favorites, invite codes, room icons, searchable member selection, and richer moderation controls.',
 'Profiles, review queues, and thumbnail polls were expanded with banners, compare tools, rejection reasons, bulk actions, and visible voter lists.'
 ];
+let updateNotesUpdatedAtCache = null;
+let updateNotesUpdatedByCache = '';
 let uiPreferences = {
 density: 'default',
 accent: '#4f83ff',
@@ -9161,9 +9299,10 @@ const subtitle = document.getElementById('whats-new-subtitle');
 const list = document.getElementById('whats-new-list');
 if (!panel || !subtitle || !list) return;
 const visible = uiPreferences.dismissedWhatsNewVersion !== UX_WHATS_NEW_VERSION;
+const items = normalizeUpdateNotesList(updateNotesCache).length ? normalizeUpdateNotesList(updateNotesCache) : UX_WHATS_NEW_ITEMS;
 panel.classList.toggle('is-visible', visible);
-subtitle.textContent = `Updated ${new Date('2026-04-01').toLocaleDateString()} • stays visible until you dismiss it.`;
-list.innerHTML = UX_WHATS_NEW_ITEMS.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+subtitle.textContent = `Updated ${(updateNotesUpdatedAtCache instanceof Date ? updateNotesUpdatedAtCache : new Date('2026-04-02')).toLocaleDateString()} • stays visible until you dismiss it.`;
+list.innerHTML = items.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
 }
 
 function loadRoomFavorites() {
@@ -14370,6 +14509,9 @@ if (!listEl || !metaEl) return;
 
 const finalNotes = Array.isArray(notes) && notes.length ? notes : ['No updates yet.'];
 listEl.innerHTML = finalNotes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
+updateNotesUpdatedByCache = updatedBy || updateNotesUpdatedByCache || '';
+updateNotesUpdatedAtCache = updatedAt instanceof Date ? updatedAt : updateNotesUpdatedAtCache;
+renderWhatsNewPanel();
 if (editBtn) editBtn.style.display = canAdminSettings(currentChatUser) ? 'inline-block' : 'none';
 if (statusEl && !statusEl.textContent) {
 statusEl.textContent = canAdminSettings(currentChatUser) ? 'Admins can edit these notes inline.' : '';
@@ -14391,6 +14533,8 @@ firebase.initializeApp(firebaseConfig);
 const db = getAdminDb();
 const doc = await db.collection('chat_meta').doc(UPDATE_NOTES_DOC_ID).get();
 if (!doc.exists) {
+updateNotesUpdatedByCache = '';
+updateNotesUpdatedAtCache = null;
 renderUpdateNotes(updateNotesCache);
 return;
 }
@@ -14405,6 +14549,8 @@ const updatedBy = data.updatedBy ? String(data.updatedBy) : '';
 const updatedAt = data.updatedAt && typeof data.updatedAt.toDate === 'function'
 ? data.updatedAt.toDate()
 : null;
+updateNotesUpdatedByCache = updatedBy;
+updateNotesUpdatedAtCache = updatedAt;
 renderUpdateNotes(updateNotesCache, updatedBy, updatedAt);
 } catch (err) {
 console.error('Failed to load update notes:', err);
