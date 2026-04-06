@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <style>
 body {
 background:
@@ -3120,32 +3121,82 @@ transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18
 
 #pinned-message-bar {
 display: none;
-padding: 0.55rem 0.75rem;
-background: rgba(15, 23, 37, 0.96);
-border-bottom: 1px solid #24324a;
+padding: 0.48rem 0.62rem;
+background: linear-gradient(180deg, rgba(14, 20, 34, 0.98) 0%, rgba(10, 16, 29, 0.98) 100%);
+border-bottom: 1px solid #223251;
 color: #d9e6f6;
-font-size: 0.78rem;
+font-size: 0.74rem;
 gap: 0.5rem;
-align-items: flex-start;
+align-items: stretch;
+flex-wrap: wrap;
+box-shadow: inset 0 -1px 0 rgba(255,255,255,0.03);
+}
+
+#pinned-message-bar.collapsed {
+align-items: center;
+}
+
+#pinned-message-bar.collapsed #pinned-message-text,
+#pinned-message-bar.collapsed #pinned-message-clear-room-btn,
+#pinned-message-bar.collapsed #pinned-message-clear-global-btn {
+display: none !important;
+}
+
+#pinned-message-bar.collapsed #pinned-message-actions {
+margin-left: 0;
 }
 
 #pinned-message-label {
-color: #ffca28;
-font-weight: bold;
+display: inline-flex;
+align-items: center;
+align-self: flex-start;
+padding: 0.18rem 0.46rem;
+border-radius: 999px;
+border: 1px solid rgba(255, 202, 40, 0.28);
+background: rgba(255, 202, 40, 0.08);
+color: #ffcf54;
+font-weight: 700;
+letter-spacing: 0.07em;
+text-transform: uppercase;
 flex-shrink: 0;
+font-size: 0.66rem;
 }
 
 #pinned-message-text {
 flex: 1;
-min-width: 0;
+min-width: min(22rem, 100%);
 word-break: break-word;
+display: grid;
+gap: 0.32rem;
+max-height: 8.2rem;
+overflow-y: auto;
 }
 
 #pinned-message-actions {
 display: flex;
-gap: 0.35rem;
+gap: 0.32rem;
 flex-wrap: wrap;
 justify-content: flex-end;
+align-items: flex-start;
+margin-left: auto;
+align-self: flex-start;
+max-width: 100%;
+}
+
+#pinned-message-actions button {
+padding: 0.26rem 0.56rem !important;
+font-size: 0.66rem !important;
+font-weight: 700;
+border-radius: 999px;
+border: 1px solid rgba(86, 112, 154, 0.5);
+background: rgba(27, 38, 59, 0.96);
+color: #eef5ff;
+box-shadow: none;
+}
+
+#pinned-message-actions button:hover {
+background: rgba(39, 54, 83, 0.98);
+border-color: rgba(121, 150, 202, 0.68);
 }
 
 #chat-jump-latest-btn.has-unread-burst {
@@ -3157,24 +3208,128 @@ font-weight: 700;
 }
 
 .pinned-message-entry {
-display: flex;
-gap: 0.45rem;
-align-items: flex-start;
+display: grid;
+gap: 0.2rem;
+align-items: start;
+padding: 0.38rem 0.52rem;
+border: 1px solid rgba(53, 70, 99, 0.8);
+border-radius: 0.56rem;
+background: rgba(18, 27, 43, 0.92);
+box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .pinned-message-entry + .pinned-message-entry {
-margin-top: 0.3rem;
+margin-top: 0;
+}
+
+.pinned-message-entry-top {
+display: grid;
+grid-template-columns: auto minmax(0, 1fr) auto;
+gap: 0.32rem;
+align-items: center;
+min-width: 0;
 }
 
 .pinned-message-entry-label {
-color: #90caf9;
-font-weight: bold;
-flex-shrink: 0;
+display: inline-flex;
+align-items: center;
+padding: 0.12rem 0.34rem;
+border-radius: 999px;
+background: rgba(66, 104, 177, 0.2);
+border: 1px solid rgba(100, 146, 230, 0.34);
+color: #a9ccff;
+font-weight: 700;
+font-size: 0.58rem;
+letter-spacing: 0.05em;
+text-transform: uppercase;
+white-space: nowrap;
 }
 
-.pinned-message-entry-body {
+.pinned-message-entry-user {
 min-width: 0;
-word-break: break-word;
+color: #eef5ff;
+font-weight: 700;
+font-size: 0.68rem;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+
+.pinned-message-entry-message {
+color: #c8d7ea;
+font-size: 0.69rem;
+line-height: 1.28;
+display: -webkit-box;
+-webkit-line-clamp: 2;
+-webkit-box-orient: vertical;
+overflow: hidden;
+}
+
+.pinned-message-entry-video,
+.pinned-message-entry-video-embed {
+display: block;
+width: min(100%, 13rem);
+height: 7rem;
+margin-top: 0.28rem;
+border: none;
+border-radius: 0.48rem;
+background: #05070c;
+}
+
+.pinned-message-entry-video {
+object-fit: cover;
+}
+
+.pinned-message-collapse-btn {
+min-width: 2rem;
+}
+
+.pinned-message-entry-remove {
+border: 1px solid rgba(255,255,255,0.08);
+background: rgba(255,255,255,0.04);
+color: #d9e6f6;
+border-radius: 999px;
+padding: 0.08rem 0.36rem;
+font-size: 0.68rem;
+line-height: 1.1;
+cursor: pointer;
+}
+
+.pinned-message-entry-remove:hover {
+background: rgba(255,255,255,0.1);
+}
+
+@media (max-width: 720px) {
+#pinned-message-bar {
+  padding: 0.45rem 0.56rem;
+}
+
+#pinned-message-text {
+  min-width: 100%;
+}
+
+#pinned-message-actions {
+  width: 100%;
+  margin-left: 0;
+  justify-content: flex-start;
+}
+
+#pinned-message-bar.collapsed #pinned-message-actions {
+  width: auto;
+}
+
+.pinned-message-entry {
+  padding: 0.34rem 0.48rem;
+}
+
+.pinned-message-entry-top {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.pinned-message-entry-remove {
+  grid-column: 2;
+  justify-self: end;
+}
 }
 
 
@@ -3841,6 +3996,26 @@ max-height: 240px;
 border-radius: 8px;
 margin-top: 0.35rem;
 object-fit: contain;
+}
+
+.chat-message-video {
+display: block;
+max-width: 100%;
+max-height: 260px;
+border-radius: 10px;
+margin-top: 0.35rem;
+background: #05070c;
+}
+
+.chat-message-video-embed {
+display: block;
+width: 100%;
+max-width: 100%;
+height: 260px;
+border: none;
+border-radius: 10px;
+margin-top: 0.35rem;
+background: #05070c;
 }
 
 .chat-message-caption {
@@ -4546,6 +4721,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <button onclick="adminResetCasinoLeaderboard()" style="background:#8b0000; color:#fff; border:none; border-radius:0.25rem;">Reset Casino Leaderboard</button>
 <button onclick="adminResetCasinoStats()" style="background:#6a1b9a; color:#fff; border:none; border-radius:0.25rem;">Reset Casino Stats</button>
 <button onclick="adminClearCasinoFeed()" style="background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Clear Casino Feed</button>
+<button onclick="adminClearCasinoCoinFlips()" style="background:#5d4037; color:#fff; border:none; border-radius:0.25rem;">Clear Coin Flips</button>
 </div>
 <div class="admin-note-text" style="margin-top:0.7rem;">Game chance tuning</div>
 <div style="font-size:0.76rem; color:#9fb0c2; margin-bottom:0.35rem;">Blackjack uses the dealer stand value. Slots use per-symbol weights on each reel, and you can add a separate no-match chance for forced misses.</div>
@@ -4733,6 +4909,27 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div id="admin-game-submissions" class="admin-compact-list"></div>
 </div>
 
+<div class="admin-section-card" data-admin-scope="reviewer" data-admin-section-id="case-suggestions">
+<div class="admin-section-heading">
+<div class="admin-section-title">Case Suggestions <span id="admin-case-suggestions-pending-count" class="admin-pill-badge" style="display:none;">0</span></div>
+<button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('case-suggestions')">Minimize</button>
+</div>
+<div class="admin-section-body">
+<button onclick="loadCaseSuggestionsOnce(true)" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Queue</button>
+<div class="admin-filter-bar">
+<input type="text" id="admin-case-suggestions-search" placeholder="Search case name, notes, or submitter" oninput="updateReviewQueueFilter('cases', 'search', this.value)" />
+<select id="admin-case-suggestions-status" onchange="updateReviewQueueFilter('cases', 'status', this.value)">
+<option value="all">All statuses</option>
+<option value="pending">Pending only</option>
+<option value="approved">Approved only</option>
+<option value="rejected">Rejected only</option>
+</select>
+<button onclick="resetReviewQueueFilters('cases')" style="padding:0.45rem 0.8rem; background:#37474f; color:#fff; border:none; border-radius:0.25rem;">Clear</button>
+</div>
+<div id="admin-case-suggestions" class="admin-compact-list"></div>
+</div>
+</div>
+
 <div class="admin-section-card" data-admin-scope="owner" data-admin-section-id="login-requests">
 <div class="admin-section-heading">
 <div class="admin-section-title">Login Requests <span id="admin-login-requests-pending-count" class="admin-pill-badge" style="display:none;">0</span></div>
@@ -4831,6 +5028,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 <div class="store-hero-actions">
 <button onclick="openGameSubmissionModal()">Suggest a Game</button>
+<button onclick="openCaseSuggestionModal()">Suggest a Case</button>
 <button onclick="openGeneralShopModal()">Shop</button>
 <button onclick="openGeneralShopInventoryModal()">Inventory</button>
 <button onclick="openCasinoModal()">Casino</button>
@@ -5166,8 +5364,9 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <span id="pinned-message-label">PINNED</span>
 <div id="pinned-message-text"></div>
 <div id="pinned-message-actions">
-<button id="pinned-message-clear-room-btn" onclick="clearPinnedMessage('room')" style="display:none; padding:0.15rem 0.45rem; font-size:0.7rem;">Clear Room</button>
-<button id="pinned-message-clear-global-btn" onclick="clearPinnedMessage('global')" style="display:none; padding:0.15rem 0.45rem; font-size:0.7rem;">Clear Global</button>
+<button id="pinned-message-collapse-btn" class="pinned-message-collapse-btn" onclick="togglePinnedMessageBarCollapse()">Collapse</button>
+<button id="pinned-message-clear-room-btn" onclick="clearPinnedMessage('room')" style="display:none;">Clear Room</button>
+<button id="pinned-message-clear-global-btn" onclick="clearPinnedMessage('global')" style="display:none;">Clear Global</button>
 </div>
 </div>
 <div id="online-users-panel"></div>
@@ -5238,7 +5437,8 @@ oninput="onChatInput()"
     <div id="media-tab-upload" class="media-tab-content" style="display:flex; align-items:center; justify-content:center; padding:1.5rem 0;">
       <div style="display:grid; gap:0.65rem; justify-items:center; text-align:center;">
         <button onclick="document.getElementById('chat-image-input').value='';document.getElementById('chat-image-input').click();closeMediaModal();" style="padding:0.6rem 1.25rem; background:#5865f2; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.95rem; font-weight:bold;">📎 Choose Image</button>
-        <div style="font-size:0.78rem; color:#9fb0c2; max-width:22rem;">Upload an image straight to chat.</div>
+        <div style="font-size:0.78rem; color:#9fb0c2; max-width:22rem;">Upload an image here, or paste a direct video URL into chat to send a looping video.</div>
+        <div style="font-size:0.76rem; color:#8fb1ff; max-width:22rem; line-height:1.4;">Video links should point directly to an MP4, WebM, or OGG file.</div>
       </div>
     </div>
     <div id="media-tab-gif" class="media-tab-content" style="display:none;">
@@ -5567,6 +5767,34 @@ oninput="onChatInput()"
 </div>
 </div>
 
+<div id="case-suggestion-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.78); z-index:7200; align-items:center; justify-content:center;">
+<div style="background:#222; width:min(56rem, calc(100vw - 2rem)); max-height:calc(100vh - 2rem); overflow:auto; padding:1.5rem; border-radius:0.8rem; color:#fff; box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+<div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+<div>
+<h2 style="margin:0;">Suggest a Case</h2>
+<div style="margin-top:0.25rem; color:#98adc4; font-size:0.85rem;">Add a case name and at least one idea for every rarity. More suggestions per rarity make the case stronger.</div>
+</div>
+<button onclick="closeCaseSuggestionModal()" style="padding:0.45rem 0.8rem;">Close</button>
+</div>
+<div id="case-suggestion-status" class="overlay-status" style="margin-top:0.85rem;"></div>
+<div class="submission-form">
+<input id="case-suggestion-name" type="text" maxlength="40" placeholder="Case name" />
+<input id="case-suggestion-theme" type="text" maxlength="120" placeholder="Theme or short hook" />
+<textarea id="case-suggestion-notes" class="full-span" maxlength="220" placeholder="Optional notes for the reviewer"></textarea>
+<div class="full-span" style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+<div style="font-size:0.8rem; color:#9fb0c2;">Set each case drop up as image, rarity, then name. The form starts with one card for each rarity and you can add more drops.</div>
+<button type="button" onclick="addCaseSuggestionDrop()" style="padding:0.55rem 0.9rem; background:#37474f; color:#fff; border:none; border-radius:0.35rem;">Add More Drops</button>
+</div>
+<div id="case-suggestion-drop-builder" class="full-span" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(12rem, 1fr)); gap:0.8rem;"></div>
+</div>
+<div style="margin-top:0.75rem; font-size:0.8rem; color:#9fb0c2;">Minimum: one suggestion in every rarity bucket. More is better.</div>
+<div class="submission-actions">
+<button type="button" onclick="submitCaseSuggestion()" style="padding:0.55rem 0.9rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">Submit Case</button>
+<button type="button" onclick="closeCaseSuggestionModal()" style="padding:0.55rem 0.9rem; background:#444; color:#fff; border:none; border-radius:0.35rem;">Cancel</button>
+</div>
+</div>
+</div>
+
 <div id="login-request-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.82); z-index:7200; align-items:center; justify-content:center;">
 <div class="site-login-card site-request-card">
 <button type="button" class="chud-corner-close" onclick="closeLoginRequestModal()">Close</button>
@@ -5792,12 +6020,20 @@ function getCasinoConfigCollection() {
   return getCasinoDb().collection(CASINO_CONFIG_COLLECTION);
 }
 
+function getCasinoCoinFlipCollection() {
+  return getCasinoDb().collection(CASINO_COIN_FLIP_COLLECTION);
+}
+
 function getGeneralShopCollection() {
   return getCasinoDb().collection(GENERAL_SHOP_COLLECTION);
 }
 
 function getProfileBackgroundShopCollection() {
   return getCasinoDb().collection(PROFILE_BACKGROUND_SHOP_COLLECTION);
+}
+
+function getCaseSuggestionsCollection() {
+  return getAdminDb().collection(CASE_SUGGESTIONS_COLLECTION);
 }
 
 function getCasinoGameSettingsDoc() {
@@ -6240,10 +6476,211 @@ function normalizeOptionalProfileBackgroundId(value) {
 
 function getCasinoGameLabel(gameKey) {
   if (gameKey === 'blackjack') return 'Blackjack';
+  if (gameKey === 'coinflip') return 'Coin Flip';
   if (gameKey === 'roulette') return 'Roulette';
   if (gameKey === 'slots') return 'Slots';
   if (gameKey === 'poker') return 'Poker';
   return 'Casino';
+}
+
+function normalizeCoinFlipChoice(value) {
+  const choice = String(value || '').trim().toLowerCase();
+  return choice === 'tails' ? 'tails' : 'heads';
+}
+
+function getCoinFlipChoiceLabel(value) {
+  return normalizeCoinFlipChoice(value) === 'tails' ? 'Tails' : 'Heads';
+}
+
+function normalizeCasinoCoinFlipData(id, data = {}) {
+  const createdAtMs = data.createdAt && typeof data.createdAt.toDate === 'function'
+    ? data.createdAt.toDate().getTime()
+    : Math.max(0, Number(data.createdAtMs || 0));
+  const resolvedAtMs = Math.max(0, Number(data.resolvedAtMs || 0));
+  const updatedAtMs = Math.max(createdAtMs, Math.max(0, Number(data.updatedAtMs || 0)));
+  const challenger = normalizeUsername(data.challenger || '');
+  const acceptor = normalizeUsername(data.acceptor || '');
+  const opponentTarget = normalizeUsername(data.opponentTarget || '');
+  const status = ['open', 'resolved', 'cancelled'].includes(String(data.status || '').trim().toLowerCase())
+    ? String(data.status || '').trim().toLowerCase()
+    : 'open';
+  return {
+    id: sanitizeNullableText(id, ''),
+    status,
+    bet: Math.max(1, Math.floor(Number(data.bet) || 0)),
+    challenger,
+    challengerDisplayName: sanitizeNullableText(data.challengerDisplayName, challenger || 'Player'),
+    challengerSide: normalizeCoinFlipChoice(data.challengerSide),
+    opponentTarget,
+    opponentTargetDisplayName: sanitizeNullableText(data.opponentTargetDisplayName, opponentTarget),
+    openToAny: !opponentTarget,
+    acceptor,
+    acceptorDisplayName: sanitizeNullableText(data.acceptorDisplayName, acceptor),
+    acceptorSide: normalizeCoinFlipChoice(data.acceptorSide || (normalizeCoinFlipChoice(data.challengerSide) === 'heads' ? 'tails' : 'heads')),
+    winner: normalizeUsername(data.winner || ''),
+    winnerDisplayName: sanitizeNullableText(data.winnerDisplayName, data.winner || ''),
+    loser: normalizeUsername(data.loser || ''),
+    loserDisplayName: sanitizeNullableText(data.loserDisplayName, data.loser || ''),
+    flipResult: normalizeCoinFlipChoice(data.flipResult || 'heads'),
+    cancelledBy: normalizeUsername(data.cancelledBy || ''),
+    createdAtMs,
+    updatedAtMs,
+    resolvedAtMs
+  };
+}
+
+function createDefaultCasinoCoinFlipVisualState() {
+  return {
+    matchId: '',
+    flipping: false,
+    displayedFace: 'heads',
+    settledFace: 'heads',
+    spinDeg: 0,
+    offsetX: 0,
+    offsetY: 0,
+    challengerDisplayName: '',
+    challengerSide: 'heads',
+    acceptorDisplayName: '',
+    acceptorSide: 'tails',
+    winnerDisplayName: '',
+    bet: 0,
+    updatedAtMs: 0,
+    statusText: 'Waiting for the next PvP flip.',
+    captionText: 'Post a challenge or take one to animate the coin.'
+  };
+}
+
+function setCasinoCoinFlipVisualStateFromMatch(match, options = {}) {
+  const nextMatch = match && typeof match === 'object' ? match : {};
+  const finalFace = normalizeCoinFlipChoice(nextMatch.flipResult || nextMatch.challengerSide || 'heads');
+  coinFlipVisualState = {
+    ...createDefaultCasinoCoinFlipVisualState(),
+    matchId: sanitizeNullableText(nextMatch.id, ''),
+    flipping: !!options.flipping,
+    displayedFace: normalizeCoinFlipChoice(options.displayedFace || finalFace),
+    settledFace: finalFace,
+    spinDeg: Number.isFinite(Number(options.spinDeg)) ? Number(options.spinDeg) : 0,
+    offsetX: Number.isFinite(Number(options.offsetX)) ? Number(options.offsetX) : 0,
+    offsetY: Number.isFinite(Number(options.offsetY)) ? Number(options.offsetY) : 0,
+    challengerDisplayName: sanitizeNullableText(nextMatch.challengerDisplayName, nextMatch.challenger || 'Challenger'),
+    challengerSide: normalizeCoinFlipChoice(nextMatch.challengerSide || 'heads'),
+    acceptorDisplayName: sanitizeNullableText(nextMatch.acceptorDisplayName, nextMatch.acceptor || 'Opponent'),
+    acceptorSide: normalizeCoinFlipChoice(nextMatch.acceptorSide || (normalizeCoinFlipChoice(nextMatch.challengerSide) === 'tails' ? 'heads' : 'tails')),
+    winnerDisplayName: sanitizeNullableText(nextMatch.winnerDisplayName, nextMatch.winner || ''),
+    bet: Math.max(0, Number(nextMatch.bet || 0)),
+    updatedAtMs: Math.max(0, Number(nextMatch.updatedAtMs || nextMatch.resolvedAtMs || nextMatch.createdAtMs || Date.now())),
+    statusText: String(options.statusText || (nextMatch.status === 'resolved'
+      ? `${nextMatch.winnerDisplayName || nextMatch.winner || 'Winner'} won on ${getCoinFlipChoiceLabel(finalFace)}.`
+      : nextMatch.status === 'cancelled'
+        ? 'The last coin flip challenge was cancelled.'
+        : 'Waiting for the next PvP flip.')),
+    captionText: String(options.captionText || (nextMatch.status === 'resolved'
+      ? `${nextMatch.challengerDisplayName || nextMatch.challenger || 'Challenger'} called ${getCoinFlipChoiceLabel(nextMatch.challengerSide)}. ${nextMatch.acceptorDisplayName || nextMatch.acceptor || 'Opponent'} covered ${getCoinFlipChoiceLabel(nextMatch.acceptorSide)}.`
+      : nextMatch.status === 'cancelled'
+        ? 'Reserved cash was returned to the challenger.'
+        : 'Post a challenge or take one to animate the coin.'))
+  };
+}
+
+function renderCasinoCoinFlipVisualization(state = coinFlipVisualState) {
+  const node = document.getElementById('coinflip-visual');
+  if (!node) return;
+  const displayedFace = normalizeCoinFlipChoice(state.displayedFace || state.settledFace || 'heads');
+  const settledFace = normalizeCoinFlipChoice(state.settledFace || displayedFace);
+  const isFlipping = !!state.flipping;
+  const coinRingColor = isFlipping ? '#90caf9' : (settledFace === 'heads' ? '#81d4fa' : '#ffcc80');
+  const coinGlowColor = isFlipping ? 'rgba(144,202,249,0.32)' : (settledFace === 'heads' ? 'rgba(129,212,250,0.22)' : 'rgba(255,204,128,0.24)');
+  const winnerSide = state.winnerDisplayName
+    ? (normalizeCoinFlipChoice(state.challengerSide) === settledFace ? state.challengerSide : state.acceptorSide)
+    : '';
+  const pot = Math.max(0, Number(state.bet || 0)) * 2;
+  const spinDeg = Number.isFinite(Number(state.spinDeg)) ? Number(state.spinDeg) : 0;
+  const spinRadians = (spinDeg * Math.PI) / 180;
+  const faceScaleY = Math.max(0.08, Math.abs(Math.cos(spinRadians)));
+  const coinTransform = `translate(-50%, -50%) scale(${isFlipping ? '1.04' : '1'})`;
+  node.innerHTML = `
+    <div style="display:grid; gap:0.8rem; width:min(100%, 28rem); justify-self:center;">
+      <div style="padding:0.95rem; border-radius:1rem; background:radial-gradient(circle at top, rgba(24,51,82,0.48) 0%, rgba(8,14,22,0.98) 74%); border:1px solid #29415d; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04); display:grid; gap:0.8rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+          <div style="font-size:0.82rem; font-weight:700; color:#fff;">Live Coin View</div>
+          <div style="font-size:0.74rem; color:#b8c7d9;">${escapeHtml(isFlipping ? 'Flipping...' : state.statusText || 'Waiting for the next PvP flip.')}</div>
+        </div>
+        <div style="position:relative; width:min(15rem, 72vw); aspect-ratio:1 / 1; margin:0 auto;">
+          <div style="position:absolute; inset:0.45rem; border-radius:50%; background:radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(20,29,41,0.1) 60%, rgba(6,10,15,0.45) 100%); border:1px solid rgba(255,255,255,0.06);"></div>
+          <div style="position:absolute; inset:1rem; border-radius:50%; border:0.55rem solid rgba(255,255,255,0.08); box-shadow:inset 0 0 2rem rgba(255,255,255,0.06);"></div>
+          <div style="position:absolute; left:50%; top:50%; width:13rem; height:13rem; transform:${coinTransform}; transition:transform 120ms ease, box-shadow 120ms ease; z-index:3;">
+            <div style="position:absolute; left:50%; top:50%; width:8.4rem; height:1.45rem; border-radius:50%; background:radial-gradient(circle, rgba(0,0,0,0.34) 0%, rgba(0,0,0,0.14) 58%, rgba(0,0,0,0) 100%); transform:translate(-50%, 4.95rem) scale(${isFlipping ? '0.8' : '1'}); filter:blur(6px);"></div>
+            <div style="position:absolute; left:50%; top:50%; width:10.7rem; height:10.7rem; border-radius:50%; transform:translate(-50%, -50%); background:linear-gradient(145deg, #d59d1e 0%, #f9dd72 22%, #c98a19 50%, #8e5a10 100%); box-shadow:0 28px 48px rgba(0,0,0,0.32), 0 0 0 0.38rem ${coinGlowColor};"></div>
+            <div style="position:absolute; left:50%; top:50%; width:10.05rem; height:10.05rem; border-radius:50%; background:linear-gradient(145deg, #fff4bf 0%, #f6d365 32%, #d39b22 70%, #9f6715 100%); color:#2c1805; display:flex; flex-direction:column; align-items:center; justify-content:center; transform:translate(-50%, -50%) scaleY(${faceScaleY}) scaleX(${isFlipping ? '1.02' : '1'}); border:0.5rem solid ${coinRingColor}; box-shadow:inset 0 0.22rem 0.5rem rgba(255,255,255,0.34), inset 0 -0.42rem 0.62rem rgba(98,55,9,0.24), 0 1.2rem 2.1rem rgba(0,0,0,0.18); overflow:hidden;">
+              <div style="position:absolute; inset:0.42rem; border-radius:50%; border:1px solid rgba(120,72,12,0.3);"></div>
+              <div style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.06) 34%, rgba(255,255,255,0) 52%);"></div>
+              <div style="position:relative; font-size:4.15rem; font-weight:900; letter-spacing:0.08em; line-height:1; text-shadow:0 1px 0 rgba(255,255,255,0.25);">${displayedFace === 'heads' ? 'H' : 'T'}</div>
+              <div style="position:relative; font-size:1.05rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">${escapeHtml(getCoinFlipChoiceLabel(displayedFace))}</div>
+            </div>
+          </div>
+          <div style="position:absolute; left:50%; bottom:0.35rem; transform:translateX(-50%); padding:0.34rem 0.7rem; border-radius:999px; background:#0f1620; border:1px solid rgba(255,255,255,0.08); font-size:0.72rem; color:#d8e1ec; white-space:nowrap;">${escapeHtml(state.winnerDisplayName ? `${state.winnerDisplayName} wins ${winnerSide ? `with ${getCoinFlipChoiceLabel(winnerSide)}` : ''}`.trim() : 'Ready for the next duel')}</div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.55rem;">
+          <div style="padding:0.65rem 0.7rem; border-radius:0.75rem; background:${normalizeCoinFlipChoice(state.challengerSide) === settledFace ? '#14311f' : '#141b24'}; border:1px solid ${normalizeCoinFlipChoice(state.challengerSide) === settledFace ? '#265d3c' : '#253140'}; display:grid; gap:0.22rem;">
+            <div style="font-size:0.7rem; color:#9fb0c2; text-transform:uppercase; letter-spacing:0.08em;">Caller</div>
+            <div style="font-size:0.84rem; font-weight:700; color:#fff;">${escapeHtml(state.challengerDisplayName || 'Challenger')}</div>
+            <div style="font-size:0.78rem; color:#d7e3f0;">${escapeHtml(getCoinFlipChoiceLabel(state.challengerSide))}</div>
+          </div>
+          <div style="padding:0.65rem 0.7rem; border-radius:0.75rem; background:${normalizeCoinFlipChoice(state.acceptorSide) === settledFace ? '#14311f' : '#141b24'}; border:1px solid ${normalizeCoinFlipChoice(state.acceptorSide) === settledFace ? '#265d3c' : '#253140'}; display:grid; gap:0.22rem; text-align:right;">
+            <div style="font-size:0.7rem; color:#9fb0c2; text-transform:uppercase; letter-spacing:0.08em;">Opponent</div>
+            <div style="font-size:0.84rem; font-weight:700; color:#fff;">${escapeHtml(state.acceptorDisplayName || 'Opponent')}</div>
+            <div style="font-size:0.78rem; color:#d7e3f0;">${escapeHtml(getCoinFlipChoiceLabel(state.acceptorSide))}</div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; font-size:0.78rem; color:#c6d3e0;">
+          <span>Pot: $${pot.toLocaleString()}</span>
+          <span>${escapeHtml(state.captionText || 'Post a challenge or take one to animate the coin.')}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function animateCasinoCoinFlip(match) {
+  const nextMatch = match && typeof match === 'object' ? match : null;
+  if (!nextMatch) return;
+  const finalFace = normalizeCoinFlipChoice(nextMatch.flipResult || 'heads');
+  const totalFrames = 14;
+  for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
+    const progress = totalFrames > 1 ? (frameIndex / (totalFrames - 1)) : 1;
+    const displayedFace = frameIndex % 2 === 0 ? 'heads' : 'tails';
+    setCasinoCoinFlipVisualStateFromMatch(nextMatch, {
+      flipping: true,
+      displayedFace,
+      spinDeg: ((frameIndex + 1) * 180) + (displayedFace === 'tails' ? 10 : -10),
+      offsetX: 0,
+      offsetY: 0,
+      statusText: 'The coin is in the air...',
+      captionText: `${nextMatch.challengerDisplayName || nextMatch.challenger || 'Challenger'} vs ${nextMatch.acceptorDisplayName || nextMatch.acceptor || 'Opponent'}`
+    });
+    renderCasinoCoinFlipVisualization();
+    await waitForMs(55 + (frameIndex * 10));
+  }
+  setCasinoCoinFlipVisualStateFromMatch(nextMatch, {
+    flipping: false,
+    displayedFace: finalFace,
+    spinDeg: (totalFrames * 180) + (finalFace === 'tails' ? 180 : 0),
+    offsetX: 0,
+    offsetY: 0,
+    statusText: `${nextMatch.winnerDisplayName || nextMatch.winner || 'Winner'} won on ${getCoinFlipChoiceLabel(finalFace)}.`,
+    captionText: `Stake was $${Math.max(0, Number(nextMatch.bet || 0)).toLocaleString()} per player.`
+  });
+  renderCasinoCoinFlipVisualization();
+}
+
+function applyCasinoStatsToCurrentUserUi(stats) {
+  const currentUser = getCasinoPlayerKey();
+  const resolvedStats = normalizeCasinoProfileStatsData((stats && stats.username) || currentUser, stats || {});
+  if (!currentUser || normalizeUsername(resolvedStats.username) !== normalizeUsername(currentUser)) return;
+  casinoProfileStatsCache[currentUser] = resolvedStats;
+  const balanceNode = document.getElementById('casino-balance');
+  if (balanceNode) balanceNode.textContent = `Balance: $${Math.max(0, Number(resolvedStats.balance || 0)).toLocaleString()}`;
+  renderCasinoRecoveryAction(resolvedStats);
+  renderCasinoSidebar(resolvedStats);
 }
 
 function normalizeCasinoProfileStatsData(username, data = {}) {
@@ -6457,6 +6894,65 @@ async function publishCasinoActivity(items) {
   } catch (_) {}
 }
 
+function stopListeningForCasinoCoinFlips() {
+  if (casinoCoinFlipUnsub) {
+    casinoCoinFlipUnsub();
+    casinoCoinFlipUnsub = null;
+  }
+}
+
+function listenForCasinoCoinFlips() {
+  try {
+    stopListeningForCasinoCoinFlips();
+    casinoCoinFlipUnsub = getCasinoCoinFlipCollection()
+      .orderBy('createdAt', 'desc')
+      .limit(40)
+      .onSnapshot((snapshot) => {
+        const currentUser = getCasinoPlayerKey();
+        const previousLatestResolved = casinoCoinFlipCache.find((match) => match.status === 'resolved');
+        casinoCoinFlipCache = snapshot.docs
+          .map((doc) => normalizeCasinoCoinFlipData(doc.id, doc.data() || {}))
+          .sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+        const nextLatestResolved = casinoCoinFlipCache.find((match) => match.status === 'resolved');
+        const currentUserMatchChanged = !!currentUser && snapshot.docChanges().some((change) => {
+          const nextMatch = normalizeCasinoCoinFlipData(change.doc.id, change.doc.data() || {});
+          return nextMatch.challenger === currentUser || nextMatch.acceptor === currentUser || nextMatch.opponentTarget === currentUser;
+        });
+        if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+          renderActiveCasinoGamePanel();
+          if (nextLatestResolved && (!previousLatestResolved || previousLatestResolved.id !== nextLatestResolved.id || previousLatestResolved.updatedAtMs !== nextLatestResolved.updatedAtMs)) {
+            animateCasinoCoinFlip(nextLatestResolved).catch(() => {
+              setCasinoCoinFlipVisualStateFromMatch(nextLatestResolved);
+              renderCasinoCoinFlipVisualization();
+            });
+          } else if (nextLatestResolved && !coinFlipVisualState.matchId) {
+            setCasinoCoinFlipVisualStateFromMatch(nextLatestResolved);
+            renderCasinoCoinFlipVisualization();
+          } else {
+            renderCasinoCoinFlipVisualization();
+          }
+        }
+        if (currentUserMatchChanged && currentUser) {
+          loadCasinoProfileStats(currentUser)
+            .then((stats) => {
+              applyCasinoStatsToCurrentUserUi(stats);
+            })
+            .catch(() => {});
+        }
+      }, () => {
+        if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+          renderActiveCasinoGamePanel();
+          renderCasinoCoinFlipVisualization();
+        }
+      });
+  } catch (_) {
+    if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+      renderActiveCasinoGamePanel();
+      renderCasinoCoinFlipVisualization();
+    }
+  }
+}
+
 function getCachedCasinoTransferUsers() {
   return Array.isArray(casinoTransferUsersCache) ? casinoTransferUsersCache.slice() : [];
 }
@@ -6601,6 +7097,7 @@ function openCasinoModal() {
   syncCasinoModalOverflow();
   renderCasinoGame();
   listenForCasinoActivity();
+  listenForCasinoCoinFlips();
   loadCasinoGameSettings().then(() => {
     if (document.getElementById('casino-modal')?.style.display === 'flex') {
       renderActiveCasinoGamePanel();
@@ -6616,6 +7113,7 @@ function closeCasinoModal() {
   const modal = document.getElementById('casino-modal');
   if (modal) modal.style.display = 'none';
   stopListeningForCasinoActivity();
+  stopListeningForCasinoCoinFlips();
   if (typeof stopListeningForPokerRooms === 'function') stopListeningForPokerRooms();
   syncCasinoModalOverflow();
 }
@@ -8698,9 +9196,12 @@ let activeCasinoGame = 'blackjack';
 let blackjackState = null;
 
 function setActiveCasinoGame(gameKey) {
-  activeCasinoGame = ['blackjack', 'roulette', 'slots', 'poker'].includes(gameKey) ? gameKey : 'blackjack';
+  activeCasinoGame = ['blackjack', 'coinflip', 'roulette', 'slots', 'poker'].includes(gameKey) ? gameKey : 'blackjack';
   blackjackState = null;
   rouletteVisualState = { selectedChoice: '', winningValue: null, activeValue: null, ballAngleDeg: -90, spinning: false };
+  if (activeCasinoGame === 'coinflip' && !coinFlipVisualState.matchId) {
+    coinFlipVisualState = createDefaultCasinoCoinFlipVisualState();
+  }
   if (activeCasinoGame !== 'poker' && typeof stopListeningForPokerRooms === 'function') stopListeningForPokerRooms();
   renderCasinoGame();
   loadCasinoBalance().catch(() => {});
@@ -8711,6 +9212,119 @@ function renderCasinoTabButton(gameKey, label) {
   return `<button onclick="setActiveCasinoGame('${gameKey}')" style="padding:0.55rem 0.85rem;border-radius:0.7rem;border:none;font-weight:700;background:${isActive ? 'linear-gradient(180deg, #4f83ff 0%, #3268f0 100%)' : '#242b38'};color:#fff;">${escapeHtml(label)}</button>`;
 }
 
+function renderCoinFlipChallengeCard(match, currentUser) {
+  const isOpen = match.status === 'open';
+  const isCreator = currentUser && match.challenger === currentUser;
+  const isEligibleOpponent = !!currentUser && !isCreator && (!match.opponentTarget || match.opponentTarget === currentUser);
+  const targetLabel = match.openToAny
+    ? 'Open to anyone'
+    : `Only @${match.opponentTargetDisplayName || match.opponentTarget}`;
+  const flipLabel = getCoinFlipChoiceLabel(match.flipResult);
+  const winnerSide = match.flipResult === match.challengerSide ? match.challengerSide : match.acceptorSide;
+  const winnerSideLabel = getCoinFlipChoiceLabel(winnerSide);
+  const pillStyle = 'display:inline-flex; padding:0.26rem 0.55rem; border-radius:999px; font-size:0.7rem; font-weight:700; letter-spacing:0.04em; border:1px solid rgba(255,255,255,0.08);';
+  let footerHtml = `<div style="font-size:0.74rem; color:#8fa1b5;">${escapeHtml(formatRelativeTime(match.updatedAtMs || match.createdAtMs || 0))}</div>`;
+  if (isOpen && isCreator) {
+    footerHtml += `<button onclick="cancelCasinoCoinFlipChallenge('${escapeHtml(match.id)}')" style="padding:0.45rem 0.8rem; border:none; border-radius:0.55rem; background:#5d4037; color:#fff; font-weight:700;">Cancel</button>`;
+  } else if (isOpen && isEligibleOpponent) {
+    footerHtml += `<button onclick="acceptCasinoCoinFlipChallenge('${escapeHtml(match.id)}')" style="padding:0.45rem 0.8rem; border:none; border-radius:0.55rem; background:#1565c0; color:#fff; font-weight:700;">Take ${escapeHtml(getCoinFlipChoiceLabel(match.acceptorSide))}</button>`;
+  }
+  if (!isOpen) {
+    const resultLabel = match.status === 'cancelled'
+      ? `Challenge cancelled by @${match.cancelledBy || match.challenger}`
+      : `${match.winnerDisplayName || match.winner || 'Winner'} won on ${flipLabel} as ${winnerSideLabel}`;
+    footerHtml += `<div style="font-size:0.78rem; color:${match.status === 'cancelled' ? '#ffcc80' : '#9fe3a5'}; font-weight:700;">${escapeHtml(resultLabel)}</div>`;
+  }
+  return `
+    <div style="padding:0.8rem; border-radius:0.85rem; background:${isOpen ? '#10151d' : '#131b24'}; border:1px solid ${isOpen ? '#263140' : '#2b3c52'}; display:grid; gap:0.55rem;">
+      <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+        <div style="display:grid; gap:0.22rem; min-width:0;">
+          <div style="font-weight:700; color:#fff;">${escapeHtml(match.challengerDisplayName || match.challenger || 'Player')} posted a coin flip</div>
+          <div style="font-size:0.78rem; color:#9fb0c2;">Stake $${Math.max(0, Number(match.bet || 0)).toLocaleString()} • ${escapeHtml(targetLabel)}</div>
+        </div>
+        <div style="display:flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+          <span style="${pillStyle} background:${isOpen ? '#14253d' : '#1f2d3d'}; color:${isOpen ? '#90caf9' : '#b0bec5'};">${escapeHtml(isOpen ? 'OPEN' : match.status.toUpperCase())}</span>
+          <span style="${pillStyle} background:#182231; color:#fff;">${escapeHtml(match.challengerDisplayName || match.challenger || 'Player')}: ${escapeHtml(getCoinFlipChoiceLabel(match.challengerSide))}</span>
+        </div>
+      </div>
+      ${match.acceptor ? `<div style="font-size:0.78rem; color:#dce6f2;">Opponent: ${escapeHtml(match.acceptorDisplayName || match.acceptor)} (${escapeHtml(getCoinFlipChoiceLabel(match.acceptorSide))})</div>` : ''}
+      <div style="display:flex; justify-content:space-between; gap:0.55rem; align-items:center; flex-wrap:wrap;">${footerHtml}</div>
+    </div>`;
+}
+
+function renderCasinoCoinFlipPanel() {
+  const panel = document.getElementById('casino-game-panel');
+  if (!panel) return;
+  const currentUser = getCasinoPlayerKey();
+  const transferUsers = getCachedCasinoTransferUsers();
+  if (!casinoTransferUsersLoaded && !casinoTransferUsersLoadPromise) {
+    loadCasinoTransferUsers().catch(() => {});
+  }
+  const existingBetValue = document.getElementById('coinflip-bet')?.value || '100';
+  const existingSideValue = normalizeCoinFlipChoice(document.getElementById('coinflip-side')?.value || 'heads');
+  const existingTargetValue = normalizeUsername(document.getElementById('coinflip-target-user')?.value || '');
+  const targetOptions = [
+    '<option value="">Open challenge (any player)</option>',
+    ...transferUsers.map((username) => `<option value="${escapeHtml(username)}"${username === existingTargetValue ? ' selected' : ''}>${escapeHtml(username)}</option>`)
+  ].join('');
+  const openMatches = casinoCoinFlipCache.filter((match) => match.status === 'open');
+  const yourMatches = openMatches.filter((match) => match.challenger === currentUser || match.opponentTarget === currentUser);
+  const availableMatches = openMatches.filter((match) => match.challenger !== currentUser && (!match.opponentTarget || match.opponentTarget === currentUser));
+  const recentMatches = casinoCoinFlipCache.filter((match) => match.status !== 'open').slice(0, 8);
+  panel.innerHTML = `
+    <div style="display:grid; gap:0.9rem;">
+      <div style="padding:0.9rem; border-radius:0.95rem; background:radial-gradient(circle at top, rgba(34,87,122,0.34) 0%, rgba(10,16,24,0.96) 76%); border:1px solid #28425a; display:grid; gap:0.75rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;">
+          <div style="display:grid; gap:0.25rem; min-width:0;">
+            <div style="font-size:0.95rem; font-weight:700; color:#fff;">Coin Flip</div>
+            <div style="font-size:0.82rem; color:#c9d6e3; max-width:38rem;">PvP only. One player posts a challenge, another player takes the opposite side, and the winner gets the full pot. No dealer, no AI, no house side.</div>
+          </div>
+          <button type="button" onclick="loadCasinoTransferUsers(true).then(() => renderActiveCasinoGamePanel()).catch(() => {})" style="padding:0.48rem 0.78rem; border:none; border-radius:0.55rem; background:#223041; color:#fff; font-weight:700;">Refresh Players</button>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap:0.6rem; align-items:end;">
+          <div style="display:grid; gap:0.3rem;">
+            <label for="coinflip-bet" style="font-size:0.74rem; color:#9fb0c2; font-weight:700;">Stake</label>
+            <input id="coinflip-bet" type="number" min="1" max="1000000" value="${escapeHtml(existingBetValue)}" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;" />
+          </div>
+          <div style="display:grid; gap:0.3rem;">
+            <label for="coinflip-side" style="font-size:0.74rem; color:#9fb0c2; font-weight:700;">Your side</label>
+            <select id="coinflip-side" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;">
+              <option value="heads"${existingSideValue === 'heads' ? ' selected' : ''}>Heads</option>
+              <option value="tails"${existingSideValue === 'tails' ? ' selected' : ''}>Tails</option>
+            </select>
+          </div>
+          <div style="display:grid; gap:0.3rem;">
+            <label for="coinflip-target-user" style="font-size:0.74rem; color:#9fb0c2; font-weight:700;">Challenge</label>
+            <select id="coinflip-target-user" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;">${targetOptions}</select>
+          </div>
+          <button type="button" onclick="createCasinoCoinFlipChallenge()" style="padding:0.58rem 0.9rem; border:none; border-radius:0.6rem; background:#1565c0; color:#fff; font-weight:700;">Post Challenge</button>
+        </div>
+      </div>
+      <div id="coinflip-visual"></div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap:0.85rem; align-items:start;">
+        <div style="display:grid; gap:0.6rem; min-width:0;">
+          <div style="font-size:0.86rem; font-weight:700; color:#fff;">Your Open Challenges</div>
+          ${yourMatches.length ? yourMatches.map((match) => renderCoinFlipChallengeCard(match, currentUser)).join('') : '<div class="activity-feed-empty">You do not have any open coin flip challenges.</div>'}
+        </div>
+        <div style="display:grid; gap:0.6rem; min-width:0;">
+          <div style="font-size:0.86rem; font-weight:700; color:#fff;">Available Challenges</div>
+          ${availableMatches.length ? availableMatches.map((match) => renderCoinFlipChallengeCard(match, currentUser)).join('') : '<div class="activity-feed-empty">No open PvP coin flips right now.</div>'}
+        </div>
+      </div>
+      <div style="display:grid; gap:0.6rem; min-width:0;">
+        <div style="font-size:0.86rem; font-weight:700; color:#fff;">Recent Results</div>
+        ${recentMatches.length ? recentMatches.map((match) => renderCoinFlipChallengeCard(match, currentUser)).join('') : '<div class="activity-feed-empty">Resolved coin flips will show here.</div>'}
+      </div>
+    </div>`;
+  if (!coinFlipVisualState.matchId) {
+    const latestResolved = recentMatches.find((match) => match.status === 'resolved');
+    if (latestResolved) {
+      setCasinoCoinFlipVisualStateFromMatch(latestResolved);
+    }
+  }
+  renderCasinoCoinFlipVisualization();
+}
+
 function renderCasinoGame() {
   const area = document.getElementById('casino-game-area');
   if (!area) return;
@@ -8719,7 +9333,7 @@ function renderCasinoGame() {
       <div style="display:grid; gap:0.9rem; min-width:0;">
         <div style="display:grid; gap:0.7rem;">
           <div style="font-size:0.95rem; color:#dce6f2;">Choose a casino game.</div>
-          <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-start;">${renderCasinoTabButton('blackjack', 'Blackjack')}${renderCasinoTabButton('roulette', 'Roulette')}${renderCasinoTabButton('slots', 'Slots')}${renderCasinoTabButton('poker', 'Poker')}</div>
+          <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-start;">${renderCasinoTabButton('blackjack', 'Blackjack')}${renderCasinoTabButton('coinflip', 'Coin Flip')}${renderCasinoTabButton('roulette', 'Roulette')}${renderCasinoTabButton('slots', 'Slots')}${renderCasinoTabButton('poker', 'Poker')}</div>
         </div>
         <div id="casino-game-status" style="margin-top:0.2rem;color:#9fb0c2;min-height:1.2rem;"></div>
         <div id="casino-recovery-action"></div>
@@ -8756,6 +9370,10 @@ function renderActiveCasinoGamePanel() {
   const gameSettings = getCachedCasinoGameSettings();
   if (activeCasinoGame === 'poker') {
     renderPokerPanel();
+    return;
+  }
+  if (activeCasinoGame === 'coinflip') {
+    renderCasinoCoinFlipPanel();
     return;
   }
   if (activeCasinoGame === 'roulette') {
@@ -9053,6 +9671,271 @@ async function spinSlots() {
   } finally {
     slotsSpinInProgress = false;
     setSlotsSpinButtonState(false);
+  }
+}
+
+async function createCasinoCoinFlipChallenge() {
+  const challenger = getCasinoPlayerKey();
+  if (!challenger) {
+    setCasinoStatus('You must be logged in to post a coin flip.', 'error');
+    return;
+  }
+  try {
+    const { bet } = await validateCasinoBet('coinflip-bet');
+    const challengerDisplayName = getCasinoPlayerDisplayName();
+    const challengerSide = normalizeCoinFlipChoice(document.getElementById('coinflip-side')?.value || 'heads');
+    const opponentTarget = normalizeUsername(document.getElementById('coinflip-target-user')?.value || '');
+    if (opponentTarget && opponentTarget === challenger) {
+      throw new Error('You cannot challenge yourself.');
+    }
+    const db = getCasinoDb();
+    const challengerRef = getCasinoBalanceCollection().doc(challenger);
+    const challengeRef = getCasinoCoinFlipCollection().doc();
+    let nextStats = getDefaultCasinoProfileStats(challenger);
+    await db.runTransaction(async (tx) => {
+      const challengerSnap = await tx.get(challengerRef);
+      const currentStats = normalizeCasinoProfileStatsData(challenger, challengerSnap.exists ? (challengerSnap.data() || {}) : {});
+      if (currentStats.balance < bet) {
+        throw new Error('That bet is bigger than your current balance.');
+      }
+      nextStats = {
+        ...currentStats,
+        balance: currentStats.balance - bet
+      };
+      tx.set(challengerRef, {
+        username: challenger,
+        displayName: sanitizeNullableText((challengerSnap.exists ? (challengerSnap.data() || {}).displayName : '') || challengerDisplayName, challenger),
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(challengeRef, {
+        status: 'open',
+        bet,
+        challenger,
+        challengerDisplayName,
+        challengerSide,
+        opponentTarget,
+        opponentTargetDisplayName: opponentTarget,
+        acceptor: '',
+        acceptorDisplayName: '',
+        acceptorSide: challengerSide === 'heads' ? 'tails' : 'heads',
+        winner: '',
+        winnerDisplayName: '',
+        loser: '',
+        loserDisplayName: '',
+        flipResult: '',
+        cancelledBy: '',
+        createdAtMs: Date.now(),
+        updatedAtMs: Date.now(),
+        resolvedAtMs: 0,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[challenger] = nextStats;
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(challenger);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus(opponentTarget
+      ? `Challenge posted for @${opponentTarget}. You reserved $${bet.toLocaleString()}.`
+      : `Open coin flip posted. You reserved $${bet.toLocaleString()}.`, 'success');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not post a coin flip challenge.', 'error');
+  }
+}
+
+async function cancelCasinoCoinFlipChallenge(challengeId) {
+  const challenger = getCasinoPlayerKey();
+  if (!challenger) {
+    setCasinoStatus('You must be logged in to cancel a coin flip.', 'error');
+    return;
+  }
+  try {
+    const db = getCasinoDb();
+    const challengeRef = getCasinoCoinFlipCollection().doc(String(challengeId || '').trim());
+    const challengerRef = getCasinoBalanceCollection().doc(challenger);
+    let nextStats = getDefaultCasinoProfileStats(challenger);
+    let refundedBet = 0;
+    await db.runTransaction(async (tx) => {
+      const [challengeSnap, challengerSnap] = await Promise.all([
+        tx.get(challengeRef),
+        tx.get(challengerRef)
+      ]);
+      if (!challengeSnap.exists) {
+        throw new Error('That coin flip challenge no longer exists.');
+      }
+      const challenge = normalizeCasinoCoinFlipData(challengeSnap.id, challengeSnap.data() || {});
+      if (challenge.status !== 'open') {
+        throw new Error('Only open coin flip challenges can be cancelled.');
+      }
+      if (challenge.challenger !== challenger) {
+        throw new Error('Only the player who posted the challenge can cancel it.');
+      }
+      refundedBet = challenge.bet;
+      const currentStats = normalizeCasinoProfileStatsData(challenger, challengerSnap.exists ? (challengerSnap.data() || {}) : {});
+      nextStats = {
+        ...currentStats,
+        balance: currentStats.balance + refundedBet
+      };
+      tx.set(challengerRef, {
+        username: challenger,
+        displayName: sanitizeNullableText((challengerSnap.exists ? (challengerSnap.data() || {}).displayName : '') || getCasinoPlayerDisplayName(), challenger),
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(challengeRef, {
+        status: 'cancelled',
+        cancelledBy: challenger,
+        updatedAtMs: Date.now(),
+        resolvedAtMs: Date.now()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[challenger] = nextStats;
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(challenger);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus(`Cancelled coin flip and refunded $${refundedBet.toLocaleString()}.`, 'success');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not cancel the coin flip.', 'error');
+  }
+}
+
+async function acceptCasinoCoinFlipChallenge(challengeId) {
+  const acceptor = getCasinoPlayerKey();
+  const acceptorDisplayName = getCasinoPlayerDisplayName();
+  if (!acceptor) {
+    setCasinoStatus('You must be logged in to accept a coin flip.', 'error');
+    return;
+  }
+  try {
+    const db = getCasinoDb();
+    const challengeRef = getCasinoCoinFlipCollection().doc(String(challengeId || '').trim());
+    const acceptorRef = getCasinoBalanceCollection().doc(acceptor);
+    let challenger = '';
+    let challengerDisplayName = '';
+    let winner = '';
+    let winnerDisplayName = '';
+    let loser = '';
+    let loserDisplayName = '';
+    let bet = 0;
+    let flipResult = 'heads';
+    let challengerNextStats = getDefaultCasinoProfileStats('');
+    let acceptorNextStats = getDefaultCasinoProfileStats('');
+    let challengerUnlockedAchievements = [];
+    let acceptorUnlockedAchievements = [];
+    await db.runTransaction(async (tx) => {
+      const [challengeSnap, acceptorSnap] = await Promise.all([
+        tx.get(challengeRef),
+        tx.get(acceptorRef)
+      ]);
+      if (!challengeSnap.exists) {
+        throw new Error('That coin flip challenge no longer exists.');
+      }
+      const challenge = normalizeCasinoCoinFlipData(challengeSnap.id, challengeSnap.data() || {});
+      if (challenge.status !== 'open') {
+        throw new Error('That coin flip challenge is no longer open.');
+      }
+      if (challenge.challenger === acceptor) {
+        throw new Error('You cannot accept your own coin flip challenge.');
+      }
+      if (challenge.opponentTarget && challenge.opponentTarget !== acceptor) {
+        throw new Error('That coin flip was challenged to a different player.');
+      }
+      challenger = challenge.challenger;
+      challengerDisplayName = challenge.challengerDisplayName || challenger;
+      bet = challenge.bet;
+      flipResult = Math.random() < 0.5 ? 'heads' : 'tails';
+      const challengerRef = getCasinoBalanceCollection().doc(challenger);
+      const challengerSnap = await tx.get(challengerRef);
+      const challengerCurrentStored = normalizeCasinoProfileStatsData(challenger, challengerSnap.exists ? (challengerSnap.data() || {}) : {});
+      const acceptorCurrent = normalizeCasinoProfileStatsData(acceptor, acceptorSnap.exists ? (acceptorSnap.data() || {}) : {});
+      if (acceptorCurrent.balance < bet) {
+        throw new Error('You do not have enough casino money to take that flip.');
+      }
+      const challengerPreGameStats = {
+        ...challengerCurrentStored,
+        balance: challengerCurrentStored.balance + bet
+      };
+      const challengerWon = challenge.challengerSide === flipResult;
+      const challengerComputed = buildNextCasinoProfileStats(challengerPreGameStats, challengerWon ? bet : -bet, {
+        wager: bet,
+        outcome: challengerWon ? 'win' : 'loss',
+        nowMs: Date.now()
+      });
+      const acceptorComputed = buildNextCasinoProfileStats(acceptorCurrent, challengerWon ? -bet : bet, {
+        wager: bet,
+        outcome: challengerWon ? 'loss' : 'win',
+        nowMs: Date.now()
+      });
+      challengerNextStats = challengerComputed.nextStats;
+      acceptorNextStats = acceptorComputed.nextStats;
+      challengerUnlockedAchievements = challengerComputed.unlockedAchievements;
+      acceptorUnlockedAchievements = acceptorComputed.unlockedAchievements;
+      winner = challengerWon ? challenger : acceptor;
+      winnerDisplayName = challengerWon ? challengerDisplayName : acceptorDisplayName;
+      loser = challengerWon ? acceptor : challenger;
+      loserDisplayName = challengerWon ? acceptorDisplayName : challengerDisplayName;
+      tx.set(challengerRef, {
+        username: challenger,
+        displayName: sanitizeNullableText((challengerSnap.exists ? (challengerSnap.data() || {}).displayName : '') || challengerDisplayName, challenger),
+        ...challengerNextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(acceptorRef, {
+        username: acceptor,
+        displayName: sanitizeNullableText((acceptorSnap.exists ? (acceptorSnap.data() || {}).displayName : '') || acceptorDisplayName, acceptor),
+        ...acceptorNextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(challengeRef, {
+        status: 'resolved',
+        acceptor,
+        acceptorDisplayName,
+        acceptorSide: challenge.challengerSide === 'heads' ? 'tails' : 'heads',
+        winner,
+        winnerDisplayName,
+        loser,
+        loserDisplayName,
+        flipResult,
+        cancelledBy: '',
+        updatedAtMs: Date.now(),
+        resolvedAtMs: Date.now()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[challenger] = challengerNextStats;
+    casinoProfileStatsCache[acceptor] = acceptorNextStats;
+    const currentUser = getCasinoPlayerKey();
+    if (currentUser === challenger) {
+      applyCasinoStatsToCurrentUserUi(challengerNextStats);
+    } else if (currentUser === acceptor) {
+      applyCasinoStatsToCurrentUserUi(acceptorNextStats);
+    }
+    await publishCasinoActivity([
+      {
+        type: 'win',
+        title: `${winnerDisplayName} won $${bet.toLocaleString()} in Coin Flip`,
+        body: `${winnerDisplayName} beat ${loserDisplayName} on ${getCoinFlipChoiceLabel(flipResult)}. Pot: $${(bet * 2).toLocaleString()}.`,
+        by: winner
+      },
+      ...challengerUnlockedAchievements.map((item) => ({
+        type: 'achievement',
+        title: `${challengerDisplayName} unlocked ${item.label}`,
+        body: item.description,
+        by: challenger
+      })),
+      ...acceptorUnlockedAchievements.map((item) => ({
+        type: 'achievement',
+        title: `${acceptorDisplayName} unlocked ${item.label}`,
+        body: item.description,
+        by: acceptor
+      }))
+    ]);
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(challenger);
+    await refreshCasinoProfileUiForUser(acceptor);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus(`${winnerDisplayName} won the coin flip on ${getCoinFlipChoiceLabel(flipResult)}.`, winner === acceptor ? 'success' : 'error');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not accept the coin flip.', 'error');
   }
 }
 
@@ -9729,10 +10612,13 @@ loadAdminRoomManager();
 loadAdminAccountManager();
 renderAdminGameBioManager();
 listenForGameSubmissions();
+listenForCaseSuggestions();
 listenForLoginRequests();
 loadGameSubmissionsOnce();
+loadCaseSuggestionsOnce();
 loadLoginRequestsOnce();
 renderSubmissionQueue();
+renderCaseSuggestionQueue();
 renderLoginRequestQueue();
 loadAdminCasinoManager();
 loadAdminCasinoGameSettings();
@@ -9756,6 +10642,7 @@ function getArchiveMessageBodyText(data = {}) {
 const body = sanitizeNullableText(data.message, '');
 if (body) return body;
 if (data.imageData) return '[image]';
+if (data.videoData || data.videoUrl) return '[video]';
 if (data.mediaUrl || data.videoUrl || data.audioUrl) return '[media]';
 return '[empty message]';
 }
@@ -10568,10 +11455,12 @@ const LOCAL_ACTIVITY_STORAGE_KEY = 'site_activity_feed_v1';
 const LOCAL_PROFILE_STORAGE_KEY = 'site_profiles_v1';
 const USER_PROFILES_COLLECTION = 'user_profiles';
 const GAME_SUBMISSIONS_COLLECTION = 'game_submissions';
+const CASE_SUGGESTIONS_COLLECTION = 'case_suggestions';
 const GAME_METADATA_COLLECTION = 'game_metadata';
 const LOGIN_REQUESTS_COLLECTION = 'login_requests';
 const SITE_ACTIVITY_COLLECTION = 'site_activity';
 const CASINO_ACTIVITY_COLLECTION = 'casino_activity';
+const CASINO_COIN_FLIP_COLLECTION = 'casino_coin_flips';
 const CASINO_CONFIG_COLLECTION = 'casino_config';
 const GENERAL_SHOP_COLLECTION = 'general_shop';
 const PROFILE_BACKGROUND_SHOP_COLLECTION = 'profile_background_shop';
@@ -10666,16 +11555,23 @@ const GAME_NEW_BADGE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 let communityGameSubmissionsCache = [];
 let communitySubmissionsUnsub = null;
+let caseSuggestionsCache = [];
+let caseSuggestionsUnsub = null;
+let caseSuggestionDraftDropSeed = 0;
+let caseSuggestionDraftDrops = [];
 let builtInGameMetadataCache = {};
 let builtInGameMetadataUnsub = null;
 let gameSubmissionsLoaded = false;
 let gameSubmissionsLoading = false;
+let caseSuggestionsLoaded = false;
+let caseSuggestionsLoading = false;
 let loginRequestsCache = [];
 let loginRequestsUnsub = null;
 let loginRequestsLoaded = false;
 let loginRequestsLoading = false;
 let reviewQueueFilters = {
 games: { search: '', status: 'all' },
+cases: { search: '', status: 'all' },
 logins: { search: '', status: 'all' }
 };
 let adminAccountFilters = {
@@ -10691,6 +11587,8 @@ let siteActivityUnsub = null;
 let siteActivityCache = [];
 let casinoActivityUnsub = null;
 let casinoActivityCache = [];
+let casinoCoinFlipUnsub = null;
+let casinoCoinFlipCache = [];
 let casinoGameSettingsLoadPromise = null;
 let casinoGameSettingsCache = null;
 let casinoTransferUsersCache = [];
@@ -10727,6 +11625,7 @@ let currentPokerRoomId = '';
 let pokerState = null;
 let pokerTutorialExpanded = false;
 let rouletteVisualState = { selectedChoice: '', winningValue: null, activeValue: null, ballAngleDeg: -90, spinning: false };
+let coinFlipVisualState = createDefaultCasinoCoinFlipVisualState();
 let slotsVisualState = ['?', '?', '?'];
 let slotsSpinInProgress = false;
 let localNotificationCache = [];
@@ -11322,6 +12221,311 @@ function normalizeGeneralShopRarity(value) {
 function normalizeOptionalGeneralShopRarity(value) {
   const raw = normalizeRoomId(value || '');
   return GENERAL_SHOP_RARITY_CONFIG.some((entry) => entry.id === raw) ? raw : '';
+}
+
+function normalizeCaseSuggestionEntries(value) {
+  const lines = Array.isArray(value) ? value : String(value || '').split(/\r?\n/);
+  const seen = new Set();
+  const next = [];
+  lines.forEach((entry) => {
+    const label = sanitizeNullableText(entry, '').slice(0, 60);
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    next.push(label);
+  });
+  return next.slice(0, 24);
+}
+
+function normalizeCaseSuggestionImages(value) {
+  const lines = Array.isArray(value) ? value : String(value || '').split(/\r?\n/);
+  const seen = new Set();
+  const next = [];
+  lines.forEach((entry) => {
+    const visual = sanitizeProfileBanner(entry);
+    if (!visual || !isProfileBannerMedia(visual)) return;
+    if (seen.has(visual)) return;
+    seen.add(visual);
+    next.push(visual);
+  });
+  return next.slice(0, 12);
+}
+
+function normalizeCaseSuggestionData(id, data = {}) {
+  const legacyRaritySuggestions = {};
+  const legacyRarityImages = {};
+  GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+    const raw = data.raritySuggestions && typeof data.raritySuggestions === 'object'
+      ? data.raritySuggestions[entry.id]
+      : [];
+    legacyRaritySuggestions[entry.id] = normalizeCaseSuggestionEntries(raw);
+    const rawImages = data.rarityImages && typeof data.rarityImages === 'object'
+      ? data.rarityImages[entry.id]
+      : [];
+    legacyRarityImages[entry.id] = normalizeCaseSuggestionImages(rawImages);
+  });
+  const dropItems = normalizeCaseSuggestionDropItems(data.dropItems, legacyRaritySuggestions, legacyRarityImages);
+  const raritySuggestions = {};
+  const rarityImages = {};
+  GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+    raritySuggestions[entry.id] = [];
+    rarityImages[entry.id] = [];
+  });
+  dropItems.forEach((item) => {
+    const rarityId = normalizeGeneralShopRarity(item.rarity);
+    if (item.name) raritySuggestions[rarityId].push(item.name);
+    rarityImages[rarityId] = normalizeCaseSuggestionImages([...(rarityImages[rarityId] || []), ...normalizeCaseSuggestionImages(item.images || [])]);
+  });
+  return {
+    id: sanitizeNullableText(id, ''),
+    caseName: sanitizeNullableText(data.caseName || data.title, 'Untitled Case').slice(0, 40),
+    theme: sanitizeNullableText(data.theme || data.description, '').slice(0, 120),
+    notes: sanitizeNullableText(data.notes, '').slice(0, 220),
+    submittedBy: sanitizeNullableText(data.submittedBy, 'guest'),
+    submittedByName: sanitizeNullableText(data.submittedByName, data.submittedBy || 'guest'),
+    status: normalizeReviewStatus(data.status),
+    reviewReason: sanitizeNullableText(data.reviewReason, '').slice(0, 220),
+    reviewedBy: sanitizeNullableText(data.reviewedBy, ''),
+    dropItems,
+    raritySuggestions,
+    rarityImages,
+    generatedCaseId: normalizeOptionalGeneralShopItemId(data.generatedCaseId || ''),
+    generatedDropIds: Array.isArray(data.generatedDropIds) ? data.generatedDropIds.map((itemId) => normalizeOptionalGeneralShopItemId(itemId)).filter(Boolean) : [],
+    submittedAtMs: data.submittedAt && typeof data.submittedAt.toDate === 'function' ? data.submittedAt.toDate().getTime() : Math.max(0, Number(data.submittedAtMs || 0)),
+    reviewedAtMs: data.reviewedAt && typeof data.reviewedAt.toDate === 'function' ? data.reviewedAt.toDate().getTime() : Math.max(0, Number(data.reviewedAtMs || 0))
+  };
+}
+
+function getDefaultCaseSuggestionVisualByRarity(rarity) {
+  const config = getGeneralShopRarityConfig(rarity);
+  return `linear-gradient(145deg, ${config.color} 0%, #111925 100%)`;
+}
+
+function createDefaultCaseSuggestionDrop(rarity = 'mil-spec', values = {}) {
+  caseSuggestionDraftDropSeed += 1;
+  return {
+    localId: caseSuggestionDraftDropSeed,
+    rarity: normalizeGeneralShopRarity(rarity),
+    name: sanitizeNullableText(values.name || values.title, '').slice(0, 80),
+    manualImagesText: Array.isArray(values.manualImagesText)
+      ? values.manualImagesText.join('\n')
+      : sanitizeNullableText(values.manualImagesText || values.imageUrls || '', '').slice(0, 4000),
+    uploadedImages: normalizeCaseSuggestionImages(values.uploadedImages || values.images || []),
+    statusMessage: sanitizeNullableText(values.statusMessage, '')
+  };
+}
+
+function buildDefaultCaseSuggestionDrops() {
+  return GENERAL_SHOP_RARITY_CONFIG.map((entry) => createDefaultCaseSuggestionDrop(entry.id));
+}
+
+function getCaseSuggestionDropRecord(localId) {
+  return caseSuggestionDraftDrops.find((entry) => entry.localId === Number(localId)) || null;
+}
+
+function getCaseSuggestionDropCombinedImages(drop) {
+  if (!drop) return [];
+  return normalizeCaseSuggestionImages([
+    ...String(drop.manualImagesText || '').split(/\r?\n/),
+    ...(Array.isArray(drop.uploadedImages) ? drop.uploadedImages : [])
+  ]);
+}
+
+function normalizeCaseSuggestionDropItems(value, fallbackSuggestions = {}, fallbackImages = {}) {
+  const next = [];
+  if (Array.isArray(value) && value.length) {
+    value.forEach((item) => {
+      const rarity = normalizeGeneralShopRarity(item && item.rarity);
+      const name = sanitizeNullableText(item && (item.name || item.title), '').slice(0, 80);
+      const images = normalizeCaseSuggestionImages(item && (item.images || item.imageUrls || item.visuals || item.visualData || []));
+      if (!name && !images.length) return;
+      next.push({ rarity, name, images });
+    });
+  }
+  if (next.length) return next.slice(0, 40);
+  GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+    const names = normalizeCaseSuggestionEntries(fallbackSuggestions[entry.id] || []);
+    const images = normalizeCaseSuggestionImages(fallbackImages[entry.id] || []);
+    names.forEach((name, index) => {
+      next.push({
+        rarity: entry.id,
+        name,
+        images: normalizeCaseSuggestionImages([images[index] || images[0] || ''])
+      });
+    });
+  });
+  return next.slice(0, 40);
+}
+
+function getCaseSuggestionDropPreviewVisual(drop) {
+  const images = getCaseSuggestionDropCombinedImages(drop);
+  return sanitizeProfileBanner(images[0] || getDefaultCaseSuggestionVisualByRarity(drop && drop.rarity));
+}
+
+function renderCaseSuggestionDropBuilder() {
+  const container = document.getElementById('case-suggestion-drop-builder');
+  if (!container) return;
+  if (!caseSuggestionDraftDrops.length) caseSuggestionDraftDrops = buildDefaultCaseSuggestionDrops();
+  container.innerHTML = caseSuggestionDraftDrops.map((drop) => {
+    const rarityConfig = getGeneralShopRarityConfig(drop.rarity);
+    const combinedImages = getCaseSuggestionDropCombinedImages(drop);
+    const previewVisual = getCaseSuggestionDropPreviewVisual(drop);
+    const canRemove = caseSuggestionDraftDrops.length > GENERAL_SHOP_RARITY_CONFIG.length;
+    const rarityOptions = GENERAL_SHOP_RARITY_CONFIG.map((entry) => `<option value="${escapeHtml(entry.id)}"${entry.id === drop.rarity ? ' selected' : ''}>${escapeHtml(entry.label)}</option>`).join('');
+    return `<div data-case-suggestion-drop-card="${drop.localId}" style="padding:0.75rem; border-radius:0.7rem; background:#151d28; border:1px solid rgba(255,255,255,0.08); box-shadow:0 12px 24px rgba(0,0,0,0.22); display:grid; gap:0.55rem;"><div style="position:relative; height:9.5rem; border-radius:0.65rem; border:2px solid ${escapeHtml(rarityConfig.color)}; overflow:hidden; ${getGeneralShopVisualStyleText(previewVisual)}; background-color:#0f1620; display:flex; align-items:flex-end; justify-content:flex-start;"><div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(0,0,0,0.28) 100%);"></div>${combinedImages.length ? '' : '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#d9e4f1; font-size:0.95rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Image</div>'}<div style="position:relative; z-index:1; margin:0.55rem; padding:0.22rem 0.45rem; border-radius:999px; background:rgba(0,0,0,0.62); color:#fff; font-size:0.72rem; font-weight:700;">${combinedImages.length ? `${combinedImages.length} photo${combinedImages.length === 1 ? '' : 's'}` : rarityConfig.label}</div></div><select onchange="updateCaseSuggestionDropField(${drop.localId}, 'rarity', this.value)" style="border-color:${escapeHtml(rarityConfig.color)};">${rarityOptions}</select><input type="text" maxlength="80" placeholder="Drop name" value="${escapeHtml(drop.name)}" oninput="updateCaseSuggestionDropField(${drop.localId}, 'name', this.value)" /><textarea rows="3" maxlength="4000" placeholder="Image URLs, one per line (optional)" onchange="updateCaseSuggestionDropField(${drop.localId}, 'manualImagesText', this.value)">${escapeHtml(drop.manualImagesText || '')}</textarea><div class="submission-actions" style="margin-top:0; justify-content:flex-start;"><input type="file" accept="image/*,.gif" multiple onchange="handleCaseSuggestionDropImagesSelected(${drop.localId}, event)" style="flex:1 1 12rem; min-width:0;" /><button type="button" onclick="clearCaseSuggestionDropImages(${drop.localId}, false)" style="padding:0.45rem 0.7rem; background:#37474f; color:#fff; border:none; border-radius:0.35rem;">Clear Photos</button>${canRemove ? `<button type="button" onclick="removeCaseSuggestionDrop(${drop.localId})" style="padding:0.45rem 0.7rem; background:#5d2323; color:#fff; border:none; border-radius:0.35rem;">Remove</button>` : ''}</div><div style="font-size:0.74rem; color:#9fb0c2; min-height:1.1rem;">${escapeHtml(drop.statusMessage || (combinedImages.length ? 'Preview updates from the first photo attached to this drop.' : 'Add a photo URL or upload files to show the image here.'))}</div></div>`;
+  }).join('');
+}
+
+function addCaseSuggestionDrop(rarity = 'mil-spec', values = {}) {
+  caseSuggestionDraftDrops.push(createDefaultCaseSuggestionDrop(rarity, values));
+  renderCaseSuggestionDropBuilder();
+}
+
+function updateCaseSuggestionDropField(localId, field, value) {
+  const drop = getCaseSuggestionDropRecord(localId);
+  if (!drop) return;
+  if (field === 'rarity') {
+    drop.rarity = normalizeGeneralShopRarity(value);
+  } else if (field === 'name') {
+    drop.name = sanitizeNullableText(value, '').slice(0, 80);
+  } else if (field === 'manualImagesText') {
+    drop.manualImagesText = sanitizeNullableText(value, '').slice(0, 4000);
+  }
+  if (field === 'rarity' || field === 'manualImagesText') renderCaseSuggestionDropBuilder();
+}
+
+function removeCaseSuggestionDrop(localId) {
+  caseSuggestionDraftDrops = caseSuggestionDraftDrops.filter((entry) => entry.localId !== Number(localId));
+  renderCaseSuggestionDropBuilder();
+}
+
+function clearCaseSuggestionDropImages(localId, resetManual = false) {
+  const drop = getCaseSuggestionDropRecord(localId);
+  if (!drop) return;
+  drop.uploadedImages = [];
+  if (resetManual) drop.manualImagesText = '';
+  drop.statusMessage = resetManual ? '' : 'Imported photos cleared. You can still paste URLs.';
+  renderCaseSuggestionDropBuilder();
+}
+
+async function handleCaseSuggestionDropImagesSelected(localId, event) {
+  const drop = getCaseSuggestionDropRecord(localId);
+  const input = event && event.target;
+  const files = Array.from(input && input.files ? input.files : []);
+  if (!files.length || !drop) return;
+  drop.statusMessage = 'Processing photos...';
+  renderCaseSuggestionDropBuilder();
+  try {
+    const encodedImages = [];
+    for (const file of files) {
+      const visual = sanitizeProfileBanner(await compressChatImage(file));
+      if (visual && isProfileBannerMedia(visual)) encodedImages.push(visual);
+    }
+    drop.uploadedImages = normalizeCaseSuggestionImages([...(drop.uploadedImages || []), ...encodedImages]);
+    drop.statusMessage = drop.uploadedImages.length ? `${drop.uploadedImages.length} uploaded photo${drop.uploadedImages.length === 1 ? '' : 's'} ready.` : '';
+  } catch (err) {
+    drop.statusMessage = err && err.message ? err.message : 'Could not use those files.';
+  } finally {
+    if (input) input.value = '';
+    renderCaseSuggestionDropBuilder();
+  }
+}
+
+function collectCaseSuggestionDropItems() {
+  return caseSuggestionDraftDrops.map((drop) => ({
+    rarity: normalizeGeneralShopRarity(drop.rarity),
+    name: sanitizeNullableText(drop.name, '').slice(0, 80),
+    images: getCaseSuggestionDropCombinedImages(drop)
+  })).filter((drop) => drop.name || drop.images.length);
+}
+
+function buildCaseSuggestionDropDescription(suggestion, rarityConfig) {
+  const baseTheme = sanitizeNullableText(suggestion.theme, 'Community case concept');
+  return `${rarityConfig.label} drop suggested for ${suggestion.caseName}. ${baseTheme}`.slice(0, 160);
+}
+
+function buildUniqueGeneralShopDraftId(baseValue, existingIds = new Set()) {
+  let nextId = normalizeOptionalGeneralShopItemId(baseValue);
+  if (!nextId) nextId = normalizeOptionalGeneralShopItemId(`draft-${Date.now()}`);
+  let suffix = 2;
+  while (!nextId || existingIds.has(nextId) || getGeneralShopItem(nextId)) {
+    nextId = normalizeOptionalGeneralShopItemId(`${baseValue}-${suffix}`);
+    suffix += 1;
+  }
+  existingIds.add(nextId);
+  return nextId;
+}
+
+async function autoConvertCaseSuggestionToDrafts(id) {
+  const suggestionDoc = await getCaseSuggestionsCollection().doc(id).get();
+  if (!suggestionDoc.exists) throw new Error('Case suggestion no longer exists.');
+  const suggestion = normalizeCaseSuggestionData(suggestionDoc.id, suggestionDoc.data() || {});
+  if (suggestion.generatedCaseId && suggestion.generatedDropIds.length) {
+    return { caseId: suggestion.generatedCaseId, dropIds: suggestion.generatedDropIds, suggestion };
+  }
+  const db = getCasinoDb();
+  const batch = db.batch();
+  const reservedIds = new Set();
+  const generatedDropIds = [];
+  const caseRewards = [];
+  const nowMs = Date.now();
+  suggestion.dropItems.forEach((dropItem) => {
+    const rarityConfig = getGeneralShopRarityConfig(dropItem.rarity);
+    if (!dropItem.name) return;
+      const itemId = buildUniqueGeneralShopDraftId(`${suggestion.caseName}-${rarityConfig.id}-${dropItem.name}`, reservedIds);
+      const visualData = sanitizeProfileBanner(((dropItem.images || [])[0]) || getDefaultCaseSuggestionVisualByRarity(rarityConfig.id));
+      const normalizedItem = normalizeGeneralShopItem(itemId, {
+        title: dropItem.name,
+        description: buildCaseSuggestionDropDescription(suggestion, rarityConfig),
+        price: 0,
+        itemType: 'case-drop',
+        rarity: rarityConfig.id,
+        visualData,
+        active: false,
+        createdAtMs: nowMs,
+        updatedAtMs: nowMs
+      });
+      batch.set(getGeneralShopCollection().doc(itemId), {
+        ...normalizedItem,
+        suggestedCaseId: suggestion.id,
+        updatedBy: currentChatUser || getUserName() || 'reviewer'
+      }, { merge: true });
+      generatedDropIds.push(itemId);
+      caseRewards.push({ itemId, rarity: rarityConfig.id });
+  });
+  const caseId = buildUniqueGeneralShopDraftId(`${suggestion.caseName}-case`, reservedIds);
+  const caseVisualData = sanitizeProfileBanner(
+    ((suggestion.rarityImages.special || [])[0])
+    || ((suggestion.rarityImages.covert || [])[0])
+    || ((suggestion.rarityImages.classified || [])[0])
+    || getDefaultCaseSuggestionVisualByRarity('special')
+  );
+  const normalizedCase = normalizeGeneralShopItem(caseId, {
+    title: suggestion.caseName,
+    description: sanitizeNullableText(suggestion.theme || suggestion.notes || 'Case suggestion converted from the review queue.', '').slice(0, 160),
+    price: 0,
+    itemType: 'case',
+    rarity: 'special',
+    caseRewards,
+    visualData: caseVisualData,
+    active: false,
+    createdAtMs: nowMs,
+    updatedAtMs: nowMs
+  });
+  batch.set(getGeneralShopCollection().doc(caseId), {
+    ...normalizedCase,
+    suggestedCaseId: suggestion.id,
+    updatedBy: currentChatUser || getUserName() || 'reviewer'
+  }, { merge: true });
+  await batch.commit();
+  await getCaseSuggestionsCollection().doc(id).set({
+    generatedCaseId: caseId,
+    generatedDropIds,
+    autoConvertedAtMs: nowMs,
+    autoConvertedBy: currentChatUser || getUserName() || 'reviewer'
+  }, { merge: true });
+  return { caseId, dropIds: generatedDropIds, suggestion: { ...suggestion, generatedCaseId: caseId, generatedDropIds } };
 }
 
 function getGeneralShopRarityConfig(rarity) {
@@ -12185,6 +13389,28 @@ saveLocalNotifications();
 renderNotificationCenter();
 }
 
+function openCaseSuggestionModal() {
+  const status = document.getElementById('case-suggestion-status');
+  if (status) status.textContent = '';
+  [
+    'case-suggestion-name',
+    'case-suggestion-theme',
+    'case-suggestion-notes'
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  caseSuggestionDraftDrops = buildDefaultCaseSuggestionDrops();
+  renderCaseSuggestionDropBuilder();
+  openModalById('case-suggestion-modal');
+}
+
+function closeCaseSuggestionModal() {
+  const status = document.getElementById('case-suggestion-status');
+  if (status) status.textContent = '';
+  closeModalById('case-suggestion-modal');
+}
+
 async function openGameSubmissionModal(encodedId = '') {
 const heading = document.getElementById('game-submission-heading');
 const subtitle = document.getElementById('game-submission-subtitle');
@@ -12285,37 +13511,49 @@ return `${Math.max(1, totalMonths)}mo ago`;
 function syncReviewQueueFilterInputs() {
 const gameSearch = document.getElementById('admin-game-submissions-search');
 const gameStatus = document.getElementById('admin-game-submissions-status');
+const caseSearch = document.getElementById('admin-case-suggestions-search');
+const caseStatus = document.getElementById('admin-case-suggestions-status');
 const loginSearch = document.getElementById('admin-login-requests-search');
 const loginStatus = document.getElementById('admin-login-requests-status');
 if (gameSearch) gameSearch.value = reviewQueueFilters.games.search;
 if (gameStatus) gameStatus.value = reviewQueueFilters.games.status;
+if (caseSearch) caseSearch.value = reviewQueueFilters.cases.search;
+if (caseStatus) caseStatus.value = reviewQueueFilters.cases.status;
 if (loginSearch) loginSearch.value = reviewQueueFilters.logins.search;
 if (loginStatus) loginStatus.value = reviewQueueFilters.logins.status;
 }
 
 function updateReviewQueueFilter(queueType, key, value) {
-const targetKey = queueType === 'logins' ? 'logins' : 'games';
+const targetKey = queueType === 'logins' ? 'logins' : queueType === 'cases' ? 'cases' : 'games';
 if (!reviewQueueFilters[targetKey]) return;
 reviewQueueFilters[targetKey][key] = key === 'status' ? String(value || 'all') : String(value || '').trim().toLowerCase();
 if (targetKey === 'games') {
   renderSubmissionQueue();
   return;
 }
+if (targetKey === 'cases') {
+  renderCaseSuggestionQueue();
+  return;
+}
 renderLoginRequestQueue();
 }
 
 function resetReviewQueueFilters(queueType) {
-const targetKey = queueType === 'logins' ? 'logins' : 'games';
+const targetKey = queueType === 'logins' ? 'logins' : queueType === 'cases' ? 'cases' : 'games';
 reviewQueueFilters[targetKey] = { search: '', status: 'all' };
 if (targetKey === 'games') {
   renderSubmissionQueue();
+  return;
+}
+if (targetKey === 'cases') {
+  renderCaseSuggestionQueue();
   return;
 }
 renderLoginRequestQueue();
 }
 
 function filterReviewQueueItems(queueType, items) {
-const targetKey = queueType === 'logins' ? 'logins' : 'games';
+const targetKey = queueType === 'logins' ? 'logins' : queueType === 'cases' ? 'cases' : 'games';
 const filters = reviewQueueFilters[targetKey] || { search: '', status: 'all' };
 const query = String(filters.search || '').trim().toLowerCase();
 const status = filters.status || 'all';
@@ -12332,6 +13570,19 @@ return (items || []).filter((item) => {
       item.submittedBy,
       item.submittedByName,
       item.reviewedBy
+    ].map((part) => sanitizeNullableText(part, '').toLowerCase()).join(' ');
+    return haystack.includes(query);
+  }
+  if (targetKey === 'cases') {
+    const rarityText = GENERAL_SHOP_RARITY_CONFIG.map((entry) => ((item.raritySuggestions && item.raritySuggestions[entry.id]) || []).join(' ')).join(' ');
+    const haystack = [
+      item.caseName,
+      item.theme,
+      item.notes,
+      item.submittedBy,
+      item.submittedByName,
+      item.reviewedBy,
+      rarityText
     ].map((part) => sanitizeNullableText(part, '').toLowerCase()).join(' ');
     return haystack.includes(query);
   }
@@ -12675,16 +13926,26 @@ function getPendingLoginRequestCount() {
 return loginRequestsCache.filter((item) => normalizeReviewStatus(item && item.status) === 'pending').length;
 }
 
+function getPendingCaseSuggestionCount() {
+return caseSuggestionsCache.filter((item) => normalizeReviewStatus(item && item.status) === 'pending').length;
+}
+
 function updateReviewQueueBadges() {
 const pendingCount = getPendingGameSubmissionCount();
+const pendingCaseCount = getPendingCaseSuggestionCount();
 const pendingLoginCount = getPendingLoginRequestCount();
-const totalPending = pendingCount + pendingLoginCount;
+const totalPending = pendingCount + pendingCaseCount + pendingLoginCount;
 const titleBadge = document.getElementById('admin-submissions-pending-count');
+const caseBadge = document.getElementById('admin-case-suggestions-pending-count');
 const loginBadge = document.getElementById('admin-login-requests-pending-count');
 const menuBadge = document.getElementById('admin-menu-pending-badge');
 if (titleBadge) {
   titleBadge.textContent = String(pendingCount);
   titleBadge.style.display = pendingCount > 0 && canReviewSubmissions(currentChatUser) ? 'inline-flex' : 'none';
+}
+if (caseBadge) {
+  caseBadge.textContent = String(pendingCaseCount);
+  caseBadge.style.display = pendingCaseCount > 0 && canReviewSubmissions(currentChatUser) ? 'inline-flex' : 'none';
 }
 if (loginBadge) {
   loginBadge.textContent = String(pendingLoginCount);
@@ -12729,6 +13990,100 @@ if (statusFilter === 'all' || statusFilter === 'pending') groups.push(renderRevi
 if (statusFilter === 'all' || statusFilter === 'approved') groups.push(renderReviewGroup('Approved', approvedItems, 'No approved game submissions.', (item) => renderGameSubmissionCard(item, false, true)));
 if (statusFilter === 'all' || statusFilter === 'rejected') groups.push(renderReviewGroup('Rejected', rejectedItems, 'No rejected game submissions.', (item) => renderGameSubmissionCard(item, false, true)));
 container.innerHTML = `${summary}${bulkBar}${groups.join('')}`;
+}
+
+function renderCaseSuggestionCard(item, showActions, allowDelete = false) {
+const safeId = encodeURIComponent(item.id || '');
+const status = normalizeReviewStatus(item.status);
+const reviewer = sanitizeNullableText(item.reviewedBy, '');
+const reviewMeta = reviewer ? `${status} by ${reviewer}` : status;
+const raritySummary = GENERAL_SHOP_RARITY_CONFIG.map((entry) => `${entry.shortLabel} ${((item.raritySuggestions && item.raritySuggestions[entry.id]) || []).length}`).join(' • ');
+const dropBlocks = (item.dropItems || []).map((drop) => {
+  const rarity = getGeneralShopRarityConfig(drop.rarity);
+  const previewVisual = sanitizeProfileBanner(((drop.images || [])[0]) || getDefaultCaseSuggestionVisualByRarity(rarity.id));
+  const imageCount = (drop.images || []).length;
+  return `<div style="padding:0.45rem; border-radius:0.55rem; background:#151d28; border:1px solid rgba(255,255,255,0.06); display:grid; gap:0.4rem;"><div style="height:7.2rem; border-radius:0.55rem; border:2px solid ${escapeHtml(rarity.color)}; ${getGeneralShopVisualStyleText(previewVisual)}; background-color:#0f1620;"></div><div style="font-size:0.72rem; font-weight:700; color:${escapeHtml(rarity.color)};">${escapeHtml(rarity.label)}${imageCount ? ` • ${imageCount} photo${imageCount === 1 ? '' : 's'}` : ''}</div><div style="color:#dce6f2; font-size:0.82rem; font-weight:700;">${escapeHtml(drop.name || 'Untitled Drop')}</div></div>`;
+}).join('');
+const conversionMeta = item.generatedCaseId ? `<div style="font-size:0.76rem; color:#9fe3a5;">Draft case created: ${escapeHtml(item.generatedCaseId)} • ${item.generatedDropIds.length} draft drop${item.generatedDropIds.length === 1 ? '' : 's'}</div>` : '';
+return `<div class="admin-compact-card"><div style="display:grid; gap:0.5rem;"><div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;"><div style="min-width:0;"><div style="font-weight:bold; color:#f6c453;">${escapeHtml(item.caseName || 'Untitled Case')}</div><div style="color:#90a4ae; font-size:0.76rem; margin-top:0.2rem;">${escapeHtml(reviewMeta)} • by ${escapeHtml(item.submittedByName || item.submittedBy || 'unknown')}</div>${item.theme ? `<div style="color:#ddd; font-size:0.82rem; margin-top:0.35rem;">${escapeHtml(item.theme)}</div>` : ''}${item.notes ? `<div style="color:#b0bec5; font-size:0.78rem; margin-top:0.3rem;">Notes: ${escapeHtml(item.notes)}</div>` : ''}</div><div style="font-size:0.76rem; color:#9fb0c2; white-space:nowrap;">${escapeHtml(raritySummary)}</div></div>${conversionMeta}<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(11rem, 1fr)); gap:0.45rem;">${dropBlocks || '<div style="padding:0.55rem; border-radius:0.45rem; background:#151d28; color:#9fb0c2;">No drops attached.</div>'}</div>${status === 'rejected' && item.reviewReason ? `<div style="color:#ffcc80; font-size:0.78rem;">Reason: ${escapeHtml(item.reviewReason)}</div>` : ''}${(showActions || allowDelete) ? `<div class="admin-compact-actions">${showActions ? `<button onclick="reviewCaseSuggestion('${safeId}','approve')" style="padding:0.3rem 0.55rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Approve</button><button onclick="reviewCaseSuggestion('${safeId}','reject')" style="padding:0.3rem 0.55rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Reject</button>` : ''}${allowDelete ? `<button onclick="deleteCaseSuggestion('${safeId}')" style="padding:0.3rem 0.55rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}</div>` : ''}</div></div>`;
+}
+
+function renderCaseSuggestionQueue() {
+const container = document.getElementById('admin-case-suggestions');
+if (!container) return;
+updateReviewQueueBadges();
+syncReviewQueueFilterInputs();
+if (!canReviewSubmissions(currentChatUser)) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+if (caseSuggestionsLoading && !caseSuggestionsCache.length) {
+  container.innerHTML = '<div class="submission-empty">Loading case suggestions...</div>';
+  return;
+}
+if (!caseSuggestionsCache.length) {
+  container.innerHTML = '<div class="submission-empty">No case suggestions yet.</div>';
+  return;
+}
+const filteredItems = filterReviewQueueItems('cases', caseSuggestionsCache);
+if (!filteredItems.length) {
+  container.innerHTML = '<div class="submission-empty">No case suggestions match the current filters.</div>';
+  return;
+}
+const pendingItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'pending');
+const approvedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'approved');
+const rejectedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'rejected');
+const statusFilter = reviewQueueFilters.cases.status || 'all';
+const summary = `<div class="queue-summary-grid"><div class="profile-detail-card"><div class="profile-detail-label">Pending</div><div class="profile-detail-value">${pendingItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Approved</div><div class="profile-detail-value">${approvedItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Rejected</div><div class="profile-detail-value">${rejectedItems.length}</div></div></div>`;
+const groups = [];
+if (statusFilter === 'all' || statusFilter === 'pending') groups.push(renderReviewGroup('Pending', pendingItems, 'No pending case suggestions.', (item) => renderCaseSuggestionCard(item, true)));
+if (statusFilter === 'all' || statusFilter === 'approved') groups.push(renderReviewGroup('Approved', approvedItems, 'No approved case suggestions.', (item) => renderCaseSuggestionCard(item, false, true)));
+if (statusFilter === 'all' || statusFilter === 'rejected') groups.push(renderReviewGroup('Rejected', rejectedItems, 'No rejected case suggestions.', (item) => renderCaseSuggestionCard(item, false, true)));
+container.innerHTML = `${summary}${groups.join('')}`;
+}
+
+async function loadCaseSuggestionsOnce(force = false) {
+const container = document.getElementById('admin-case-suggestions');
+if (force) caseSuggestionsLoaded = false;
+if (caseSuggestionsLoading) return;
+caseSuggestionsLoading = true;
+if (container && canReviewSubmissions(currentChatUser) && !caseSuggestionsLoaded) {
+  container.innerHTML = '<div class="submission-empty">Loading case suggestions...</div>';
+}
+try {
+  const snapshot = await getCaseSuggestionsCollection().orderBy('submittedAt', 'desc').limit(80).get();
+  caseSuggestionsCache = snapshot.docs.map((doc) => normalizeCaseSuggestionData(doc.id, doc.data() || {}));
+  caseSuggestionsLoaded = true;
+  updateReviewQueueBadges();
+  renderCaseSuggestionQueue();
+} catch (err) {
+  updateReviewQueueBadges();
+  if (container && canReviewSubmissions(currentChatUser)) {
+    container.innerHTML = '<div class="submission-empty">Could not load case suggestions from Firestore.</div>';
+  }
+} finally {
+  caseSuggestionsLoading = false;
+}
+}
+
+function listenForCaseSuggestions() {
+renderCaseSuggestionQueue();
+try {
+  if (caseSuggestionsUnsub) caseSuggestionsUnsub();
+  caseSuggestionsUnsub = getCaseSuggestionsCollection()
+    .orderBy('submittedAt', 'desc')
+    .limit(80)
+    .onSnapshot((snapshot) => {
+      caseSuggestionsCache = snapshot.docs.map((doc) => normalizeCaseSuggestionData(doc.id, doc.data() || {}));
+      caseSuggestionsLoaded = true;
+      updateReviewQueueBadges();
+      renderCaseSuggestionQueue();
+    }, () => {
+      loadCaseSuggestionsOnce();
+    });
+} catch (_) {
+  loadCaseSuggestionsOnce();
+}
 }
 
 function listenForGameSubmissions() {
@@ -12999,6 +14354,127 @@ openReviewActionModal({
 return;
 }
 openConfirmActionModal('Approve Game Submission', 'This will mark the submission approved and move it out of the pending queue.', () => applyGameSubmissionReview(id, 'approved', ''), 'Approve Submission');
+}
+
+async function submitCaseSuggestion() {
+ const nameEl = document.getElementById('case-suggestion-name');
+ const themeEl = document.getElementById('case-suggestion-theme');
+ const notesEl = document.getElementById('case-suggestion-notes');
+ const statusEl = document.getElementById('case-suggestion-status');
+ const caseName = sanitizeNullableText(nameEl && nameEl.value, '').slice(0, 40);
+ const theme = sanitizeNullableText(themeEl && themeEl.value, '').slice(0, 120);
+ const notes = sanitizeNullableText(notesEl && notesEl.value, '').slice(0, 220);
+ if (!caseName) {
+   if (statusEl) statusEl.textContent = 'Add a case name first.';
+   return;
+ }
+ const dropItems = collectCaseSuggestionDropItems();
+ if (!dropItems.length) {
+   if (statusEl) statusEl.textContent = 'Add at least one drop card before submitting.';
+   return;
+ }
+ const raritySuggestions = {};
+ const rarityImages = {};
+ const missingRarities = [];
+ GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+   const groupedDrops = dropItems.filter((drop) => normalizeGeneralShopRarity(drop.rarity) === entry.id && drop.name);
+   const suggestions = groupedDrops.map((drop) => drop.name);
+   raritySuggestions[entry.id] = suggestions;
+   rarityImages[entry.id] = normalizeCaseSuggestionImages(groupedDrops.flatMap((drop) => drop.images || []));
+   if (!suggestions.length) missingRarities.push(entry.label);
+ });
+ if (missingRarities.length) {
+   if (statusEl) statusEl.textContent = `Add at least one suggestion for every rarity: ${missingRarities.join(', ')}. More is better.`;
+   return;
+ }
+ const payload = {
+   caseName,
+   theme,
+   notes,
+   dropItems,
+   raritySuggestions,
+   rarityImages,
+   submittedBy: getMyProfileKey() || 'guest',
+   submittedByName: currentChatUser || getUserName() || 'guest',
+   submittedAtMs: Date.now(),
+   status: 'pending'
+ };
+ try {
+   await getCaseSuggestionsCollection().add({
+     ...payload,
+     submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+     reviewedBy: '',
+     reviewReason: ''
+   });
+   caseSuggestionsLoaded = true;
+   if (statusEl) statusEl.textContent = 'Case suggestion submitted for review.';
+   addSiteActivity('submission', `${payload.submittedByName} suggested case ${caseName}`, theme || 'General shop case suggestion');
+   pushNotification({ type: 'submission', title: 'Case suggestion submitted', body: `${caseName} was sent to the review queue.`, read: false });
+   loadCaseSuggestionsOnce();
+   [nameEl, themeEl, notesEl].forEach((el) => { if (el) el.value = ''; });
+   caseSuggestionDraftDrops = buildDefaultCaseSuggestionDrops();
+   renderCaseSuggestionDropBuilder();
+ } catch (err) {
+   if (statusEl) statusEl.textContent = 'Failed to submit case suggestion to Firestore.';
+ }
+}
+
+function reviewCaseSuggestion(encodedId, action) {
+ if (!canReviewSubmissions(currentChatUser)) return;
+ const id = decodeURIComponent(encodedId || '');
+ if (!id) return;
+ if (action === 'reject') {
+   openReviewActionModal({
+     title: 'Reject Case Suggestion',
+     subtitle: 'Add a short reason so reviewers can see why this case idea was rejected.',
+     submitLabel: 'Reject Suggestion',
+     onSubmit: async (reason) => {
+       if (!reason) throw new Error('Add a rejection reason before saving.');
+       await applyCaseSuggestionReview(id, 'rejected', reason);
+     }
+   });
+   return;
+ }
+ openConfirmActionModal('Approve Case Suggestion', 'This approves the suggestion and auto-creates inactive draft case drops plus a draft case in the general shop.', () => applyCaseSuggestionReview(id, 'approved', ''), 'Approve Suggestion');
+}
+
+async function applyCaseSuggestionReview(id, status, reason = '') {
+ try {
+   let conversionResult = null;
+   if (status === 'approved') {
+     conversionResult = await autoConvertCaseSuggestionToDrafts(id);
+   }
+   await getCaseSuggestionsCollection().doc(id).set({
+     status,
+     reviewReason: reason,
+     reviewedBy: currentChatUser,
+     reviewedAtMs: Date.now(),
+     reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+   }, { merge: true });
+   if (status === 'approved' && conversionResult) {
+     await writeAuditLog('case_suggestion_convert', conversionResult.caseId, `Auto-converted ${conversionResult.suggestion.caseName} into ${conversionResult.dropIds.length} draft drops and one draft case`);
+     if (canManageRoles(currentChatUser)) {
+       renderAdminGeneralShopManager();
+       loadAdminGeneralShopForm(encodeURIComponent(conversionResult.caseId));
+       setAdminGeneralShopStatus(`Draft case ${conversionResult.caseId} created from ${conversionResult.suggestion.caseName}.`, 'success');
+     }
+   }
+   loadCaseSuggestionsOnce(true);
+ } catch (err) {
+   throw new Error('Failed to review case suggestion.');
+ }
+}
+
+async function deleteCaseSuggestion(encodedId) {
+ if (!canReviewSubmissions(currentChatUser)) return;
+ const id = decodeURIComponent(encodedId || '');
+ if (!id) return;
+ const item = caseSuggestionsCache.find((entry) => entry && entry.id === id);
+ if (!item || normalizeReviewStatus(item.status) === 'pending') return;
+ openConfirmActionModal(`Delete ${normalizeReviewStatus(item.status)} case suggestion`, `This permanently removes "${item.caseName || 'Untitled Case'}" from the review queue.`, async () => {
+   await getCaseSuggestionsCollection().doc(id).delete();
+   loadCaseSuggestionsOnce(true);
+ }, 'Delete Suggestion');
 }
 
 async function applyGameSubmissionReview(id, status, reason = '') {
@@ -16421,6 +17897,16 @@ const db = defaultApp ? defaultApp.firestore() : firebase.firestore();
 return configureFirestoreTransport(db);
 }
 
+function getPrimaryStorage() {
+const defaultApp = getDefaultFirebaseApp();
+if (!defaultApp || typeof defaultApp.storage !== 'function') return null;
+try {
+return defaultApp.storage();
+} catch (err) {
+return null;
+}
+}
+
 function getAdminDb() {
 const adminApp = ensureFirebaseApp(adminFirebaseConfig, ADMIN_APP_NAME);
 const db = adminApp ? adminApp.firestore() : getPrimaryDb();
@@ -16507,11 +17993,14 @@ let typingUsersRealtimeHandler = null;
 let onlineUsersRealtimeRef = null;
 let onlineUsersRealtimeHandler = null;
 let realtimePresenceHeartbeatInterval = null;
-let currentRoomPinnedMessage = null;
-let globalPinnedMessage = null;
+let currentRoomPinnedMessages = [];
+let globalPinnedMessages = [];
 let pinnedMessageGlobalUnsub = null;
 let pinnedMessageRoomUnsub = null;
 let pinnedMessageRoomListenerId = '';
+const MAX_PINNED_MESSAGES_PER_SCOPE = 8;
+const MAX_VISIBLE_PINNED_MESSAGES = 4;
+let pinnedMessageBarCollapsed = localStorage.getItem('pinnedMessageBarCollapsed') === '1';
 let chatPreFullscreenState = null;
 let lastGlobalAlertKey = localStorage.getItem('lastGlobalAlertKey') || '';
 let roleCache = {};
@@ -16547,6 +18036,9 @@ const CHAT_IMAGE_MAX_WIDTH = 1280;
 const CHAT_IMAGE_MAX_HEIGHT = 1280;
 const CHAT_IMAGE_QUALITY = 0.82;
 const CHAT_IMAGE_SIZE_LIMIT = 700000;
+const CHAT_VIDEO_INLINE_SIZE_LIMIT = 450000;
+const CHAT_VIDEO_INLINE_DATA_URL_LIMIT = 900000;
+const CHAT_VIDEO_UPLOAD_SIZE_LIMIT = 25000000;
 const CHAT_ROOMS_COLLECTION = 'chat_rooms';
 let chatRoomsCache = {};
 let chatRoomsUnsub = null;
@@ -18926,7 +20418,7 @@ if (user) {
   uniqueSenders.add(user);
   senderCounts[user] = (senderCounts[user] || 0) + 1;
 }
-if (message.imageData || message.gifUrl || message.type === 'gif') {
+if (message.imageData || message.videoData || message.videoUrl || message.gifUrl || message.type === 'gif') {
   mediaMessages += 1;
 }
 const timestampMs = getTimestampMs(message.timestamp);
@@ -20265,11 +21757,12 @@ container.innerHTML = '<div style="color:#f88; font-size:0.85rem; padding:0.5rem
 async function adminResetCasinoLeaderboard() {
 if (!canManageRoles(currentChatUser)) return;
 const statusDiv = document.getElementById('admin-casino-status');
-if (!confirm('Reset every casino leaderboard? This sets balances back to $1,000 and clears owned casino shop inventory, cases, and all-time best drops.')) {
+if (!confirm('Reset every casino leaderboard? This sets balances back to $1,000, clears owned casino shop inventory, cases, all-time best drops, and deletes all coin flip records.')) {
   return;
 }
 try {
   const db = getCasinoDb();
+  const coinFlipResult = await clearCasinoCoinFlipRecords({ refundOpenChallenges: false });
   const snapshot = await getCasinoBalanceCollection().get();
   const docs = snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [];
   let updatedCount = 0;
@@ -20304,7 +21797,7 @@ try {
     await batch.commit();
   }
   casinoProfileStatsCache = {};
-  await writeAuditLog('casino_reset_leaderboard', '', `Reset ${updatedCount} casino leaderboard records: balances to 1000, cases/items cleared, all-time drops cleared`);
+  await writeAuditLog('casino_reset_leaderboard', '', `Reset ${updatedCount} casino leaderboard records: balances to 1000, cases/items cleared, all-time drops cleared, deleted ${coinFlipResult.deletedCount} coin flip records`);
   await loadCasinoBalance().catch(() => {});
   if (typeof renderGeneralShopModal === 'function') renderGeneralShopModal();
   if (typeof renderGeneralShopInventoryModal === 'function') renderGeneralShopInventoryModal();
@@ -20320,8 +21813,8 @@ try {
   scheduleDynamicLeaderboardTagRefresh();
   if (statusDiv) {
     statusDiv.textContent = updatedCount
-      ? `Casino leaderboards reset. ${updatedCount} accounts were reset to $1,000 and had casino inventory/drop records cleared.`
-      : 'Casino leaderboard reset. No casino balances were found.';
+      ? `Casino leaderboards reset. ${updatedCount} accounts were reset to $1,000, casino inventory/drop records were cleared, and ${coinFlipResult.deletedCount} coin flip records were deleted.`
+      : `Casino leaderboard reset. No casino balances were found.${coinFlipResult.deletedCount ? ` Deleted ${coinFlipResult.deletedCount} coin flip records.` : ''}`;
   }
 } catch (err) {
   if (statusDiv) statusDiv.textContent = 'Failed to reset the casino leaderboard.';
@@ -20331,11 +21824,12 @@ try {
 async function adminResetCasinoStats() {
 if (!canManageRoles(currentChatUser)) return;
 const statusDiv = document.getElementById('admin-casino-status');
-if (!confirm('Reset all casino win/loss stats, streaks, achievements, and bankruptcy counters while keeping current balances?')) {
+if (!confirm('Reset all casino win/loss stats, streaks, achievements, and bankruptcy counters while keeping current balances? Open coin flips will be cancelled, refunded, and removed.')) {
   return;
 }
 try {
   const db = getCasinoDb();
+  const coinFlipResult = await clearCasinoCoinFlipRecords({ refundOpenChallenges: true });
   const snapshot = await getCasinoBalanceCollection().get();
   const docs = snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [];
   let updatedCount = 0;
@@ -20379,7 +21873,7 @@ try {
     await batch.commit();
   }
   casinoProfileStatsCache = {};
-  await writeAuditLog('casino_reset_stats', '', `Reset casino stats on ${updatedCount} balance records`);
+  await writeAuditLog('casino_reset_stats', '', `Reset casino stats on ${updatedCount} balance records, refunded ${coinFlipResult.refundedCount} open coin flips, deleted ${coinFlipResult.deletedCount} coin flip records`);
   await loadCasinoBalance().catch(() => {});
   if (currentProfileViewUser) {
     await loadProfileDetails(currentProfileViewUser).catch(() => {});
@@ -20390,8 +21884,8 @@ try {
   scheduleDynamicLeaderboardTagRefresh();
   if (statusDiv) {
     statusDiv.textContent = updatedCount
-      ? `Casino stats reset on ${updatedCount} player records.`
-      : 'Casino stats reset. No casino records were found.';
+      ? `Casino stats reset on ${updatedCount} player records. Refunded ${coinFlipResult.refundedCount} open coin flips and deleted ${coinFlipResult.deletedCount} coin flip records.`
+      : `Casino stats reset. No casino records were found.${coinFlipResult.deletedCount ? ` Deleted ${coinFlipResult.deletedCount} coin flip records.` : ''}`;
   }
 } catch (err) {
   if (statusDiv) statusDiv.textContent = 'Failed to reset casino stats.';
@@ -20427,6 +21921,92 @@ try {
   }
 } catch (err) {
   if (statusDiv) statusDiv.textContent = 'Failed to clear the casino feed.';
+}
+}
+
+async function clearCasinoCoinFlipRecords(options = {}) {
+const refundOpenChallenges = !!options.refundOpenChallenges;
+const db = getCasinoDb();
+const snapshot = await getCasinoCoinFlipCollection().get();
+const docs = snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [];
+let refundedCount = 0;
+let deletedCount = 0;
+if (refundOpenChallenges) {
+  for (let index = 0; index < docs.length; index += 1) {
+    const doc = docs[index];
+    const initialChallenge = normalizeCasinoCoinFlipData(doc.id, doc.data() || {});
+    if (initialChallenge.status !== 'open' || !initialChallenge.challenger || initialChallenge.bet <= 0) continue;
+    const refundResult = await db.runTransaction(async (tx) => {
+      const challengeSnap = await tx.get(doc.ref);
+      if (!challengeSnap.exists) return null;
+      const challenge = normalizeCasinoCoinFlipData(challengeSnap.id, challengeSnap.data() || {});
+      if (challenge.status !== 'open' || !challenge.challenger || challenge.bet <= 0) return null;
+      const balanceRef = getCasinoBalanceCollection().doc(challenge.challenger);
+      const balanceSnap = await tx.get(balanceRef);
+      const currentStats = normalizeCasinoProfileStatsData(challenge.challenger, balanceSnap.exists ? (balanceSnap.data() || {}) : {});
+      const nextBalance = currentStats.balance + challenge.bet;
+      const nextStats = {
+        ...currentStats,
+        balance: nextBalance,
+        biggestBalance: Math.max(currentStats.biggestBalance, nextBalance)
+      };
+      nextStats.achievementIds = getCasinoUnlockedAchievementIds(nextStats);
+      tx.set(balanceRef, {
+        username: challenge.challenger,
+        displayName: sanitizeNullableText((balanceSnap.exists ? (balanceSnap.data() || {}).displayName : '') || challenge.challengerDisplayName, challenge.challenger),
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(doc.ref, {
+        status: 'cancelled',
+        cancelledBy: 'admin',
+        updatedAtMs: Date.now(),
+        resolvedAtMs: Date.now()
+      }, { merge: true });
+      return {
+        challenger: challenge.challenger,
+        nextStats
+      };
+    });
+    if (refundResult && refundResult.challenger) {
+      casinoProfileStatsCache[refundResult.challenger] = refundResult.nextStats;
+      refundedCount += 1;
+    }
+  }
+}
+for (let index = 0; index < docs.length; index += 200) {
+  const batch = db.batch();
+  docs.slice(index, index + 200).forEach((doc) => {
+    batch.delete(doc.ref);
+    deletedCount += 1;
+  });
+  await batch.commit();
+}
+casinoCoinFlipCache = [];
+coinFlipVisualState = createDefaultCasinoCoinFlipVisualState();
+if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+  renderActiveCasinoGamePanel();
+}
+return { refundedCount, deletedCount };
+}
+
+async function adminClearCasinoCoinFlips() {
+if (!canManageRoles(currentChatUser)) return;
+const statusDiv = document.getElementById('admin-casino-status');
+if (!confirm('Clear all coin flip history and cancel open coin flips with refunds before deleting them?')) {
+  return;
+}
+try {
+  const result = await clearCasinoCoinFlipRecords({ refundOpenChallenges: true });
+  await writeAuditLog('casino_clear_coin_flips', '', `Refunded ${result.refundedCount} open coin flips and deleted ${result.deletedCount} coin flip records`);
+  await loadCasinoBalance().catch(() => {});
+  if (statusDiv) {
+    statusDiv.textContent = result.deletedCount
+      ? `Cleared coin flips. Refunded ${result.refundedCount} open challenge${result.refundedCount === 1 ? '' : 's'} and deleted ${result.deletedCount} records.`
+      : 'No coin flip records were found.';
+  }
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to clear coin flip records.';
 }
 }
 
@@ -20902,33 +22482,124 @@ const normalizedRoomId = normalizeUsername(roomId) || 'general';
 return `pinned-room-${normalizedRoomId}`;
 }
 
-function buildPinnedMessageEntryHtml(label, data) {
+function getPinnedMessageEntriesRef(db, scope = 'room', roomId = currentChatRoom) {
+return db.collection('chat_meta').doc(getPinnedMessageDocId(scope, roomId)).collection('entries');
+}
+
+function getPinnedMessagePreviewText(data = {}) {
+const text = sanitizeNullableText(data.message, '').trim();
+if (text) return text;
+if (data.imageData) return '[image]';
+if (data.videoData || data.videoUrl) return '[video]';
+if (data.type === 'gif') return '[gif]';
+return '';
+}
+
+function getPinnedMessageVideoPayload(data = {}) {
+const directVideo = getRenderableChatVideoSource(data);
+if (directVideo) {
+  return { kind: 'direct', value: directVideo };
+}
+const embedVideo = getRenderableChatVideoEmbedUrl(data);
+if (embedVideo) {
+  return { kind: 'embed', value: embedVideo };
+}
+return null;
+}
+
+async function migrateLegacyPinnedMessage(scope = 'room', roomId = currentChatRoom) {
+const db = getAdminDb();
+const legacyRef = db.collection('chat_meta').doc(getPinnedMessageDocId(scope, roomId));
+const legacyDoc = await legacyRef.get();
+if (!legacyDoc.exists) return;
+const data = legacyDoc.data() || {};
+if (!sanitizeNullableText(data.text, '').trim()) {
+  await legacyRef.delete().catch(() => {});
+  return;
+}
+const entriesRef = getPinnedMessageEntriesRef(db, scope, roomId);
+await entriesRef.doc(`legacy-${legacyDoc.id}`).set({
+  docId: sanitizeNullableText(data.docId, ''),
+  user: sanitizeNullableText(data.user, 'unknown'),
+  text: sanitizeNullableText(data.text, ''),
+  videoUrl: normalizeChatVideoUrl(data.videoUrl || ''),
+  videoData: typeof data.videoData === 'string' ? data.videoData : '',
+  scope: scope === 'global' ? 'global' : 'room',
+  room: scope === 'room' ? (normalizeUsername(data.room || roomId) || normalizeUsername(roomId) || 'general') : '',
+  roomName: scope === 'room' ? sanitizeRoomName(data.roomName || getChatRoomConfig(roomId).name || 'Room') : '',
+  pinnedBy: sanitizeNullableText(data.pinnedBy, ''),
+  timestamp: data.timestamp || firebase.firestore.FieldValue.serverTimestamp(),
+  migratedFromLegacy: true
+}, { merge: true });
+await legacyRef.delete().catch(() => {});
+}
+
+function buildPinnedMessageEntryHtml(label, data, scope = 'room') {
 const pinnedUser = escapeHtml(sanitizeNullableText(data && data.user, 'unknown'));
 const pinnedText = escapeHtml(sanitizeNullableText(data && data.text, ''));
-return `<div class="pinned-message-entry"><span class="pinned-message-entry-label">${escapeHtml(label)}</span><span class="pinned-message-entry-body">${pinnedUser}: ${pinnedText}</span></div>`;
+const videoPayload = getPinnedMessageVideoPayload(data || {});
+const mediaHtml = !videoPayload ? '' : (videoPayload.kind === 'embed'
+  ? `<iframe class="pinned-message-entry-video-embed" src="${escapeHtml(videoPayload.value)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+  : `<video class="pinned-message-entry-video" src="${escapeHtml(videoPayload.value)}" controls loop muted playsinline preload="metadata"></video>`);
+const removeBtn = canModerate(currentChatUser) && data && data.pinId
+  ? `<button class="pinned-message-entry-remove" onclick="clearPinnedMessageEntry('${scope === 'global' ? 'global' : 'room'}','${encodeURIComponent(data.pinId)}','${encodeURIComponent(data.room || '')}')">✕</button>`
+  : '';
+return `<div class="pinned-message-entry"><div class="pinned-message-entry-top"><span class="pinned-message-entry-label">${escapeHtml(label)}</span><div class="pinned-message-entry-user">${pinnedUser}</div>${removeBtn}</div><div class="pinned-message-entry-message">${pinnedText}</div>${mediaHtml}</div>`;
+}
+
+function applyPinnedMessageBarCollapsedState() {
+const bar = document.getElementById('pinned-message-bar');
+const collapseBtn = document.getElementById('pinned-message-collapse-btn');
+if (bar) {
+  bar.classList.toggle('collapsed', !!pinnedMessageBarCollapsed);
+}
+if (collapseBtn) {
+  collapseBtn.textContent = pinnedMessageBarCollapsed ? 'Expand' : 'Collapse';
+}
+}
+
+function togglePinnedMessageBarCollapse() {
+pinnedMessageBarCollapsed = !pinnedMessageBarCollapsed;
+localStorage.setItem('pinnedMessageBarCollapsed', pinnedMessageBarCollapsed ? '1' : '0');
+applyPinnedMessageBarCollapsedState();
 }
 
 async function pinMessage(docId, scope = 'room') {
 if (!canModerate(currentChatUser)) return;
 const data = window._chatDocs && window._chatDocs[docId];
 if (!data) return;
-const text = sanitizeNullableText(data.message, '').trim() || (data.imageData ? '[image]' : (data.type === 'gif' ? '[gif]' : ''));
+const text = getPinnedMessagePreviewText(data);
 if (!text) return;
 const pinnedUser = sanitizeNullableText(data.displayUser || data.user, 'unknown');
 const room = getChatRoomConfig(data.room || currentChatRoom || 'general');
 const pinScope = scope === 'global' ? 'global' : 'room';
 try {
 const db = getAdminDb();
-await db.collection('chat_meta').doc(getPinnedMessageDocId(pinScope, room.id)).set({
-docId,
-user: pinnedUser,
-text,
-scope: pinScope,
-room: pinScope === 'room' ? room.id : '',
-roomName: pinScope === 'room' ? room.name : '',
-pinnedBy: currentChatUser,
-timestamp: firebase.firestore.FieldValue.serverTimestamp()
-});
+const entriesRef = getPinnedMessageEntriesRef(db, pinScope, room.id);
+const existingSnapshot = await entriesRef.where('docId', '==', docId).limit(1).get();
+const payload = {
+  docId,
+  user: pinnedUser,
+  text,
+  videoUrl: normalizeChatVideoUrl(data.videoUrl || ''),
+  videoData: typeof data.videoData === 'string' ? data.videoData : '',
+  scope: pinScope,
+  room: pinScope === 'room' ? room.id : '',
+  roomName: pinScope === 'room' ? room.name : '',
+  pinnedBy: currentChatUser,
+  timestamp: firebase.firestore.FieldValue.serverTimestamp()
+};
+if (!existingSnapshot.empty) {
+  await existingSnapshot.docs[0].ref.set(payload, { merge: true });
+} else {
+  await entriesRef.add(payload);
+}
+const retainedSnapshot = await entriesRef.orderBy('timestamp', 'desc').get();
+if (retainedSnapshot.size > MAX_PINNED_MESSAGES_PER_SCOPE) {
+  const batch = db.batch();
+  retainedSnapshot.docs.slice(MAX_PINNED_MESSAGES_PER_SCOPE).forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+}
 } catch (err) {
 alert('Failed to pin message.');
 }
@@ -20938,9 +22609,29 @@ async function clearPinnedMessage(scope = 'room') {
 if (!canModerate(currentChatUser)) return;
 try {
 const db = getAdminDb();
-await db.collection('chat_meta').doc(getPinnedMessageDocId(scope === 'global' ? 'global' : 'room', currentChatRoom)).delete();
+const pinScope = scope === 'global' ? 'global' : 'room';
+const entriesRef = getPinnedMessageEntriesRef(db, pinScope, currentChatRoom);
+const snapshot = await entriesRef.get();
+if (!snapshot.empty) {
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+}
+await db.collection('chat_meta').doc(getPinnedMessageDocId(pinScope, currentChatRoom)).delete().catch(() => {});
 } catch (err) {
 alert('Failed to clear pinned message.');
+}
+}
+
+async function clearPinnedMessageEntry(scope = 'room', pinId = '', roomId = '') {
+if (!canModerate(currentChatUser) || !pinId) return;
+try {
+  const db = getAdminDb();
+  const decodedPinId = decodeURIComponent(pinId);
+  const decodedRoomId = decodeURIComponent(roomId || '') || currentChatRoom;
+  await getPinnedMessageEntriesRef(db, scope === 'global' ? 'global' : 'room', decodedRoomId).doc(decodedPinId).delete();
+} catch (err) {
+  alert('Failed to remove pinned message.');
 }
 }
 
@@ -20951,21 +22642,24 @@ const clearRoomBtn = document.getElementById('pinned-message-clear-room-btn');
 const clearGlobalBtn = document.getElementById('pinned-message-clear-global-btn');
 if (!bar || !text || !clearRoomBtn || !clearGlobalBtn) return;
 const entries = [];
-if (currentRoomPinnedMessage && currentRoomPinnedMessage.text) {
-const roomName = sanitizeRoomName(currentRoomPinnedMessage.roomName || getChatRoomConfig(currentChatRoom).name || 'Room');
-entries.push(buildPinnedMessageEntryHtml(`ROOM · ${roomName}`, currentRoomPinnedMessage));
-}
-if (globalPinnedMessage && globalPinnedMessage.text) {
-entries.push(buildPinnedMessageEntryHtml('GLOBAL', globalPinnedMessage));
-}
+currentRoomPinnedMessages.forEach((item) => {
+  if (!item || !item.text) return;
+  const roomName = sanitizeRoomName(item.roomName || getChatRoomConfig(currentChatRoom).name || 'Room');
+  entries.push(buildPinnedMessageEntryHtml(`ROOM · ${roomName}`, item, 'room'));
+});
+globalPinnedMessages.forEach((item) => {
+  if (!item || !item.text) return;
+  entries.push(buildPinnedMessageEntryHtml('GLOBAL', item, 'global'));
+});
 if (!entries.length) {
 bar.style.display = 'none';
 return;
 }
 bar.style.display = 'flex';
 text.innerHTML = entries.join('');
-clearRoomBtn.style.display = canModerate(currentChatUser) && currentRoomPinnedMessage && currentRoomPinnedMessage.text ? 'inline-block' : 'none';
-clearGlobalBtn.style.display = canModerate(currentChatUser) && globalPinnedMessage && globalPinnedMessage.text ? 'inline-block' : 'none';
+clearRoomBtn.style.display = canModerate(currentChatUser) && currentRoomPinnedMessages.length ? 'inline-block' : 'none';
+clearGlobalBtn.style.display = canModerate(currentChatUser) && globalPinnedMessages.length ? 'inline-block' : 'none';
+applyPinnedMessageBarCollapsedState();
 }
 
 function refreshRoomPinnedMessageListener() {
@@ -20979,12 +22673,21 @@ if (pinnedMessageRoomUnsub) {
 }
 pinnedMessageRoomListenerId = roomId;
 pinnedMessageRoomUnsub = null;
-currentRoomPinnedMessage = null;
+currentRoomPinnedMessages = [];
 renderPinnedMessage();
-pinnedMessageRoomUnsub = db.collection('chat_meta').doc(getPinnedMessageDocId('room', roomId)).onSnapshot(doc => {
-currentRoomPinnedMessage = doc.exists ? (doc.data() || null) : null;
-renderPinnedMessage();
-});
+(async () => {
+  try {
+    await migrateLegacyPinnedMessage('room', roomId);
+  } catch (_) {}
+  if (pinnedMessageRoomListenerId !== roomId) return;
+  pinnedMessageRoomUnsub = getPinnedMessageEntriesRef(db, 'room', roomId)
+    .orderBy('timestamp', 'desc')
+    .limit(MAX_VISIBLE_PINNED_MESSAGES)
+    .onSnapshot((snapshot) => {
+      currentRoomPinnedMessages = snapshot.docs.map((doc) => ({ pinId: doc.id, ...(doc.data() || {}) }));
+      renderPinnedMessage();
+    });
+})();
 }
 
 function listenForPinnedMessages() {
@@ -20994,10 +22697,20 @@ if (pinnedMessageGlobalUnsub) {
   pinnedMessageGlobalUnsub();
   pinnedMessageGlobalUnsub = null;
 }
-pinnedMessageGlobalUnsub = db.collection('chat_meta').doc(getPinnedMessageDocId('global')).onSnapshot(doc => {
-  globalPinnedMessage = doc.exists ? (doc.data() || null) : null;
+(async () => {
+  globalPinnedMessages = [];
   renderPinnedMessage();
-});
+  try {
+    await migrateLegacyPinnedMessage('global');
+  } catch (_) {}
+  pinnedMessageGlobalUnsub = getPinnedMessageEntriesRef(db, 'global')
+    .orderBy('timestamp', 'desc')
+    .limit(MAX_VISIBLE_PINNED_MESSAGES)
+    .onSnapshot((snapshot) => {
+      globalPinnedMessages = snapshot.docs.map((doc) => ({ pinId: doc.id, ...(doc.data() || {}) }));
+      renderPinnedMessage();
+    });
+})();
 refreshRoomPinnedMessageListener();
 }
 
@@ -21263,6 +22976,7 @@ listenForGameThumbnailPolls();
 listenForSiteActivity();
 listenForBuiltInGameMetadata();
 listenForGameSubmissions();
+listenForCaseSuggestions();
 loadRoleCache();
 loadUserTagCache();
 loadUserProfileCache();
@@ -21433,11 +23147,28 @@ imageInput.click();
 function openMediaModal() {
 const modal = document.getElementById('media-modal');
 modal.style.display = 'flex';
+setMediaUploadStatus('');
 switchMediaTab('upload');
 }
 
 function closeMediaModal() {
+setMediaUploadStatus('');
 document.getElementById('media-modal').style.display = 'none';
+}
+
+function setMediaUploadStatus(message, tone = 'info') {
+const status = document.getElementById('media-upload-status');
+if (!status) return;
+status.textContent = message || '';
+if (tone === 'error') {
+  status.style.color = '#ff9b9b';
+} else if (tone === 'success') {
+  status.style.color = '#8fe3b0';
+} else if (tone === 'progress') {
+  status.style.color = '#8fb1ff';
+} else {
+  status.style.color = '#d7e6f7';
+}
 }
 
 function switchMediaTab(tab) {
@@ -21801,6 +23532,10 @@ const authorKey = normalizeUsername(data.authoredBy || data.user || '');
 const isOwn = authorKey === normalizeUsername(currentChatUser || getUserName() || '');
 const isSystem = data.system === true;
 const hasImage = typeof data.imageData === 'string' && data.imageData !== '';
+const videoSource = getRenderableChatVideoSource(data);
+const videoEmbedUrl = getRenderableChatVideoEmbedUrl(data);
+const hasVideo = !!videoSource;
+const hasVideoEmbed = !!videoEmbedUrl;
 const hasGif = data.type === 'gif' && data.gifUrl && isTrustedGifUrl(data.gifUrl);
 const messageText = sanitizeNullableText(data.message, '');
 const safeCaption = messageText ? renderFormattedMessageHtml(messageText) : '';
@@ -21875,6 +23610,8 @@ messageDiv.innerHTML = `
          ${replyHtml}
          ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${avatarHtml}<span class="chat-message-user-text">${escapeHtml(displayUser)}${ownerTag}${customTag}</span></div>`}
          ${hasImage ? `<img class="chat-message-image" src="${data.imageData}" alt="Chat image" />` : ''}
+         ${hasVideo ? `<video class="chat-message-video" src="${escapeHtml(videoSource)}" controls loop playsinline preload="metadata"></video>` : ''}
+         ${!hasVideo && hasVideoEmbed ? `<iframe class="chat-message-video-embed" src="${escapeHtml(videoEmbedUrl)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>` : ''}
          ${hasGif ? `<img class="chat-message-image" src="${escapeHtml(data.gifUrl)}" alt="GIF" />` : ''}
          ${safeCaption ? `<div class="chat-message-caption chat-message-text">${safeCaption}</div>` : ''}
          ${linkPreviewHtml}
@@ -21943,22 +23680,29 @@ return;
 
 try {
 let resolvedMediaUrl = '';
+let resolvedVideoUrl = '';
 if (isValidReactionImageUrl(message)) {
 resolvedMediaUrl = await resolveReactionImageUrl(message);
 }
 const rawLink = resolvedMediaUrl ? '' : extractFirstUrl(message);
-const linkPreview = rawLink ? buildLinkPreviewData(rawLink) : null;
+if (rawLink && isValidChatVideoUrl(rawLink) && (isDirectVideoUrl(rawLink) || !!getStreamableEmbedUrl(rawLink))) {
+resolvedVideoUrl = normalizeChatVideoUrl(rawLink);
+}
+const linkPreview = (!resolvedMediaUrl && !resolvedVideoUrl && rawLink) ? buildLinkPreviewData(rawLink) : null;
 
 const db = getPrimaryDb();
 const msgData = applyChatIdentityToMessageData({
 user: currentChatUser,
-message: resolvedMediaUrl ? '' : message,
+message: (resolvedMediaUrl || resolvedVideoUrl) ? '' : message,
 color: currentChatColor,
 room: currentChatRoom,
 timestamp: firebase.firestore.FieldValue.serverTimestamp()
 });
 if (resolvedMediaUrl) {
 msgData.imageData = resolvedMediaUrl;
+}
+if (resolvedVideoUrl) {
+msgData.videoUrl = resolvedVideoUrl;
 }
 if (linkPreview) {
 msgData.linkPreview = linkPreview;
@@ -21968,7 +23712,9 @@ msgData.replyTo = { user: currentReplyTo.user, text: currentReplyTo.text };
 }
 await db.collection('site_messages').add(msgData);
 lastChatSendAtMs = Date.now();
-if (!resolvedMediaUrl) {
+if (resolvedMediaUrl || resolvedVideoUrl) {
+incrementUserStat('mediaShared');
+} else {
 incrementUserStat('messagesSent');
 }
 
@@ -22073,6 +23819,237 @@ lastTypingWriteMs = Date.now();
 console.error('Error sending media:', err);
 if (status) status.textContent = err && err.message ? err.message : 'Failed to send media.';
 }
+}
+
+async function handleChatVideoSelected(event) {
+const file = event.target.files && event.target.files[0];
+const captionInput = document.getElementById('chat-message-input');
+const status = document.getElementById('chat-timeout-status');
+const caption = captionInput.value.trim();
+
+if (!file) {
+setMediaUploadStatus('');
+return;
+}
+
+if (!/^video\/(mp4|webm|ogg)$/i.test(file.type || '')) {
+if (status) status.textContent = 'Choose an MP4, WebM, or OGG video.';
+setMediaUploadStatus('Choose an MP4, WebM, or OGG video.', 'error');
+return;
+}
+
+if (!chatInitialized) {
+if (status) status.textContent = 'Chat is not ready yet. Refresh the page.';
+setMediaUploadStatus('Chat is not ready yet. Refresh the page.', 'error');
+return;
+}
+
+if (status) status.textContent = '';
+setMediaUploadStatus('Preparing video upload...', 'progress');
+
+if (!canPostInRoom(getChatRoomConfig(currentChatRoom))) {
+if (status) status.textContent = 'This room is read-only for your account.';
+setMediaUploadStatus('This room is read-only for your account.', 'error');
+return;
+}
+
+if (isReadOnlyForCurrentUser()) {
+if (status) status.textContent = 'Chat is currently read-only.';
+setMediaUploadStatus('Chat is currently read-only.', 'error');
+return;
+}
+
+const timedBan = await getActiveTimedBan(currentChatUser);
+if (timedBan) {
+if (status) status.textContent = `You are temporarily banned until ${timedBan.expiresAt.toLocaleString()}.`;
+setMediaUploadStatus(`You are temporarily banned until ${timedBan.expiresAt.toLocaleString()}.`, 'error');
+return;
+}
+
+if (containsBlockedWord(caption)) {
+if (status) status.textContent = 'Caption blocked by word filter.';
+setMediaUploadStatus('Caption blocked by word filter.', 'error');
+return;
+}
+
+if (await isUserMuted(currentChatUser)) {
+if (status) status.textContent = 'You are currently muted and cannot send messages.';
+setMediaUploadStatus('You are currently muted and cannot send messages.', 'error');
+return;
+}
+
+if (!canSendChatNow()) {
+return;
+}
+
+try {
+const videoPayload = await uploadChatVideoFile(file, (message) => setMediaUploadStatus(message, 'progress'));
+setMediaUploadStatus('Sending video to chat...', 'progress');
+
+const db = getPrimaryDb();
+const msgData = applyChatIdentityToMessageData({
+user: currentChatUser,
+message: caption,
+color: currentChatColor,
+room: currentChatRoom,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+if (videoPayload && videoPayload.kind === 'inline' && videoPayload.value) msgData.videoData = videoPayload.value;
+if (videoPayload && videoPayload.kind === 'remote' && videoPayload.value) msgData.videoUrl = videoPayload.value;
+const captionLink = extractFirstUrl(caption);
+if (captionLink) msgData.linkPreview = buildLinkPreviewData(captionLink);
+if (currentReplyTo) {
+msgData.replyTo = { user: currentReplyTo.user, text: currentReplyTo.text };
+}
+await db.collection('site_messages').add(msgData);
+lastChatSendAtMs = Date.now();
+incrementUserStat('mediaShared');
+setMediaUploadStatus('Video sent.', 'success');
+
+captionInput.value = '';
+captionInput.focus();
+clearReply();
+if (chatInitialized && currentChatUser) {
+clearTimeout(typingTimeout);
+writeTypingState(false);
+typingStateIsTrue = false;
+lastTypingWriteMs = Date.now();
+}
+closeMediaModal();
+} catch (err) {
+console.error('Error sending video:', err);
+if (status) status.textContent = err && err.message ? err.message : 'Failed to send video.';
+setMediaUploadStatus(err && err.message ? err.message : 'Failed to send video.', 'error');
+} finally {
+if (event && event.target) event.target.value = '';
+}
+}
+
+function readChatVideoFile(file) {
+return new Promise((resolve, reject) => {
+if (!file || !/^video\/(mp4|webm|ogg)$/i.test(file.type || '')) {
+reject(new Error('Choose an MP4, WebM, or OGG video.'));
+return;
+}
+
+if (file.size > CHAT_VIDEO_INLINE_SIZE_LIMIT) {
+reject(new Error('Video is too large. Keep it under about 450 KB so chat storage can hold it.'));
+return;
+}
+
+const reader = new FileReader();
+reader.onload = () => {
+const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+if (!dataUrl || !/^data:video\//i.test(dataUrl)) {
+reject(new Error('Could not read video file.'));
+return;
+}
+if (dataUrl.length > CHAT_VIDEO_INLINE_DATA_URL_LIMIT) {
+reject(new Error('Video is too large after encoding. Use a shorter or more compressed clip.'));
+return;
+}
+resolve(dataUrl);
+};
+reader.onerror = () => reject(new Error('Could not load video file.'));
+reader.readAsDataURL(file);
+});
+}
+
+function isLocalDevelopmentOrigin() {
+try {
+  const hostname = String(window.location.hostname || '').toLowerCase();
+  const protocol = String(window.location.protocol || '').toLowerCase();
+  return protocol === 'file:'
+    || hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '0.0.0.0'
+    || hostname === '[::1]';
+} catch (_) {
+  return false;
+}
+}
+
+function isLikelyStorageUploadFailure(err) {
+const text = String(
+  (err && err.code) || (err && err.message) || err || ''
+).toLowerCase();
+return text.includes('cors')
+  || text.includes('network')
+  || text.includes('xmlhttprequest')
+  || text.includes('xhr')
+  || text.includes('err_failed')
+  || text.includes('storage/unknown')
+  || text.includes('storage/retry-limit-exceeded');
+}
+
+async function uploadChatVideoFile(file, onProgress) {
+if (!file || !/^video\/(mp4|webm|ogg)$/i.test(file.type || '')) {
+  throw new Error('Choose an MP4, WebM, or OGG video.');
+}
+
+if (isLocalDevelopmentOrigin()) {
+  if (file.size > CHAT_VIDEO_INLINE_SIZE_LIMIT) {
+    throw new Error('Large video uploads are blocked on local preview because Firebase Storage is rejecting localhost requests. Use a clip under about 450 KB here, or test the larger upload on your deployed site after bucket CORS is configured.');
+  }
+  if (typeof onProgress === 'function') {
+    onProgress('Local preview detected. Sending video inline instead of Firebase Storage...');
+  }
+  return { kind: 'inline', value: await readChatVideoFile(file) };
+}
+
+const storage = getPrimaryStorage();
+if (!storage) {
+  if (typeof onProgress === 'function') {
+    onProgress('Storage upload unavailable. Compressing video for inline chat...');
+  }
+  return { kind: 'inline', value: await readChatVideoFile(file) };
+}
+
+if (file.size > CHAT_VIDEO_UPLOAD_SIZE_LIMIT) {
+  throw new Error('Video is too large. Keep it under about 25 MB.');
+}
+
+const safeName = String(file.name || 'chat-video').replace(/[^a-z0-9._-]+/gi, '-').slice(-80);
+const storagePath = `chat_videos/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`;
+const ref = storage.ref().child(storagePath);
+if (typeof onProgress === 'function') {
+  onProgress('Uploading video... 0%');
+}
+let snapshot;
+try {
+  snapshot = await new Promise((resolve, reject) => {
+    const uploadTask = ref.put(file, {
+      contentType: file.type || 'video/mp4',
+      customMetadata: {
+        uploadedBy: normalizeUsername(currentChatUser || getUserName() || 'guest') || 'guest',
+        room: normalizeUsername(currentChatRoom || 'general') || 'general'
+      }
+    });
+    uploadTask.on('state_changed', (taskSnapshot) => {
+      if (typeof onProgress !== 'function') return;
+      const totalBytes = Number(taskSnapshot && taskSnapshot.totalBytes) || 0;
+      const transferred = Number(taskSnapshot && taskSnapshot.bytesTransferred) || 0;
+      const percent = totalBytes > 0 ? Math.max(0, Math.min(100, Math.round((transferred / totalBytes) * 100))) : 0;
+      onProgress(`Uploading video... ${percent}%`);
+    }, reject, () => resolve(uploadTask.snapshot));
+  });
+} catch (err) {
+  if (file.size <= CHAT_VIDEO_INLINE_SIZE_LIMIT && isLikelyStorageUploadFailure(err)) {
+    if (typeof onProgress === 'function') {
+      onProgress('Storage upload failed. Falling back to inline video...');
+    }
+    return { kind: 'inline', value: await readChatVideoFile(file) };
+  }
+  throw err;
+}
+if (typeof onProgress === 'function') {
+  onProgress('Finalizing uploaded video...');
+}
+const downloadUrl = await snapshot.ref.getDownloadURL();
+if (!isValidChatVideoUrl(downloadUrl) || !isDirectVideoUrl(downloadUrl)) {
+  throw new Error('Uploaded video URL could not be used in chat.');
+}
+return { kind: 'remote', value: downloadUrl };
 }
 
 function compressChatImage(file) {
@@ -22215,6 +24192,68 @@ function isDirectImageUrl(url) {
 if (!url || url.startsWith('data:image/')) return true;
 const clean = url.split('?')[0].toLowerCase();
 return clean.endsWith('.gif') || clean.endsWith('.webp') || clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.avif');
+}
+
+function normalizeChatVideoUrl(url) {
+return String(url || '').trim();
+}
+
+function isValidChatVideoUrl(url) {
+const lower = normalizeChatVideoUrl(url).toLowerCase();
+return lower.startsWith('https://') || lower.startsWith('http://') || lower.startsWith('data:video/');
+}
+
+function isDirectVideoUrl(url) {
+if (!url || /^data:video\//i.test(url)) return true;
+try {
+  const parsed = new URL(url, window.location.href);
+  const cleanPath = parsed.pathname.split('?')[0].toLowerCase();
+  return cleanPath.endsWith('.mp4')
+    || cleanPath.endsWith('.webm')
+    || cleanPath.endsWith('.ogg')
+    || cleanPath.endsWith('.mov')
+    || parsed.hostname.toLowerCase().includes('firebasestorage.googleapis.com')
+    || parsed.hostname.toLowerCase().endsWith('.firebasestorage.app');
+} catch (_) {
+  return false;
+}
+}
+
+function extractStreamableIdFromUrl(url) {
+if (!url || /^data:video\//i.test(url)) return '';
+try {
+  const parsed = new URL(url, window.location.href);
+  const host = parsed.hostname.toLowerCase();
+  if (!host.includes('streamable.com')) return '';
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (!parts.length) return '';
+  let candidate = parts[0];
+  if (candidate === 'e' && parts.length > 1) {
+    candidate = parts[1];
+  }
+  candidate = String(candidate || '').trim();
+  return /^[a-z0-9]+$/i.test(candidate) ? candidate : '';
+} catch (_) {
+  return '';
+}
+}
+
+function getStreamableEmbedUrl(url) {
+const id = extractStreamableIdFromUrl(url);
+return id ? `https://streamable.com/e/${id}?loop=1` : '';
+}
+
+function getRenderableChatVideoSource(data = {}) {
+const inlineVideo = typeof data.videoData === 'string' ? data.videoData : '';
+if (/^data:video\//i.test(inlineVideo)) return inlineVideo;
+const remoteVideo = normalizeChatVideoUrl(data.videoUrl || '');
+return isValidChatVideoUrl(remoteVideo) && isDirectVideoUrl(remoteVideo) ? remoteVideo : '';
+}
+
+function getRenderableChatVideoEmbedUrl(data = {}) {
+const remoteVideo = normalizeChatVideoUrl(data.videoUrl || '');
+if (!isValidChatVideoUrl(remoteVideo) || isDirectVideoUrl(remoteVideo)) return '';
+return getStreamableEmbedUrl(remoteVideo);
 }
 
 function extractGiphyIdFromUrl(url) {
