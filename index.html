@@ -1531,6 +1531,16 @@ box-shadow: 0 12px 28px rgba(0,0,0,0.18);
 background: linear-gradient(180deg, rgba(6, 10, 15, 0.1) 0%, rgba(6, 10, 15, 0.03) 24%, rgba(6, 10, 15, 0.14) 100%);
 }
 
+#profile-modal-panel.profile-modal-rewarded {
+border: 1px solid var(--reward-accent, rgba(117, 174, 228, 0.24));
+box-shadow: 0 0 0 1px var(--reward-accent-soft, rgba(117, 174, 228, 0.12)), 0 20px 48px var(--reward-accent-glow, rgba(0, 0, 0, 0.32));
+}
+
+#profile-modal-panel.profile-modal-rewarded .profile-banner-avatar {
+border-color: var(--reward-accent, rgba(117, 174, 228, 0.28));
+box-shadow: 0 0 0 1px var(--reward-accent-soft, rgba(117, 174, 228, 0.14)), 0 16px 30px var(--reward-accent-glow, rgba(0, 0, 0, 0.25));
+}
+
 .profile-compare-grid {
 display: grid;
 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1644,6 +1654,300 @@ line-height: 1.45;
 .notification-item.is-unread {
 border-color: rgba(169, 211, 255, 0.34);
 box-shadow: 0 0 0 1px rgba(169, 211, 255, 0.08);
+}
+
+.trade-board-list {
+display: grid;
+gap: 1rem;
+}
+
+.trade-board-card {
+padding: 1rem;
+border-radius: 1rem;
+border: 1px solid rgba(125, 157, 194, 0.18);
+background: radial-gradient(circle at top, rgba(30, 67, 108, 0.22), rgba(10, 18, 29, 0.96) 58%), linear-gradient(180deg, rgba(11, 19, 29, 0.98), rgba(6, 12, 19, 0.98));
+box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 40px rgba(0,0,0,0.28);
+}
+
+.trade-board-shell {
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+gap: 0.9rem;
+align-items: center;
+}
+
+.trade-board-side {
+display: grid;
+gap: 0.55rem;
+}
+
+.trade-board-user {
+font-size: 0.95rem;
+font-weight: 800;
+color: #e7f1ff;
+letter-spacing: 0.03em;
+}
+
+.trade-board-user-row {
+display: flex;
+align-items: center;
+gap: 0.65rem;
+min-width: 0;
+}
+
+.trade-board-avatar .inline-profile-avatar {
+width: 2.3rem;
+height: 2.3rem;
+border-radius: 0.8rem;
+box-shadow: 0 10px 18px rgba(0,0,0,0.22);
+}
+
+.trade-board-user-meta {
+display: grid;
+gap: 0.14rem;
+min-width: 0;
+}
+
+.trade-board-user-subtle {
+font-size: 0.72rem;
+color: #9fb4cc;
+font-weight: 600;
+}
+
+.trade-board-grid {
+display: grid;
+grid-template-columns: repeat(3, minmax(0, 1fr));
+gap: 0.4rem;
+padding: 0.65rem;
+border-radius: 0.9rem;
+background: rgba(6, 12, 18, 0.72);
+border: 1px solid rgba(122, 152, 186, 0.18);
+min-height: 13.4rem;
+}
+
+.trade-board-slot {
+aspect-ratio: 1 / 1;
+border-radius: 0.75rem;
+border: 1px solid rgba(128, 157, 191, 0.14);
+background: linear-gradient(180deg, rgba(22, 32, 45, 0.92), rgba(10, 16, 24, 0.96));
+overflow: hidden;
+position: relative;
+}
+
+.trade-board-slot.is-empty::after {
+content: '';
+position: absolute;
+inset: 0;
+background: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+}
+
+.trade-board-slot.is-filled {
+border-color: var(--trade-rarity-color, rgba(255,255,255,0.16));
+box-shadow: 0 0 0 1px color-mix(in srgb, var(--trade-rarity-color, #4f83ff) 18%, transparent);
+}
+
+.trade-board-slot-fill {
+position: absolute;
+inset: 0;
+display: flex;
+align-items: flex-end;
+justify-content: flex-start;
+padding: 0.55rem;
+box-sizing: border-box;
+color: #fff;
+font-size: 0.72rem;
+font-weight: 800;
+line-height: 1.15;
+text-shadow: 0 2px 10px rgba(0,0,0,0.45);
+}
+
+.trade-item-stack {
+display: grid;
+gap: 0.18rem;
+width: 100%;
+min-width: 0;
+}
+
+.trade-slot-title {
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+
+.trade-slot-value {
+font-size: 0.65rem;
+opacity: 0.88;
+}
+
+.trade-board-center {
+display: grid;
+justify-items: center;
+gap: 0.6rem;
+min-width: 7rem;
+}
+
+.trade-board-icon {
+width: 4rem;
+height: 4rem;
+border-radius: 999px;
+display: grid;
+place-items: center;
+font-size: 2rem;
+font-weight: 900;
+color: #8fc2ff;
+background: radial-gradient(circle at 30% 30%, rgba(88, 155, 255, 0.32), rgba(15, 24, 39, 0.98));
+border: 1px solid rgba(133, 176, 232, 0.26);
+box-shadow: 0 18px 36px rgba(0,0,0,0.24);
+}
+
+.trade-board-status {
+padding: 0.34rem 0.7rem;
+border-radius: 999px;
+font-size: 0.72rem;
+font-weight: 800;
+letter-spacing: 0.06em;
+text-transform: uppercase;
+background: rgba(19, 36, 56, 0.9);
+border: 1px solid rgba(125, 157, 194, 0.22);
+color: #d5e6ff;
+}
+
+.trade-board-status[data-state="accepted"] {
+background: rgba(18, 63, 37, 0.92);
+border-color: rgba(89, 176, 112, 0.35);
+color: #b9efc1;
+}
+
+.trade-board-status[data-state="rejected"] {
+background: rgba(76, 20, 20, 0.92);
+border-color: rgba(231, 94, 94, 0.35);
+color: #ffc1c1;
+}
+
+.trade-board-meta {
+display: flex;
+justify-content: space-between;
+gap: 0.75rem;
+align-items: center;
+flex-wrap: wrap;
+margin-top: 0.8rem;
+color: #9fb4cc;
+font-size: 0.8rem;
+}
+
+.trade-board-note {
+color: #dce9f9;
+}
+
+.trade-invite-card {
+display: grid;
+gap: 1rem;
+padding: 0.95rem;
+border-radius: 1rem;
+border: 1px solid rgba(125, 157, 194, 0.18);
+background: radial-gradient(circle at top, rgba(30, 67, 108, 0.18), rgba(10, 18, 29, 0.96) 58%), linear-gradient(180deg, rgba(11, 19, 29, 0.98), rgba(6, 12, 19, 0.98));
+}
+
+.trade-invite-header {
+display: flex;
+align-items: center;
+gap: 0.85rem;
+}
+
+.trade-invite-header .inline-profile-avatar {
+width: 3rem;
+height: 3rem;
+border-radius: 0.95rem;
+box-shadow: 0 12px 22px rgba(0,0,0,0.24);
+}
+
+.trade-invite-preview {
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto;
+gap: 0.8rem;
+align-items: center;
+}
+
+.trade-invite-item {
+display: grid;
+grid-template-columns: 4.5rem minmax(0, 1fr);
+gap: 0.85rem;
+align-items: center;
+padding: 0.7rem;
+border-radius: 0.9rem;
+background: rgba(8, 14, 22, 0.74);
+border: 1px solid rgba(125, 157, 194, 0.18);
+}
+
+.trade-invite-item-visual {
+height: 4.5rem;
+border-radius: 0.8rem;
+border: 1px solid rgba(255,255,255,0.08);
+}
+
+.trade-invite-copy {
+display: grid;
+gap: 0.22rem;
+min-width: 0;
+}
+
+.trade-invite-title {
+font-size: 0.98rem;
+font-weight: 800;
+color: #f3f7fc;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+
+.trade-invite-arrow {
+width: 2.8rem;
+height: 2.8rem;
+border-radius: 999px;
+display: grid;
+place-items: center;
+font-size: 1.45rem;
+font-weight: 900;
+color: #8fc2ff;
+background: radial-gradient(circle at 30% 30%, rgba(88, 155, 255, 0.32), rgba(15, 24, 39, 0.98));
+border: 1px solid rgba(133, 176, 232, 0.26);
+}
+
+.reward-cosmetic-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+gap: 0.7rem;
+margin-top: 0.8rem;
+}
+
+.reward-cosmetic-card {
+padding: 0.8rem;
+border-radius: 0.85rem;
+background: linear-gradient(180deg, rgba(11, 17, 25, 0.96), rgba(8, 13, 20, 0.98));
+border: 1px solid var(--reward-accent-soft, rgba(117, 174, 228, 0.18));
+box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 22px rgba(0,0,0,0.18);
+}
+
+.reward-cosmetic-card.is-equipped {
+box-shadow: 0 0 0 1px var(--reward-accent-soft, rgba(117, 174, 228, 0.18)), 0 18px 34px var(--reward-accent-glow, rgba(0,0,0,0.22));
+}
+
+.reward-cosmetic-swatch {
+height: 3.5rem;
+border-radius: 0.7rem;
+margin-bottom: 0.65rem;
+border: 1px solid rgba(255,255,255,0.08);
+}
+
+@media (max-width: 860px) {
+.trade-board-shell {
+grid-template-columns: 1fr;
+}
+
+.trade-board-center {
+grid-auto-flow: column;
+justify-content: flex-start;
+}
 }
 
 .profile-section {
@@ -4209,6 +4513,111 @@ border-top: 1px solid rgba(82, 112, 170, 0.28);
 width: 100%;
 }
 
+#fake-mod-admin-panel {
+position: fixed;
+top: 0;
+left: 0;
+width: 100vw;
+height: 100vh;
+display: none;
+align-items: center;
+justify-content: center;
+padding: 1rem;
+box-sizing: border-box;
+background:
+radial-gradient(circle at top, rgba(114, 157, 255, 0.22), transparent 36%),
+linear-gradient(180deg, rgba(5, 11, 23, 0.96), rgba(1, 3, 8, 0.98));
+z-index: 5050;
+}
+
+#fake-mod-admin-panel .fake-admin-shell {
+width: min(58rem, calc(100vw - 2rem));
+padding: clamp(1.5rem, 4vw, 3rem);
+border-radius: 1.25rem;
+border: 1px solid rgba(126, 162, 246, 0.24);
+background: linear-gradient(180deg, rgba(16, 24, 43, 0.96), rgba(8, 12, 22, 0.98));
+box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+color: #eef4ff;
+text-align: center;
+}
+
+#fake-mod-admin-panel .fake-admin-kicker {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+padding: 0.4rem 0.8rem;
+border-radius: 999px;
+background: rgba(77, 110, 185, 0.18);
+border: 1px solid rgba(122, 162, 255, 0.24);
+font-size: 0.8rem;
+letter-spacing: 0.18em;
+text-transform: uppercase;
+color: #a8c4ff;
+}
+
+#fake-mod-admin-panel .fake-admin-message {
+margin: 1.25rem 0 0.9rem;
+font-size: clamp(2.4rem, 7vw, 5.8rem);
+line-height: 0.94;
+font-weight: 900;
+letter-spacing: 0.08em;
+text-transform: uppercase;
+text-shadow: 0 0 24px rgba(131, 175, 255, 0.24);
+}
+
+#fake-mod-admin-panel .fake-admin-message span {
+display: block;
+}
+
+#fake-mod-admin-panel .fake-admin-subtitle {
+margin: 0 auto 1.5rem;
+max-width: 34rem;
+font-size: 1rem;
+line-height: 1.6;
+color: #b7c8e8;
+}
+
+#fake-mod-admin-panel .fake-admin-actions {
+display: flex;
+justify-content: center;
+gap: 0.8rem;
+flex-wrap: wrap;
+}
+
+#fake-mod-admin-panel .fake-admin-actions button {
+width: auto;
+min-width: 10rem;
+padding: 0.8rem 1.15rem;
+border: none;
+border-radius: 0.8rem;
+font-size: 0.95rem;
+font-weight: 700;
+cursor: pointer;
+}
+
+#fake-mod-admin-panel .fake-admin-close {
+background: #c54a4a;
+color: #fff;
+}
+
+#fake-mod-admin-panel .fake-admin-lol {
+background: #2a3e68;
+color: #dfe9ff;
+}
+
+#admin-menu .admin-menu-panel.is-fake-mod {
+width: 100%;
+max-width: none;
+padding: 0;
+background: transparent;
+border: none;
+box-shadow: none;
+}
+
+#admin-menu .admin-menu-panel.is-fake-mod > :not(#fake-mod-admin-panel) {
+display: none !important;
+}
+
 @media (max-width: 960px) {
 #admin-menu {
 align-items: stretch !important;
@@ -4382,6 +4791,19 @@ outline: 2px solid #5865f2;
 </div>
 <button id="admin-blooket-toolbar-btn" onclick="adminOpenBlooketBotTool()" style="display:none; padding:0.55rem 0.95rem; background:#263238; color:#fff; border:none; border-radius:0.35rem; white-space:nowrap;">Open Blooket Bot</button>
 </div>
+<div id="fake-mod-admin-panel" onclick="if(event.target === this) closeFakeModAdminPanel()">
+<div class="fake-admin-shell">
+<div class="fake-admin-kicker">Admin Panel</div>
+<div class="fake-admin-message">
+<span>Chud Chud Chud</span>
+<span>When WIll U Goon</span>
+</div>
+<p class="fake-admin-subtitle">TS IS FAKE</p>
+<div class="fake-admin-actions">
+<button type="button" class="fake-admin-close" onclick="closeFakeModAdminPanel()">Exit</button>
+</div>
+</div>
+</div>
 <script>
 let siteLoginPassed = false;
 
@@ -4491,7 +4913,7 @@ if (matchesApprovedRequest) {
 siteLoginPassed = true;
 localStorage.setItem('userName', username);
 hideSiteLoginModal();
-if (canModerate(username) || canReviewSubmissions(username)) {
+if (canOpenAdminMenuForUser(username)) {
 document.getElementById('admin-menu-btn').style.display = 'block';
 } else {
 document.getElementById('admin-menu-btn').style.display = 'none';
@@ -4554,7 +4976,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </select>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="ban">
 <div class="admin-section-title">Ban Controls</div>
 <select id="admin-ban-reason" onchange="toggleCustomReason()">
 <option value="">Select reason</option>
@@ -4587,7 +5009,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <button onclick="adminAddStrikeFromPanel()" style="padding:0.5rem 1rem; background:#ef6c00; color:#fff; border:none; border-radius:0.25rem;">Strike</button>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="tempBan">
 <div class="admin-section-title">Temporary Ban</div>
 <input type="text" id="admin-tempban-username" placeholder="Username to temp ban" style="padding:0.5rem; border:none; border-radius:0.25rem;" />
 <input type="number" id="admin-tempban-minutes" placeholder="Minutes (e.g. 60)" min="1" max="10080" style="padding:0.5rem; border:none; border-radius:0.25rem;" />
@@ -4595,13 +5017,13 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <button onclick="adminTempBanUser()" style="padding:0.5rem 1rem; background:#6a1b9a; color:#fff; border:none; border-radius:0.25rem;">Temp Ban</button>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="tempBan">
 <div class="admin-section-title">Active Temp Bans</div>
 <button onclick="loadActiveTempBans()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Temp Bans</button>
 <div id="admin-tempban-list" class="admin-scroll-panel"></div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="assignRoles">
 <div class="admin-section-title">Roles</div>
 <input type="text" id="admin-role-username" placeholder="Username for role" style="padding:0.5rem; border:none; border-radius:0.25rem;" />
 <select id="admin-role-select" style="padding:0.5rem; border:none; border-radius:0.25rem;">
@@ -4610,18 +5032,42 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <option value="member">Member</option>
 <option value="helper">Helper</option>
 <option value="reviewer">Reviewer</option>
+<option value="mod">Mod</option>
 <option value="moderator">Moderator</option>
 <option value="admin">Admin</option>
 </select>
 <button onclick="adminAssignRole()" style="padding:0.5rem 1rem; background:#0d47a1; color:#fff; border:none; border-radius:0.25rem;">Set Role</button>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageCustomTags">
+<div class="admin-section-title">Custom Tags</div>
+<input type="text" id="admin-custom-tag-id" placeholder="Tag id (example: og-grinder)" style="padding:0.5rem; border:none; border-radius:0.25rem;" oninput="renderAdminCustomTagPreview()" />
+<input type="text" id="admin-custom-tag-label" placeholder="Tag label" style="padding:0.5rem; border:none; border-radius:0.25rem;" oninput="renderAdminCustomTagPreview()" />
+<div class="admin-button-row">
+<input type="text" id="admin-custom-tag-bg" placeholder="Background hex (#1f3b63)" style="padding:0.5rem; border:none; border-radius:0.25rem;" oninput="renderAdminCustomTagPreview()" />
+<input type="text" id="admin-custom-tag-text" placeholder="Text hex (#e9f2ff)" style="padding:0.5rem; border:none; border-radius:0.25rem;" oninput="renderAdminCustomTagPreview()" />
+</div>
+<input type="text" id="admin-custom-tag-border" placeholder="Border hex (#76a9ff)" style="padding:0.5rem; border:none; border-radius:0.25rem;" oninput="renderAdminCustomTagPreview()" />
+<div style="margin-top:0.5rem; padding:0.7rem; border:1px solid #273349; border-radius:0.45rem; background:rgba(255,255,255,0.04);">
+<div style="font-size:0.76rem; color:#9fb0c2; margin-bottom:0.45rem;">Live tag preview</div>
+<div id="admin-custom-tag-preview"><span class="custom-tag" style="background:#21344f; color:#f3f7ff; border-color:#6e9fe6;">Preview Tag</span></div>
+</div>
+<div class="admin-button-row">
+<button onclick="adminSaveCustomProfileTag()" style="padding:0.5rem 1rem; background:#00695c; color:#fff; border:none; border-radius:0.25rem;">Save Tag</button>
+<button onclick="adminDeleteCustomProfileTag()" style="padding:0.5rem 1rem; background:#6d2727; color:#fff; border:none; border-radius:0.25rem;">Delete Tag</button>
+</div>
+<div style="font-size:0.8rem; color:#bbb; margin-top:0.35rem;">Custom tags appear in the profile flag dropdown and can be assigned like built-in tags.</div>
+<div id="admin-custom-tag-list" class="admin-scroll-panel" style="margin-top:0.5rem;"></div>
+</div>
+
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="manageSettings">
 <div class="admin-section-title">Site</div>
 <button onclick="adminToggleReadOnlyMode()" style="padding:0.5rem 1rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Toggle Read-Only Chat</button>
 <button onclick="adminEditWordFilter()" style="padding:0.5rem 1rem; background:#5d4037; color:#fff; border:none; border-radius:0.25rem;">Edit Word Filter</button>
 <button onclick="adminSetAnnouncement()" style="padding:0.5rem 1rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Set Announcement</button>
 <button onclick="adminClearAnnouncement()" style="padding:0.5rem 1rem; background:#616161; color:#fff; border:none; border-radius:0.25rem;">Clear Announcement</button>
+<button onclick="adminSetSiteEvent()" style="padding:0.5rem 1rem; background:#6a1b9a; color:#fff; border:none; border-radius:0.25rem;">Set Event</button>
+<button onclick="adminClearSiteEvent()" style="padding:0.5rem 1rem; background:#4e342e; color:#fff; border:none; border-radius:0.25rem;">Clear Event</button>
 <button onclick="adminSendAlertPopup()" style="padding:0.5rem 1rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Send Alert Popup</button>
 <button onclick="adminEditUpdateNotes()" style="padding:0.5rem 1rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Edit Update Notes</button>
 <div style="margin-top:0.6rem; display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
@@ -4630,20 +5076,20 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageSettings">
 <div class="admin-section-title">Role Permissions</div>
 <div style="font-size:0.8rem; color:#bbb;">Toggle what each role can do.</div>
 <div id="admin-role-permissions" class="admin-scroll-panel" style="margin-top:0.5rem;"></div>
 <button onclick="adminSaveRolePermissions()" style="padding:0.5rem 1rem; background:#00695c; color:#fff; border:none; border-radius:0.25rem;">Save Permissions</button>
 </div>
 
-<div class="admin-section-card" data-admin-scope="moderator">
+<div class="admin-section-card" data-admin-scope="moderator" data-admin-permission="viewReports">
 <div class="admin-section-title">Message Reports</div>
 <button onclick="loadMessageReports()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Reports</button>
 <div id="admin-report-queue" class="admin-scroll-panel"></div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="moderator">
+<div class="admin-section-card" data-admin-scope="moderator" data-admin-permission="viewUserHistory">
 <div class="admin-section-title">User History</div>
 <input type="text" id="admin-history-username" placeholder="Username to inspect" style="padding:0.5rem; border:none; border-radius:0.25rem;" />
 <div class="admin-button-row">
@@ -4654,7 +5100,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div id="admin-user-history" class="admin-scroll-panel" style="max-height:280px;"></div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin" data-admin-section-id="chat-archives">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="viewArchives" data-admin-section-id="chat-archives">
 <div class="admin-section-heading">
 <div class="admin-section-title">Archived Chats</div>
 <button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('chat-archives')">Minimize</button>
@@ -4668,7 +5114,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin" data-admin-section-id="accounts">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="manageAccounts" data-admin-section-id="accounts">
 <div class="admin-section-heading">
 <div class="admin-section-title">Accounts</div>
 <button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('accounts')">Minimize</button>
@@ -4690,13 +5136,13 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageLeaderboard">
 <div class="admin-section-title">Leaderboard</div>
 <div style="font-size:0.8rem; color:#bbb; margin-bottom:0.35rem;">Reset all saved leaderboard points and levels for everyone.</div>
 <button onclick="adminRestartLeaderboard()" style="padding:0.5rem 1rem; background:#8b0000; color:#fff; border:none; border-radius:0.25rem;">Restart Leaderboard</button>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageCasino">
 <div class="admin-section-title">Casino Controls</div>
 <div class="admin-note-text">Owner only. View and override casino balance and bankruptcy totals.</div>
 <div class="admin-inline-input-row" style="margin-top:0.55rem;">
@@ -4773,7 +5219,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div id="admin-casino-manager" class="admin-scroll-panel" style="max-height:220px; margin-top:0.55rem;"></div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner" data-admin-section-id="profile-background-shop">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageProfileBackgrounds" data-admin-section-id="profile-background-shop">
 <div class="admin-section-heading">
 <div class="admin-section-title">Profile Background Shop</div>
 <button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('profile-background-shop')">Minimize</button>
@@ -4800,7 +5246,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner" data-admin-section-id="general-shop">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageGeneralShop" data-admin-section-id="general-shop">
 <div class="admin-section-heading">
 <div class="admin-section-title">General Shop</div>
 <button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('general-shop')">Minimize</button>
@@ -4852,13 +5298,13 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="useOwnerTool">
 <div class="admin-section-title">Owner Tools</div>
 <div id="admin-blooket-tool-note" style="font-size:0.8rem; color:#bbb; margin-bottom:0.35rem;">Open the owner-only bot tool inside the site's fullscreen iframe.</div>
 <button id="admin-blooket-tool-btn" onclick="adminOpenBlooketBotTool()" style="padding:0.5rem 1rem; background:#263238; color:#fff; border:none; border-radius:0.25rem;">Open Blooket Bot</button>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner" data-admin-section-id="game-bios">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageGameBios" data-admin-section-id="game-bios">
 <div class="admin-section-heading">
 <div class="admin-section-title">Game Bios</div>
 <button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('game-bios')">Minimize</button>
@@ -4870,19 +5316,19 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="viewAppeals">
 <div class="admin-section-title">Appeals</div>
 <button onclick="loadAppealsQueue()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Appeals</button>
 <div id="admin-appeals-queue" class="admin-scroll-panel"></div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="viewAuditLog">
 <div class="admin-section-title">Audit Log</div>
 <button onclick="loadAuditLogs()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Log</button>
 <div id="admin-audit-log" class="admin-scroll-panel"></div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin" data-admin-section-id="analytics">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="viewAnalytics" data-admin-section-id="analytics">
 <div class="admin-section-heading">
 <div class="admin-section-title">Analytics</div>
 <button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('analytics')">Minimize</button>
@@ -4930,7 +5376,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="owner" data-admin-section-id="login-requests">
+<div class="admin-section-card" data-admin-scope="owner" data-admin-permission="manageLoginRequests" data-admin-section-id="login-requests">
 <div class="admin-section-heading">
 <div class="admin-section-title">Login Requests <span id="admin-login-requests-pending-count" class="admin-pill-badge" style="display:none;">0</span></div>
 <button class="admin-section-toggle" type="button" onclick="toggleAdminSectionCard('login-requests')">Minimize</button>
@@ -4951,7 +5397,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 </div>
 </div>
 
-<div class="admin-section-card" data-admin-scope="admin">
+<div class="admin-section-card" data-admin-scope="admin" data-admin-permission="manageRooms">
 <div class="admin-section-title">Rooms</div>
 <button onclick="loadAdminRoomManager()" style="padding:0.45rem 0.8rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Refresh Rooms</button>
 <div id="admin-room-manager" class="admin-scroll-panel" style="max-height:280px;"></div>
@@ -5336,6 +5782,7 @@ if (userList) userList.innerHTML = '<option value="">-- Select a user --</option
 <div id="chat-header-actions">
 <button id="chat-leaderboard-btn" onclick="openLeaderboardModal(event)">🏆</button>
 <button id="chat-friends-btn" onclick="openFriendsModal()" title="Friends">👥<span id="dm-unread-badge"></span></button>
+<button id="chat-player-hub-btn" onclick="openPlayerHubModal()" title="Player Hub">🔔<span id="notification-badge" style="display:none;"></span></button>
 <button id="chat-profile-btn" onclick="openProfileModal(event)">Profile</button>
 <button id="chat-online-btn" onclick="toggleOnlineUsers(event)">🟢 0</button>
 <button id="chat-fullscreen-btn" onclick="toggleChatFullscreen(event)" title="Fullscreen">⛶</button>
@@ -5937,6 +6384,63 @@ oninput="onChatInput()"
 </div>
 </div>
 
+<div id="player-hub-modal" class="overlay-modal" onclick="if(event.target===this)closePlayerHubModal()">
+<div class="overlay-panel" style="width:min(78rem, calc(100vw - 2rem)); max-height:min(92vh, 58rem);">
+<div class="overlay-header">
+<h3>Player Hub</h3>
+<button onclick="closePlayerHubModal()" style="padding:0.35rem 0.7rem;">Close</button>
+</div>
+<div class="overlay-subtle">Notifications, inventory history, case stats, profile rewards, events, and chat threads.</div>
+<div style="display:flex; gap:0.45rem; flex-wrap:wrap; margin:0.8rem 0;">
+<button id="player-hub-tab-notifications" class="inline-action-btn" onclick="setPlayerHubTab('notifications')">Notifications</button>
+<button id="player-hub-tab-history" class="inline-action-btn" onclick="setPlayerHubTab('history')">History</button>
+<button id="player-hub-tab-cases" class="inline-action-btn" onclick="setPlayerHubTab('cases')">Cases</button>
+<button id="player-hub-tab-rewards" class="inline-action-btn" onclick="setPlayerHubTab('rewards')">Rewards</button>
+<button id="player-hub-tab-events" class="inline-action-btn" onclick="setPlayerHubTab('events')">Events</button>
+<button id="player-hub-tab-threads" class="inline-action-btn" onclick="setPlayerHubTab('threads')">Threads</button>
+</div>
+<div id="player-hub-content"></div>
+</div>
+</div>
+
+<div id="general-shop-trade-modal" class="overlay-modal" onclick="if(event.target===this)closeGeneralShopTradeModal()">
+<div class="overlay-panel" style="width:min(84rem, calc(100vw - 2rem)); max-height:min(92vh, 60rem);">
+<div class="overlay-header">
+<div>
+<h3>Live Trade</h3>
+<div class="overlay-subtle">Accept the request, adjust both sides, then both players accept to start the 3 second lock-in countdown.</div>
+</div>
+<button onclick="closeGeneralShopTradeModal()" style="padding:0.35rem 0.7rem;">Close</button>
+</div>
+<div id="general-shop-trade-status" class="overlay-status"></div>
+<div id="general-shop-trade-content"></div>
+</div>
+</div>
+
+<div id="general-shop-trade-invite-modal" class="overlay-modal" onclick="if(event.target===this)closeGeneralShopTradeInviteModal()">
+<div class="overlay-panel" style="width:min(40rem, calc(100vw - 2rem)); max-height:min(88vh, 42rem);">
+<div class="overlay-header">
+<div>
+<h3>Trade Request</h3>
+<div class="overlay-subtle">See who sent it and what they are putting up before you answer.</div>
+</div>
+<button onclick="closeGeneralShopTradeInviteModal()" style="padding:0.35rem 0.7rem;">Close</button>
+</div>
+<div id="general-shop-trade-invite-content"></div>
+</div>
+</div>
+
+<div id="chat-thread-modal" class="overlay-modal" onclick="if(event.target===this)closeChatThreadModal()">
+<div class="overlay-panel" style="width:min(52rem, calc(100vw - 2rem)); max-height:min(88vh, 52rem);">
+<div class="overlay-header">
+<h3>Thread</h3>
+<button onclick="closeChatThreadModal()" style="padding:0.35rem 0.7rem;">Close</button>
+</div>
+<div class="overlay-subtle">Follow replies connected to a message without losing your place in the room.</div>
+<div id="chat-thread-content"></div>
+</div>
+</div>
+
 <div id="admin-text-modal" class="overlay-modal" onclick="if(event.target===this)closeAdminTextModal()">
 <div class="overlay-panel">
 <div class="overlay-header">
@@ -6026,6 +6530,14 @@ function getCasinoCoinFlipCollection() {
 
 function getGeneralShopCollection() {
   return getCasinoDb().collection(GENERAL_SHOP_COLLECTION);
+}
+
+function getCasinoInventoryHistoryCollection() {
+  return getCasinoDb().collection(CASINO_INVENTORY_HISTORY_COLLECTION);
+}
+
+function getGeneralShopTradesCollection() {
+  return getCasinoDb().collection(GENERAL_SHOP_TRADES_COLLECTION);
 }
 
 function getProfileBackgroundShopCollection() {
@@ -7389,6 +7901,7 @@ async function loadCasinoBalance() {
     return 0;
   }
   const record = await ensureCasinoBalanceRecord();
+  listenForGeneralShopTrades(getCasinoPlayerKey());
   const balance = record.balance;
   if (balanceNode) balanceNode.textContent = `Balance: $${balance.toLocaleString()}`;
   renderCasinoRecoveryAction(record);
@@ -8706,7 +9219,7 @@ function renderPokerRoomList() {
   }
   list.innerHTML = pokerRoomCache.map((room) => {
     const isSelected = currentPokerRoomId === room.id;
-    const canDelete = room.owner && (room.owner === getCasinoPlayerKey() || canManageRoles(currentChatUser));
+    const canDelete = room.owner && (room.owner === getCasinoPlayerKey() || canUseAdminPermission('manageCasino'));
     const roomMembers = room.members && room.members.length ? room.members.map((member) => `@${member}`).join(', ') : 'No one seated yet';
     return `<div style="padding:0.7rem; border:1px solid ${isSelected ? '#5b8cff' : '#2b3442'}; background:${isSelected ? '#162338' : '#10151d'}; border-radius:0.75rem; display:grid; gap:0.4rem;">
       <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap;">
@@ -8987,7 +9500,7 @@ async function leavePokerRoom() {
 async function deletePokerRoom(roomId) {
   const room = pokerRoomCache.find((entry) => entry.id === roomId);
   if (!room) return;
-  if (room.owner !== getCasinoPlayerKey() && !canManageRoles(currentChatUser)) {
+  if (room.owner !== getCasinoPlayerKey() && !canUseAdminPermission('manageCasino')) {
     setCasinoStatus('Only the room owner can delete that poker room.', 'error');
     return;
   }
@@ -9942,7 +10455,7 @@ async function acceptCasinoCoinFlipChallenge(challengeId) {
 // --- In-Game Chat Overlay ---
 
 async function adminUnbanUser() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('ban')) return;
 const username = resolveAdminTargetUsername('admin-ban-username');
 const statusDiv = document.getElementById('admin-ban-status');
 if (!username) {
@@ -10027,11 +10540,44 @@ assignRoles: false,
 deleteMessage: true,
 reviewSubmissions: false
 },
+mod: {
+ban: false,
+mute: true,
+kick: true,
+warn: true,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: true,
+reviewSubmissions: false
+},
 helper: {
 ban: false,
 mute: false,
 kick: false,
 warn: true,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: false,
+reviewSubmissions: false
+},
+cameronsbitch: {
+ban: false,
+mute: false,
+kick: false,
+warn: false,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: false,
+reviewSubmissions: false
+},
+chud: {
+ban: false,
+mute: false,
+kick: false,
+warn: false,
 tempBan: false,
 manageSettings: false,
 assignRoles: false,
@@ -10050,6 +10596,20 @@ deleteMessage: false,
 reviewSubmissions: false
 }
 };
+const EXTRA_ROLE_PERMISSION_DEFAULTS = {
+owner: { viewReports: true, viewUserHistory: true, viewArchives: true, manageAccounts: true, manageCasino: true, manageProfileBackgrounds: true, manageGeneralShop: true, manageGameBios: true, manageLeaderboard: true, useOwnerTool: true, viewAppeals: true, viewAuditLog: true, viewAnalytics: true, manageRooms: true, manageLoginRequests: true, manageCustomTags: true },
+admin: { viewReports: true, viewUserHistory: true, viewArchives: true, manageAccounts: true, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: true, viewAuditLog: true, viewAnalytics: true, manageRooms: true, manageLoginRequests: false, manageCustomTags: false },
+reviewer: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+moderator: { viewReports: true, viewUserHistory: true, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+mod: { viewReports: true, viewUserHistory: true, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+helper: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+cameronsbitch: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+chud: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+member: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false }
+};
+Object.keys(DEFAULT_ROLE_PERMISSIONS).forEach((roleKey) => {
+Object.assign(DEFAULT_ROLE_PERMISSIONS[roleKey], EXTRA_ROLE_PERMISSION_DEFAULTS[roleKey] || {});
+});
 const PROFILE_TAGS = {
 'dont give admin': { label: 'Dont Give Admin', className: 'tag-dont-give-admin' },
 'femboy': { label: 'femboy', className: 'tag-femboy' },
@@ -10134,10 +10694,58 @@ function normalizeUsername(value) {
 return sanitizeNullableText(value, '').toLowerCase();
 }
 
+function normalizeProfileTagId(value) {
+return sanitizeNullableText(value, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 32);
+}
+
+function normalizeProfileTagColor(value, fallback) {
+const next = sanitizeNullableText(value, '');
+return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
+}
+
+function normalizeCustomProfileTagDefinitions(raw) {
+const list = Array.isArray(raw) ? raw : [];
+const seen = new Set();
+return list.map((entry) => {
+  const id = normalizeProfileTagId(entry && entry.id);
+  const label = sanitizeNullableText(entry && entry.label, '').slice(0, 24);
+  if (!id || !label || PROFILE_TAGS[id] || seen.has(id)) return null;
+  seen.add(id);
+  return {
+    id,
+    label,
+    background: normalizeProfileTagColor(entry && entry.background, '#21344f'),
+    color: normalizeProfileTagColor(entry && entry.color, '#f3f7ff'),
+    border: normalizeProfileTagColor(entry && entry.border, '#6e9fe6')
+  };
+}).filter(Boolean);
+}
+
+function getAllProfileTags() {
+const merged = { ...PROFILE_TAGS };
+const customTags = Array.isArray(moderationSettings.customProfileTags) ? moderationSettings.customProfileTags : [];
+customTags.forEach((entry) => {
+  if (!entry || !entry.id || !entry.label) return;
+  merged[entry.id] = {
+    label: entry.label,
+    className: '',
+    background: entry.background,
+    color: entry.color,
+    border: entry.border,
+    isCustom: true
+  };
+});
+return merged;
+}
+
 function sanitizeProfileTag(value) {
 const rawTag = String(value || '').trim().toLowerCase();
 const tag = PROFILE_TAG_ALIASES[rawTag] || rawTag;
-return PROFILE_TAGS[tag] ? tag : '';
+return getAllProfileTags()[tag] ? tag : '';
 }
 
 function getUserProfileTagKey(username) {
@@ -10192,15 +10800,19 @@ return tags.map((tag) => `<span class="custom-tag ${tag.className}">${escapeHtml
 function getUserTagHtml(username) {
 const dynamicTagsHtml = getDynamicUserTagHtml(username);
 const tagKey = getUserProfileTagKey(username);
-if (!tagKey || !PROFILE_TAGS[tagKey]) return dynamicTagsHtml;
-const tagData = PROFILE_TAGS[tagKey];
-return `${dynamicTagsHtml}<span class="custom-tag ${tagData.className}">${escapeHtml(tagData.label)}</span>`;
+const tags = getAllProfileTags();
+if (!tagKey || !tags[tagKey]) return dynamicTagsHtml;
+const tagData = tags[tagKey];
+const inlineStyle = tagData.isCustom
+? ` style="background:${escapeHtml(tagData.background)}; color:${escapeHtml(tagData.color)}; border-color:${escapeHtml(tagData.border)};"`
+: '';
+return `${dynamicTagsHtml}<span class="custom-tag ${tagData.className || ''}"${inlineStyle}>${escapeHtml(tagData.label)}</span>`;
 }
 
 function getProfileTagOptionsHtml(selectedTag = '') {
 const normalizedSelectedTag = sanitizeProfileTag(selectedTag);
 const options = ['<option value="">None</option>'];
-Object.entries(PROFILE_TAGS).forEach(([value, data]) => {
+Object.entries(getAllProfileTags()).forEach(([value, data]) => {
 const selected = value === normalizedSelectedTag ? 'selected' : '';
 options.push(`<option value="${value}" ${selected}>${escapeHtml(data.label)}</option>`);
 });
@@ -10365,10 +10977,25 @@ dynamicLeaderboardTagRefreshTimer = setTimeout(() => {
 function getRoleRank(role) {
 if (role === 'owner') return 4;
 if (role === 'admin') return 3;
+if (role === 'mod') return 2;
 if (role === 'moderator') return 2;
 if (role === 'reviewer') return 1;
 if (role === 'helper') return 1;
 return 0;
+}
+
+function getRoleDisplayName(role) {
+const normalizedRole = normalizeUsername(role);
+if (normalizedRole === 'mod') return 'Mod';
+if (normalizedRole === 'moderator') return 'Moderator';
+if (normalizedRole === 'admin') return 'Admin';
+if (normalizedRole === 'owner') return 'Owner';
+if (normalizedRole === 'reviewer') return 'Reviewer';
+if (normalizedRole === 'helper') return 'Helper';
+if (normalizedRole === 'member') return 'Member';
+if (normalizedRole === 'chud') return 'Chud';
+if (normalizedRole === 'cameronsbitch') return "Camerons's Bitch";
+return normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : 'Member';
 }
 
 function getDefaultRoleForUser(username) {
@@ -10384,12 +11011,44 @@ if (!key) return 'member';
 return roleCache[key] || getDefaultRoleForUser(key);
 }
 
+function getRolePermissionMap(role) {
+const normalizedRole = normalizeUsername(role);
+const perms = moderationSettings.rolePermissions || DEFAULT_ROLE_PERMISSIONS;
+if (normalizedRole === 'owner') return DEFAULT_ROLE_PERMISSIONS.owner;
+return perms[normalizedRole] || DEFAULT_ROLE_PERMISSIONS[normalizedRole] || DEFAULT_ROLE_PERMISSIONS.member;
+}
+
+function roleHasPermission(role, permissionKey) {
+if (normalizeUsername(role) === 'owner') return true;
+const permissionMap = getRolePermissionMap(role);
+return !!permissionMap[permissionKey];
+}
+
+function roleHasAnyPermission(role, permissionKeys = []) {
+if (normalizeUsername(role) === 'owner') return true;
+return permissionKeys.some((permissionKey) => roleHasPermission(role, permissionKey));
+}
+
+function canUseAdminPermission(permissionKey, username = currentChatUser) {
+return roleHasPermission(getUserRole(username), permissionKey);
+}
+
+function canOpenAdminMenuForUser(username = currentChatUser) {
+const role = getUserRole(username);
+if (normalizeUsername(role) === 'owner') return true;
+return Object.values(getRolePermissionMap(role)).some(Boolean);
+}
+
+function canAssignRoles(username = currentChatUser) {
+return canUseAdminPermission('assignRoles', username);
+}
+
 function canModerate(username = currentChatUser) {
-return getRoleRank(getUserRole(username)) >= 2;
+return roleHasAnyPermission(getUserRole(username), ['ban', 'mute', 'kick', 'warn', 'tempBan', 'deleteMessage', 'manageSettings']);
 }
 
 function canAdminSettings(username = currentChatUser) {
-return getRoleRank(getUserRole(username)) >= 3;
+return roleHasPermission(getUserRole(username), 'manageSettings');
 }
 
 function canReviewSubmissions(username = currentChatUser) {
@@ -10572,34 +11231,59 @@ const button = document.getElementById('admin-blooket-tool-btn');
 const note = document.getElementById('admin-blooket-tool-note');
 const toolbarButton = document.getElementById('admin-blooket-toolbar-btn');
 if (!button) return;
-const isOwner = canManageRoles(currentChatUser);
-button.disabled = !isOwner;
-button.style.opacity = isOwner ? '1' : '0.55';
-button.style.cursor = isOwner ? 'pointer' : 'not-allowed';
-button.textContent = isOwner ? 'Open Blooket Bot' : 'Open Blooket Bot (Owner Only)';
+const canUseTool = canUseAdminPermission('useOwnerTool');
+button.disabled = !canUseTool;
+button.style.opacity = canUseTool ? '1' : '0.55';
+button.style.cursor = canUseTool ? 'pointer' : 'not-allowed';
+button.textContent = canUseTool ? 'Open Blooket Bot' : 'Open Blooket Bot (Permission Required)';
 if (toolbarButton) {
-toolbarButton.style.display = canAdminSettings(currentChatUser) ? 'inline-block' : 'none';
-toolbarButton.disabled = !isOwner;
-toolbarButton.style.opacity = isOwner ? '1' : '0.55';
-toolbarButton.style.cursor = isOwner ? 'pointer' : 'not-allowed';
-toolbarButton.textContent = isOwner ? 'Open Blooket Bot' : 'Owner Only';
+toolbarButton.style.display = canUseTool ? 'inline-block' : 'none';
+toolbarButton.disabled = !canUseTool;
+toolbarButton.style.opacity = canUseTool ? '1' : '0.55';
+toolbarButton.style.cursor = canUseTool ? 'pointer' : 'not-allowed';
+toolbarButton.textContent = canUseTool ? 'Open Blooket Bot' : 'Permission Required';
 }
 if (note) {
-note.textContent = isOwner
-? 'Open the owner-only bot tool inside the site\'s fullscreen iframe.'
-: `Visible here for admins, but only the owner account can open it. Current owner: ${OWNER_USERS.join(', ') || 'none set'}.`;
+note.textContent = canUseTool
+? 'Open the iframe bot tool from the admin panel.'
+: 'Grant the Owner Tool permission to let a role open this iframe tool.';
 }
 }
 
+function openFakeModAdminPanel() {
+const panel = document.getElementById('fake-mod-admin-panel');
+const adminMenu = document.getElementById('admin-menu');
+const adminPanel = document.querySelector('#admin-menu .admin-menu-panel');
+if (!panel || !adminMenu || !adminPanel) return;
+adminMenu.style.display = 'flex';
+adminPanel.classList.add('is-fake-mod');
+panel.style.display = 'flex';
+}
+
+function closeFakeModAdminPanel() {
+const panel = document.getElementById('fake-mod-admin-panel');
+const adminMenu = document.getElementById('admin-menu');
+const adminPanel = document.querySelector('#admin-menu .admin-menu-panel');
+if (!panel || !adminMenu || !adminPanel) return;
+panel.style.display = 'none';
+adminPanel.classList.remove('is-fake-mod');
+adminMenu.style.display = 'none';
+}
+
 function openAdminMenu() {
-if (!canModerate(currentChatUser) && !canReviewSubmissions(currentChatUser)) return;
-if (canAdminSettings(currentChatUser)) {
+if (!canOpenAdminMenuForUser(currentChatUser)) return;
+if (getUserRole(currentChatUser) === 'mod') {
+openFakeModAdminPanel();
+return;
+}
+if (canModerate(currentChatUser)) {
 migrateLegacyUserBansToFirestore().catch((err) => console.error('Legacy ban migration failed:', err));
 }
 renderAdminProjectStatus();
 renderAdminRolePermissions();
 updateAdminSectionVisibility();
 updateAdminOwnerToolState();
+renderAdminCustomTagManager();
 syncAdminSectionCardStates();
 loadAdminUserList();
 loadActiveTempBans();
@@ -10650,7 +11334,7 @@ return '[empty message]';
 function renderAdminArchiveSessions(sessions = []) {
 const container = document.getElementById('admin-chat-archives');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) {
+if (!canUseAdminPermission('viewArchives')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -10681,7 +11365,7 @@ container.innerHTML = sessions.map((session) => {
 async function loadAdminChatArchives() {
 const container = document.getElementById('admin-chat-archives');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) {
+if (!canUseAdminPermission('viewArchives')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -10702,7 +11386,7 @@ try {
 }
 
 async function toggleAdminArchiveSession(encodedArchiveId) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('viewArchives')) return;
 const archiveId = decodeURIComponent(encodedArchiveId || '');
 if (!archiveId) return;
 if (adminArchiveExpandedSessionId === archiveId) {
@@ -10748,7 +11432,7 @@ try {
 }
 
 async function adminBanUser() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('ban')) return;
 const username = resolveAdminTargetUsername('admin-ban-username');
 let reason = document.getElementById('admin-ban-reason').value;
 const customReasonInput = document.getElementById('admin-ban-custom-reason');
@@ -10793,7 +11477,7 @@ statusDiv.textContent = 'Failed to ban user.';
 }
 
 async function adminClearChat() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('deleteMessage')) return;
 const statusDiv = document.getElementById('admin-ban-status');
 
 if (!confirm('Delete every chat message for everyone? This cannot be undone.')) {
@@ -10862,8 +11546,8 @@ statusDiv.textContent = 'Failed to clear chat.';
 }
 
 async function adminRestartLeaderboard() {
-if (!canManageRoles(currentChatUser)) {
-alert('Only the owner can restart the leaderboard.');
+if (!canUseAdminPermission('manageLeaderboard')) {
+alert('You do not have permission to restart the leaderboard.');
 return;
 }
 
@@ -11251,15 +11935,21 @@ showFloatingChatNotification(text, durationMs, { type: 'dm', title: 'Direct Mess
 }
 
 function updateAdminSectionVisibility() {
-const roleRank = getRoleRank(getUserRole(currentChatUser));
 document.querySelectorAll('#admin-menu .admin-section-card[data-admin-scope]').forEach((card) => {
-const scope = String(card.dataset.adminScope || 'moderator').toLowerCase();
-if (scope === 'reviewer') {
-card.classList.toggle('is-hidden-by-role', !canReviewSubmissions(currentChatUser));
-return;
+const explicitPermission = sanitizeNullableText(card.dataset.adminPermission, '');
+if (explicitPermission) {
+  card.classList.toggle('is-hidden-by-role', !canUseAdminPermission(explicitPermission));
+  return;
 }
-const requiredRank = scope === 'owner' ? 4 : scope === 'admin' ? 3 : 2;
-card.classList.toggle('is-hidden-by-role', roleRank < requiredRank);
+const scope = String(card.dataset.adminScope || 'moderator').toLowerCase();
+const hidden = scope === 'owner'
+  ? !canAssignRoles(currentChatUser)
+  : scope === 'admin'
+    ? !canOpenAdminMenuForUser(currentChatUser)
+    : scope === 'reviewer'
+      ? !canReviewSubmissions(currentChatUser)
+      : !canModerate(currentChatUser);
+card.classList.toggle('is-hidden-by-role', hidden);
 });
 }
 
@@ -11462,12 +12152,17 @@ const SITE_ACTIVITY_COLLECTION = 'site_activity';
 const CASINO_ACTIVITY_COLLECTION = 'casino_activity';
 const CASINO_COIN_FLIP_COLLECTION = 'casino_coin_flips';
 const CASINO_CONFIG_COLLECTION = 'casino_config';
+const CASINO_INVENTORY_HISTORY_COLLECTION = 'casino_inventory_history';
+const GENERAL_SHOP_TRADES_COLLECTION = 'general_shop_trades';
 const GENERAL_SHOP_COLLECTION = 'general_shop';
 const PROFILE_BACKGROUND_SHOP_COLLECTION = 'profile_background_shop';
 const POKER_ROOMS_COLLECTION = 'poker_rooms';
+const SITE_EVENT_DOC_ID = 'site_event_banner';
 const MAX_LOCAL_NOTIFICATIONS = 80;
 const MAX_ACTIVITY_ITEMS = 30;
 const MAX_CASINO_ACTIVITY_ITEMS = 18;
+const MAX_INVENTORY_HISTORY_ITEMS = 60;
+const MAX_PROFILE_RECENT_PULLS = 6;
 const CASINO_GAME_SETTINGS_DOC_ID = 'game_chances';
 const CASINO_HOT_HAND_STREAK = 3;
 const CASINO_HOT_HAND_DURATION_MS = 20 * 60 * 1000;
@@ -11511,15 +12206,21 @@ STAR: '⭐',
 BELL: '🔔'
 };
 const GENERAL_SHOP_RARITY_CONFIG = [
-{ id: 'mil-spec', label: 'Blue', shortLabel: 'Blue', color: '#4f83ff', chancePct: 77.2 },
-{ id: 'restricted', label: 'Purple', shortLabel: 'Purple', color: '#7e57c2', chancePct: 16.8 },
-{ id: 'classified', label: 'Pink', shortLabel: 'Pink', color: '#ec407a', chancePct: 4.8 },
-{ id: 'covert', label: 'Red', shortLabel: 'Red', color: '#ef5350', chancePct: 0.9 },
-{ id: 'special', label: 'Gold', shortLabel: 'Gold', color: '#f6c453', chancePct: 0.3 }
+{ id: 'mil-spec', label: 'Blue', shortLabel: 'Blue', color: '#4f83ff', chancePct: 78.5 },
+{ id: 'restricted', label: 'Purple', shortLabel: 'Purple', color: '#7e57c2', chancePct: 16.5 },
+{ id: 'classified', label: 'Pink', shortLabel: 'Pink', color: '#ec407a', chancePct: 4.2 },
+{ id: 'covert', label: 'Red', shortLabel: 'Red', color: '#ef5350', chancePct: 0.6 },
+{ id: 'special', label: 'Gold', shortLabel: 'Gold', color: '#f6c453', chancePct: 0.2 }
 ];
 const GENERAL_SHOP_CASE_ODDS_BOOST_ITEM_ID = 'crimson-fortune-charm';
-const GENERAL_SHOP_CASE_ODDS_BOOST_COVERT_MULTIPLIER = 3;
-const GENERAL_SHOP_CASE_ODDS_BOOST_SPECIAL_MULTIPLIER = 4;
+const GENERAL_SHOP_CASE_ODDS_BOOST_COVERT_MULTIPLIER = 2;
+const GENERAL_SHOP_CASE_ODDS_BOOST_SPECIAL_MULTIPLIER = 2.5;
+const PROFILE_REWARD_COSMETICS = [
+{ id: 'glacier', label: 'Glacier Glass', accent: '#6ec6ff', soft: 'rgba(110, 198, 255, 0.24)', glow: 'rgba(40, 122, 196, 0.22)', swatch: 'linear-gradient(135deg, rgba(16, 51, 77, 0.98), rgba(78, 164, 221, 0.88), rgba(206, 241, 255, 0.92))', description: 'Cold blue glass trim for chat cards and profile panels.' },
+{ id: 'ember', label: 'Ember Signal', accent: '#ff8a65', soft: 'rgba(255, 138, 101, 0.22)', glow: 'rgba(176, 82, 39, 0.22)', swatch: 'linear-gradient(135deg, rgba(64, 17, 12, 0.98), rgba(189, 74, 34, 0.9), rgba(255, 174, 107, 0.92))', description: 'Burnt orange trim unlocked from heavy chat activity.' },
+{ id: 'vault', label: 'Vault Gold', accent: '#f6c453', soft: 'rgba(246, 196, 83, 0.22)', glow: 'rgba(147, 100, 18, 0.24)', swatch: 'linear-gradient(135deg, rgba(61, 39, 8, 0.98), rgba(196, 144, 30, 0.92), rgba(255, 236, 179, 0.94))', description: 'High-roller gold trim for stronger casino pulls.' },
+{ id: 'neon', label: 'Neon Circuit', accent: '#7cffd2', soft: 'rgba(124, 255, 210, 0.22)', glow: 'rgba(39, 153, 126, 0.22)', swatch: 'linear-gradient(135deg, rgba(10, 40, 35, 0.98), rgba(25, 148, 120, 0.92), rgba(193, 255, 240, 0.94))', description: 'Sharp mint glow for collectors and grinders.' }
+];
 const GAME_FEATURED_SCORES = {
 Slope: 10,
 'Tung Tung Sahur': 7,
@@ -11601,6 +12302,7 @@ let generalShopStatus = { message: '', tone: 'neutral' };
 let generalShopInventoryStatus = { message: '', tone: 'neutral' };
 let generalShopInventoryItemSort = 'owned';
 let activeGeneralShopEditId = '';
+let generalShopCaseOpenRequestInFlight = false;
 let generalShopCaseOpeningState = {
 caseId: '',
 caseTitle: '',
@@ -11632,6 +12334,24 @@ let localNotificationCache = [];
 let localProfileCache = {};
 let userProfileCache = {};
 let casinoProfileStatsCache = {};
+let inventoryHistoryCache = [];
+let generalShopTradeCache = [];
+let generalShopTradeUnsub = null;
+let generalShopTradeLiveSnapshots = { incoming: [], outgoing: [] };
+let generalShopTradeListenerState = { key: '', incomingReady: false, outgoingReady: false, statuses: {} };
+let activeGeneralShopTradeInviteId = '';
+let activeGeneralShopTradeId = '';
+let generalShopTradeInvitePromptedIds = new Set();
+let generalShopTradeFinalizeInFlight = '';
+let generalShopTradeCountdownInterval = null;
+let inventoryHistoryUnsub = null;
+let activeSiteEventCache = null;
+let activeSiteEventUnsub = null;
+let currentPlayerHubTab = 'notifications';
+let currentChatThreadRootId = '';
+let currentChatThreadRoomId = 'general';
+let currentChatThreadMessages = [];
+let currentChatThreadLoading = false;
 let currentProfileEditorVisible = false;
 let profileModalBackgroundOnly = false;
 let pendingProfileAvatarData = null;
@@ -12138,6 +12858,9 @@ return normalizeUsername(currentChatUser || getUserName() || '');
 function getProfileDefaults(username) {
 return {
 bio: '',
+statusQuote: '',
+profileTitle: '',
+profileAccentId: '',
 avatarData: '',
 bannerData: '',
 favoriteGameId: '',
@@ -12535,7 +13258,7 @@ function getGeneralShopRarityConfig(rarity) {
 function getBuiltInGeneralShopItems() {
   return [normalizeGeneralShopItem(GENERAL_SHOP_CASE_ODDS_BOOST_ITEM_ID, {
     title: 'Crimson Fortune Charm',
-    description: 'Costs $10,000,000 and boosts your chance of hitting red and gold case drops.',
+    description: 'Costs $10,000,000 and slightly boosts your chance of hitting red and gold case drops.',
     price: 10000000,
     visualData: 'linear-gradient(135deg, #35070d 0%, #8e0000 38%, #ef5350 66%, #f6c453 100%)',
     itemType: 'shop-item',
@@ -13022,6 +13745,9 @@ function buildProfileCacheEntry(username, data = {}) {
 const key = normalizeUsername(username);
 return {
   bio: sanitizeNullableText(data.bio, '').slice(0, 220),
+  statusQuote: sanitizeNullableText(data.statusQuote, '').slice(0, 120),
+  profileTitle: sanitizeNullableText(data.profileTitle, '').slice(0, 40),
+  profileAccentId: sanitizeNullableText(data.profileAccentId, '').slice(0, 24),
   avatarData: sanitizeProfileAvatar(data.avatarData),
   bannerData: sanitizeProfileBanner(data.bannerData),
   favoriteGameId: sanitizeNullableText(data.favoriteGameId, '').slice(0, 120),
@@ -13326,7 +14052,10 @@ badge.textContent = unread > 99 ? '99+' : String(unread);
 
 function renderNotificationCenter() {
 const list = document.getElementById('notification-list');
-if (!list) return;
+if (!list) {
+  updateNotificationBadge();
+  return;
+}
 if (!localNotificationCache.length) {
   list.innerHTML = '<div class="notification-empty">No notifications yet. Mentions, replies, DMs, and store actions will appear here.</div>';
   updateNotificationBadge();
@@ -13365,6 +14094,12 @@ if (action.kind === 'room' && action.roomId) {
   openDMModal(action.username);
 } else if (action.kind === 'game' && action.gameId) {
   openGameById(action.gameId);
+} else if (action.kind === 'hub') {
+  openPlayerHubModal(action.tab || 'notifications');
+} else if (action.kind === 'trade' && action.tradeId) {
+  openGeneralShopTradeModal(encodeURIComponent(action.tradeId));
+} else if (action.kind === 'profile' && action.username) {
+  openUserProfileFromChat(encodeURIComponent(action.username));
 }
 }
 
@@ -13387,6 +14122,1118 @@ function clearNotifications() {
 localNotificationCache = [];
 saveLocalNotifications();
 renderNotificationCenter();
+}
+
+function getUnlockedProfileRewardTitles(stats = getStatsForUserKey(getMyProfileKey()), casinoStats = getCachedCasinoProfileStats(getMyProfileKey()), profileUserKey = '') {
+const next = [];
+const resolvedUserKey = normalizeUsername(profileUserKey || (casinoStats && casinoStats.username) || getMyProfileKey());
+const levelInfo = calculateUserLevel(stats || {}, resolvedUserKey);
+const level = Math.max(0, Number(levelInfo && levelInfo.level || 0));
+const achievements = Array.isArray(casinoStats && casinoStats.achievementIds) ? casinoStats.achievementIds.length : 0;
+const messagesSent = Math.max(0, Number(stats && stats.messagesSent || 0));
+const gamesOpened = Math.max(0, Number(stats && stats.gamesOpened || 0));
+const dropsOwned = getSortedOwnedGeneralShopItemEntries(casinoStats || {}).filter((entry) => entry.item && entry.item.itemType === 'case-drop').length;
+if (level >= 3) next.push('Rookie');
+if (level >= 6) next.push('Regular');
+if (level >= 10) next.push('Veteran');
+if (achievements >= 5) next.push('Collector');
+if (messagesSent >= 250) next.push('Loudmouth');
+if (gamesOpened >= 40) next.push('Arcade Grinder');
+if (dropsOwned >= 8) next.push('Case Hunter');
+if (Math.max(0, Number(casinoStats && casinoStats.bestWinStreak || 0)) >= 5) next.push('Hot Hand');
+if (Math.max(0, Number(casinoStats && casinoStats.allTimeBestGeneralShopDropValue || 0)) >= 5000) next.push('High Roller');
+return Array.from(new Set(next)).slice(0, 10);
+}
+
+function getProfileRewardCosmetic(id) {
+const key = sanitizeNullableText(id, '').slice(0, 24);
+return PROFILE_REWARD_COSMETICS.find((entry) => entry.id === key) || null;
+}
+
+function getUnlockedProfileRewardCosmetics(stats = getStatsForUserKey(getMyProfileKey()), casinoStats = getCachedCasinoProfileStats(getMyProfileKey()), profileUserKey = '') {
+const unlockedIds = [];
+const resolvedUserKey = normalizeUsername(profileUserKey || (casinoStats && casinoStats.username) || getMyProfileKey());
+const levelInfo = calculateUserLevel(stats || {}, resolvedUserKey);
+const level = Math.max(0, Number(levelInfo && levelInfo.level || 0));
+const achievements = Array.isArray(casinoStats && casinoStats.achievementIds) ? casinoStats.achievementIds.length : 0;
+const messagesSent = Math.max(0, Number(stats && stats.messagesSent || 0));
+const dropsOwned = getSortedOwnedGeneralShopItemEntries(casinoStats || {}).filter((entry) => entry.item && entry.item.itemType === 'case-drop').length;
+const bestDropValue = Math.max(0, Number(casinoStats && casinoStats.allTimeBestGeneralShopDropValue || 0));
+if (level >= 5) unlockedIds.push('glacier');
+if (messagesSent >= 200) unlockedIds.push('ember');
+if (achievements >= 4) unlockedIds.push('neon');
+if (dropsOwned >= 10 || bestDropValue >= 5000) unlockedIds.push('vault');
+return PROFILE_REWARD_COSMETICS.filter((entry) => unlockedIds.includes(entry.id));
+}
+
+function getProfileRewardGuideData(stats = getStatsForUserKey(getMyProfileKey()), casinoStats = getCachedCasinoProfileStats(getMyProfileKey()), profileUserKey = '') {
+const resolvedUserKey = normalizeUsername(profileUserKey || (casinoStats && casinoStats.username) || getMyProfileKey());
+const levelInfo = calculateUserLevel(stats || {}, resolvedUserKey);
+const level = Math.max(0, Number(levelInfo && levelInfo.level || 0));
+const achievements = Array.isArray(casinoStats && casinoStats.achievementIds) ? casinoStats.achievementIds.length : 0;
+const messagesSent = Math.max(0, Number(stats && stats.messagesSent || 0));
+const gamesOpened = Math.max(0, Number(stats && stats.gamesOpened || 0));
+const dropsOwned = getSortedOwnedGeneralShopItemEntries(casinoStats || {}).filter((entry) => entry.item && entry.item.itemType === 'case-drop').length;
+const bestWinStreak = Math.max(0, Number(casinoStats && casinoStats.bestWinStreak || 0));
+const bestDropValue = Math.max(0, Number(casinoStats && casinoStats.allTimeBestGeneralShopDropValue || 0));
+  return {
+    titles: [
+      { label: 'Rookie', unlocked: level >= 3, howToGet: 'Reach level 3.', progress: `${Math.min(level, 3)}/3 levels` },
+      { label: 'Regular', unlocked: level >= 6, howToGet: 'Reach level 6.', progress: `${Math.min(level, 6)}/6 levels` },
+      { label: 'Veteran', unlocked: level >= 10, howToGet: 'Reach level 10.', progress: `${Math.min(level, 10)}/10 levels` },
+      { label: 'Collector', unlocked: achievements >= 5, howToGet: 'Unlock 5 achievements.', progress: `${Math.min(achievements, 5)}/5 achievements` },
+      { label: 'Loudmouth', unlocked: messagesSent >= 250, howToGet: 'Send 250 chat messages.', progress: `${Math.min(messagesSent, 250)}/250 messages` },
+      { label: 'Arcade Grinder', unlocked: gamesOpened >= 40, howToGet: 'Open 40 games.', progress: `${Math.min(gamesOpened, 40)}/40 games` },
+      { label: 'Case Hunter', unlocked: dropsOwned >= 8, howToGet: 'Own 8 case drops.', progress: `${Math.min(dropsOwned, 8)}/8 drops` },
+      { label: 'Hot Hand', unlocked: bestWinStreak >= 5, howToGet: 'Hit a best win streak of 5.', progress: `${Math.min(bestWinStreak, 5)}/5 streak` },
+      { label: 'High Roller', unlocked: bestDropValue >= 5000, howToGet: 'Pull a case drop worth $5,000 or more.', progress: `$${Math.min(bestDropValue, 5000).toLocaleString()}/$5,000` }
+    ],
+    cosmetics: [
+      { label: 'Glacier Glass', unlocked: level >= 5, howToGet: 'Reach level 5.', progress: `${Math.min(level, 5)}/5 levels` },
+      { label: 'Ember Signal', unlocked: messagesSent >= 200, howToGet: 'Send 200 chat messages.', progress: `${Math.min(messagesSent, 200)}/200 messages` },
+      { label: 'Neon Circuit', unlocked: achievements >= 4, howToGet: 'Unlock 4 achievements.', progress: `${Math.min(achievements, 4)}/4 achievements` },
+      { label: 'Vault Gold', unlocked: dropsOwned >= 10 || bestDropValue >= 5000, howToGet: 'Own 10 case drops or pull a drop worth $5,000.', progress: `${Math.min(dropsOwned, 10)}/10 drops • $${Math.min(bestDropValue, 5000).toLocaleString()}/$5,000` }
+    ]
+  };
+}
+
+function getEquippedProfileRewardCosmetic(profileUserKey, stats, casinoStats, profile) {
+const available = getUnlockedProfileRewardCosmetics(stats, casinoStats, profileUserKey);
+const savedId = sanitizeNullableText(profile && profile.profileAccentId, '').slice(0, 24);
+if (savedId) {
+  const savedCosmetic = available.find((entry) => entry.id === savedId);
+  if (savedCosmetic) return savedCosmetic;
+}
+return available[0] || null;
+}
+
+function applyProfileRewardCosmetic(element, cosmetic) {
+if (!element) return;
+if (!cosmetic) {
+  element.classList.remove('profile-modal-rewarded');
+  element.style.removeProperty('--reward-accent');
+  element.style.removeProperty('--reward-accent-soft');
+  element.style.removeProperty('--reward-accent-glow');
+  return;
+}
+element.classList.add('profile-modal-rewarded');
+element.style.setProperty('--reward-accent', cosmetic.accent || '#6ec6ff');
+element.style.setProperty('--reward-accent-soft', cosmetic.soft || 'rgba(110, 198, 255, 0.24)');
+element.style.setProperty('--reward-accent-glow', cosmetic.glow || 'rgba(40, 122, 196, 0.22)');
+}
+
+function getEquippedProfileRewardTitle(profileUserKey, stats, casinoStats, profile) {
+const available = getUnlockedProfileRewardTitles(stats, casinoStats, profileUserKey);
+const savedTitle = sanitizeNullableText(profile && profile.profileTitle, '').slice(0, 40);
+if (savedTitle && available.includes(savedTitle)) return savedTitle;
+return available[0] || '';
+}
+
+function normalizeCasinoInventoryHistoryEntry(id, data = {}) {
+return {
+  id: sanitizeNullableText(id, ''),
+  type: sanitizeNullableText(data.type, 'inventory').slice(0, 40),
+  actor: normalizeUsername(data.actor || ''),
+  targetUser: normalizeUsername(data.targetUser || ''),
+  itemId: normalizeOptionalGeneralShopItemId(data.itemId || ''),
+  itemTitle: sanitizeNullableText(data.itemTitle, '').slice(0, 80),
+  itemType: normalizeGeneralShopItemType(data.itemType || ''),
+  caseId: normalizeOptionalGeneralShopItemId(data.caseId || ''),
+  caseTitle: sanitizeNullableText(data.caseTitle, '').slice(0, 80),
+  rarity: normalizeGeneralShopRarity(data.rarity || 'mil-spec'),
+  amount: Math.max(0, Math.floor(Number(data.amount) || 0)),
+  value: Math.max(0, Math.floor(Number(data.value) || 0)),
+  note: sanitizeNullableText(data.note, '').slice(0, 220),
+  userKeys: Array.isArray(data.userKeys) ? data.userKeys.map((value) => normalizeUsername(value)).filter(Boolean) : [],
+  atMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : Math.max(0, Number(data.atMs || 0))
+};
+}
+
+async function addCasinoInventoryHistory(entry = {}) {
+try {
+  const actor = normalizeUsername(entry.actor || getCasinoPlayerKey() || currentChatUser || '');
+  const targetUser = normalizeUsername(entry.targetUser || '');
+  const payload = {
+    type: sanitizeNullableText(entry.type, 'inventory').slice(0, 40),
+    actor,
+    targetUser,
+    itemId: normalizeOptionalGeneralShopItemId(entry.itemId || ''),
+    itemTitle: sanitizeNullableText(entry.itemTitle, '').slice(0, 80),
+    itemType: normalizeGeneralShopItemType(entry.itemType || ''),
+    caseId: normalizeOptionalGeneralShopItemId(entry.caseId || ''),
+    caseTitle: sanitizeNullableText(entry.caseTitle, '').slice(0, 80),
+    rarity: normalizeGeneralShopRarity(entry.rarity || 'mil-spec'),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    value: Math.max(0, Math.floor(Number(entry.value) || 0)),
+    note: sanitizeNullableText(entry.note, '').slice(0, 220),
+    userKeys: Array.from(new Set([actor, targetUser].filter(Boolean))),
+    atMs: Date.now(),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await getCasinoInventoryHistoryCollection().add(payload);
+} catch (_) {}
+}
+
+async function loadInventoryHistoryForUser(username) {
+  const key = normalizeUsername(username || getCasinoPlayerKey());
+  if (!key) {
+    inventoryHistoryCache = [];
+    return inventoryHistoryCache;
+  }
+  try {
+    const snapshot = await getCasinoInventoryHistoryCollection()
+      .where('userKeys', 'array-contains', key)
+      .orderBy('createdAt', 'desc')
+      .limit(MAX_INVENTORY_HISTORY_ITEMS)
+      .get();
+    inventoryHistoryCache = snapshot.docs.map((doc) => normalizeCasinoInventoryHistoryEntry(doc.id, doc.data() || {}));
+  } catch (_) {
+    inventoryHistoryCache = [];
+  }
+  return inventoryHistoryCache;
+}
+
+function normalizeGeneralShopTradeOfferData(id, data = {}) {
+  return {
+    id: sanitizeNullableText(id, ''),
+    fromUser: normalizeUsername(data.fromUser || ''),
+    toUser: normalizeUsername(data.toUser || ''),
+    itemId: normalizeOptionalGeneralShopItemId(data.itemId || ''),
+    itemTitle: sanitizeNullableText(data.itemTitle, '').slice(0, 80),
+    saleValue: Math.max(0, Math.floor(Number(data.saleValue) || 0)),
+    rarity: normalizeGeneralShopRarity(data.rarity || 'mil-spec'),
+    note: sanitizeNullableText(data.note, '').slice(0, 220),
+    status: sanitizeNullableText(data.status, 'pending').toLowerCase(),
+    fromItems: normalizeGeneralShopTradeItemEntries(data.fromItems || (data.itemId ? [{ itemId: data.itemId, saleValue: data.saleValue }] : [])),
+    toItems: normalizeGeneralShopTradeItemEntries(data.toItems || []),
+    fromAccepted: !!data.fromAccepted,
+    toAccepted: !!data.toAccepted,
+    countdownEndsAtMs: Math.max(0, Number(data.countdownEndsAtMs || 0)),
+    openedAtMs: Math.max(0, Number(data.openedAtMs || 0)),
+    completedAtMs: Math.max(0, Number(data.completedAtMs || 0)),
+    createdAtMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : Math.max(0, Number(data.createdAtMs || 0)),
+    updatedAtMs: data.updatedAt && typeof data.updatedAt.toDate === 'function' ? data.updatedAt.toDate().getTime() : Math.max(0, Number(data.updatedAtMs || 0))
+  };
+}
+
+function normalizeGeneralShopTradeItemEntries(rawEntries) {
+  const entries = Array.isArray(rawEntries) ? rawEntries : [];
+  return entries.map((entry) => {
+    if (typeof entry === 'string') {
+      return {
+        itemId: normalizeOptionalGeneralShopItemId(entry),
+        saleValue: 0
+      };
+    }
+    return {
+      itemId: normalizeOptionalGeneralShopItemId(entry && entry.itemId || ''),
+      saleValue: Math.max(0, Math.floor(Number(entry && entry.saleValue || 0)))
+    };
+  }).filter((entry) => entry.itemId).slice(0, 9);
+}
+
+function serializeGeneralShopTradeItemEntries(entries) {
+  return normalizeGeneralShopTradeItemEntries(entries).map((entry) => ({
+    itemId: entry.itemId,
+    saleValue: Math.max(0, Math.floor(Number(entry.saleValue || 0)))
+  }));
+}
+
+function getGeneralShopTradeById(tradeId) {
+  const key = sanitizeNullableText(tradeId, '');
+  if (!key) return null;
+  return generalShopTradeCache.find((trade) => trade.id === key) || null;
+}
+
+function upsertGeneralShopTradeCacheEntry(trade) {
+  if (!trade || !trade.id) return;
+  const index = generalShopTradeCache.findIndex((entry) => entry.id === trade.id);
+  if (index >= 0) {
+    generalShopTradeCache[index] = trade;
+  } else {
+    generalShopTradeCache.unshift(trade);
+  }
+  generalShopTradeCache.sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+}
+
+function getGeneralShopTradeParticipantSide(trade, username) {
+  const key = normalizeUsername(username || getCasinoPlayerKey());
+  if (!trade || !key) return '';
+  if (trade.fromUser === key) return 'from';
+  if (trade.toUser === key) return 'to';
+  return '';
+}
+
+function getGeneralShopTradeOtherUser(trade, username) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (side === 'from') return trade.toUser;
+  if (side === 'to') return trade.fromUser;
+  return '';
+}
+
+function getGeneralShopTradeSideEntries(trade, side) {
+  return normalizeGeneralShopTradeItemEntries(side === 'to' ? trade && trade.toItems : trade && trade.fromItems);
+}
+
+function getGeneralShopTradeEntryKey(entry) {
+  return `${normalizeOptionalGeneralShopItemId(entry && entry.itemId || '')}|${Math.max(0, Math.floor(Number(entry && entry.saleValue || 0)))}`;
+}
+
+function getGeneralShopTradeEntryCountMap(entries) {
+  const counts = {};
+  normalizeGeneralShopTradeItemEntries(entries).forEach((entry) => {
+    const key = getGeneralShopTradeEntryKey(entry);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return counts;
+}
+
+function getAvailableGeneralShopTradeEntriesForUser(trade, username, statsOverride = null) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (!side) return [];
+  const stats = statsOverride || getCachedCasinoProfileStats(username);
+  const offeredCounts = getGeneralShopTradeEntryCountMap(getGeneralShopTradeSideEntries(trade, side));
+  const ownedEntries = getOwnedGeneralShopItemEntries(stats).filter((entry) => entry && entry.item && entry.item.itemType === 'case-drop');
+  const usedCounts = {};
+  return ownedEntries.filter((entry) => {
+    const key = getGeneralShopTradeEntryKey(entry);
+    usedCounts[key] = (usedCounts[key] || 0) + 1;
+    return usedCounts[key] > Math.max(0, Number(offeredCounts[key] || 0));
+  }).slice(0, 60);
+}
+
+function canMutateGeneralShopTrade(trade, username) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (!side) return false;
+  if (trade.status === 'pending') return side === 'from';
+  return trade.status === 'open' || trade.status === 'countdown';
+}
+
+function removeTradeEntriesFromOwnedInventory(stats, entriesToRemove) {
+  const nextIds = sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds).slice();
+  const nextValues = sanitizeOwnedGeneralShopItemSaleValues(nextIds, stats && stats.ownedGeneralShopItemSaleValues).slice();
+  const requested = normalizeGeneralShopTradeItemEntries(entriesToRemove);
+  for (const entry of requested) {
+    const targetId = entry.itemId;
+    const targetValue = Math.max(0, Math.floor(Number(entry.saleValue || 0)));
+    const index = nextIds.findIndex((itemId, itemIndex) => itemId === targetId && Math.max(0, Math.floor(Number(nextValues[itemIndex] || 0))) === targetValue);
+    if (index < 0) {
+      return null;
+    }
+    nextIds.splice(index, 1);
+    nextValues.splice(index, 1);
+  }
+  return {
+    ownedGeneralShopItemIds: nextIds,
+    ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextIds, nextValues)
+  };
+}
+
+function appendTradeEntriesToOwnedInventory(stats, entriesToAdd) {
+  const currentIds = sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds);
+  const currentValues = sanitizeOwnedGeneralShopItemSaleValues(currentIds, stats && stats.ownedGeneralShopItemSaleValues);
+  const nextIds = currentIds.concat(normalizeGeneralShopTradeItemEntries(entriesToAdd).map((entry) => entry.itemId));
+  const nextValues = currentValues.concat(normalizeGeneralShopTradeItemEntries(entriesToAdd).map((entry) => Math.max(0, Math.floor(Number(entry.saleValue || 0)))));
+  return {
+    ownedGeneralShopItemIds: sanitizeOwnedGeneralShopItemIds(nextIds),
+    ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextIds, nextValues)
+  };
+}
+
+function getGeneralShopTradeAcceptedState(trade, username) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (side === 'from') return !!trade.fromAccepted;
+  if (side === 'to') return !!trade.toAccepted;
+  return false;
+}
+
+function getGeneralShopTradeCountdownRemainingMs(trade) {
+  return Math.max(0, Math.floor(Number(trade && trade.countdownEndsAtMs || 0) - Date.now()));
+}
+
+async function fetchGeneralShopTradeById(tradeId) {
+  const key = sanitizeNullableText(tradeId, '');
+  if (!key) return null;
+  const cached = getGeneralShopTradeById(key);
+  if (cached) return cached;
+  try {
+    const snap = await getGeneralShopTradesCollection().doc(key).get();
+    if (!snap.exists) return null;
+    const trade = normalizeGeneralShopTradeOfferData(snap.id, snap.data() || {});
+    upsertGeneralShopTradeCacheEntry(trade);
+    return trade;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function openTradeRequestPrompt(tradeId) {
+  const trade = await fetchGeneralShopTradeById(tradeId);
+  if (!trade || trade.status !== 'pending' || trade.toUser !== getCasinoPlayerKey()) return;
+  generalShopTradeInvitePromptedIds.add(trade.id);
+  activeGeneralShopTradeInviteId = trade.id;
+  renderGeneralShopTradeInviteModal();
+  openModalById('general-shop-trade-invite-modal');
+}
+
+function closeGeneralShopTradeInviteModal() {
+  closeModalById('general-shop-trade-invite-modal');
+  activeGeneralShopTradeInviteId = '';
+}
+
+async function openGeneralShopTradeModal(encodedTradeId = '') {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  if (!tradeId) return;
+  activeGeneralShopTradeId = tradeId;
+  await fetchGeneralShopTradeById(tradeId);
+  renderGeneralShopTradeModal();
+  openModalById('general-shop-trade-modal');
+}
+
+function closeGeneralShopTradeModal() {
+  closeModalById('general-shop-trade-modal');
+  activeGeneralShopTradeId = '';
+  if (generalShopTradeCountdownInterval) {
+    clearInterval(generalShopTradeCountdownInterval);
+    generalShopTradeCountdownInterval = null;
+  }
+}
+
+async function addItemToGeneralShopTrade(encodedTradeId, encodedEntryKey) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const [rawItemId, rawSaleValue] = sanitizeNullableText(decodeURIComponent(encodedEntryKey || ''), '').split('|');
+  const itemId = normalizeOptionalGeneralShopItemId(rawItemId || '');
+  const saleValue = Math.max(0, Math.floor(Number(rawSaleValue) || 0));
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !itemId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const [tradeSnap, balanceSnap] = await Promise.all([tx.get(tradeRef), tx.get(balanceRef)]);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      if (!canMutateGeneralShopTrade(trade, user)) throw new Error('That trade can no longer be edited.');
+      const side = getGeneralShopTradeParticipantSide(trade, user);
+      const sideKey = side === 'to' ? 'toItems' : 'fromItems';
+      const currentStats = normalizeCasinoProfileStatsData(user, balanceSnap.exists ? (balanceSnap.data() || {}) : {});
+      const availableEntries = getAvailableGeneralShopTradeEntriesForUser(trade, user, currentStats);
+      const matched = availableEntries.find((entry) => entry.itemId === itemId && Math.max(0, Math.floor(Number(entry.saleValue || 0))) === saleValue);
+      if (!matched) throw new Error('You no longer have that item available to add.');
+      const nextEntries = getGeneralShopTradeSideEntries(trade, side);
+      if (nextEntries.length >= 9) throw new Error('Each side can only offer up to 9 items.');
+      nextEntries.push({ itemId, saleValue });
+      tx.set(tradeRef, {
+        [sideKey]: serializeGeneralShopTradeItemEntries(nextEntries),
+        fromAccepted: false,
+        toAccepted: false,
+        countdownEndsAtMs: 0,
+        status: trade.status === 'pending' ? 'pending' : 'open',
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not add that item to the trade.');
+  }
+}
+
+async function removeItemFromGeneralShopTrade(encodedTradeId, side, indexValue) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const itemIndex = Math.max(0, Math.floor(Number(indexValue) || 0));
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const tradeSnap = await tx.get(tradeRef);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      const mySide = getGeneralShopTradeParticipantSide(trade, user);
+      if (side !== mySide) throw new Error('You can only remove items from your own side.');
+      if (!canMutateGeneralShopTrade(trade, user)) throw new Error('That trade can no longer be edited.');
+      const sideKey = side === 'to' ? 'toItems' : 'fromItems';
+      const nextEntries = getGeneralShopTradeSideEntries(trade, side);
+      if (!nextEntries[itemIndex]) throw new Error('That trade item was not found.');
+      nextEntries.splice(itemIndex, 1);
+      tx.set(tradeRef, {
+        [sideKey]: serializeGeneralShopTradeItemEntries(nextEntries),
+        fromAccepted: false,
+        toAccepted: false,
+        countdownEndsAtMs: 0,
+        status: trade.status === 'pending' ? 'pending' : 'open',
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not remove that item from the trade.');
+  }
+}
+
+async function toggleGeneralShopTradeAccepted(encodedTradeId) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const tradeSnap = await tx.get(tradeRef);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      if (!(trade.status === 'open' || trade.status === 'countdown')) throw new Error('That trade cannot be readied right now.');
+      const side = getGeneralShopTradeParticipantSide(trade, user);
+      if (!side) throw new Error('You are not part of that trade.');
+      const nextFromAccepted = side === 'from' ? !trade.fromAccepted : !!trade.fromAccepted;
+      const nextToAccepted = side === 'to' ? !trade.toAccepted : !!trade.toAccepted;
+      const bothAccepted = nextFromAccepted && nextToAccepted;
+      tx.set(tradeRef, {
+        fromAccepted: nextFromAccepted,
+        toAccepted: nextToAccepted,
+        status: bothAccepted ? 'countdown' : 'open',
+        countdownEndsAtMs: bothAccepted ? (Date.now() + 3000) : 0,
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not update ready state.');
+  }
+}
+
+async function cancelGeneralShopTrade(encodedTradeId) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const trade = getGeneralShopTradeById(tradeId);
+  if (!trade) return;
+  const action = trade.status === 'pending' && trade.toUser === user ? 'reject' : 'cancel';
+  const statusValue = action === 'reject' ? 'rejected' : 'cancelled';
+  try {
+    await getGeneralShopTradesCollection().doc(tradeId).set({
+      status: statusValue,
+      countdownEndsAtMs: 0,
+      updatedAtMs: Date.now(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    if (activeGeneralShopTradeId === tradeId) closeGeneralShopTradeModal();
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not close that trade.');
+  }
+}
+
+async function finalizeGeneralShopTrade(tradeId) {
+  const key = sanitizeNullableText(tradeId, '');
+  const user = getCasinoPlayerKey();
+  if (!key || !user || generalShopTradeFinalizeInFlight === key) return;
+  generalShopTradeFinalizeInFlight = key;
+  const tradeRef = getGeneralShopTradesCollection().doc(key);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const tradeSnap = await tx.get(tradeRef);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      if (trade.status !== 'countdown') return;
+      if (!trade.fromAccepted || !trade.toAccepted) return;
+      if (trade.countdownEndsAtMs > Date.now()) return;
+      const fromRef = getCasinoBalanceCollection().doc(trade.fromUser);
+      const toRef = getCasinoBalanceCollection().doc(trade.toUser);
+      const [fromSnap, toSnap] = await Promise.all([tx.get(fromRef), tx.get(toRef)]);
+      const fromStats = normalizeCasinoProfileStatsData(trade.fromUser, fromSnap.exists ? (fromSnap.data() || {}) : {});
+      const toStats = normalizeCasinoProfileStatsData(trade.toUser, toSnap.exists ? (toSnap.data() || {}) : {});
+      const fromRemoved = removeTradeEntriesFromOwnedInventory(fromStats, trade.fromItems);
+      const toRemoved = removeTradeEntriesFromOwnedInventory(toStats, trade.toItems);
+      if (!fromRemoved) throw new Error(`${trade.fromUser} no longer owns one of the offered items.`);
+      if (!toRemoved) throw new Error(`${trade.toUser} no longer owns one of the offered items.`);
+      const nextFromInventory = appendTradeEntriesToOwnedInventory({
+        ownedGeneralShopItemIds: fromRemoved.ownedGeneralShopItemIds,
+        ownedGeneralShopItemSaleValues: fromRemoved.ownedGeneralShopItemSaleValues
+      }, trade.toItems);
+      const nextToInventory = appendTradeEntriesToOwnedInventory({
+        ownedGeneralShopItemIds: toRemoved.ownedGeneralShopItemIds,
+        ownedGeneralShopItemSaleValues: toRemoved.ownedGeneralShopItemSaleValues
+      }, trade.fromItems);
+      const nextFromFeatured = nextFromInventory.ownedGeneralShopItemIds.includes(fromStats.selectedGeneralShopFeaturedItemId)
+        ? fromStats.selectedGeneralShopFeaturedItemId
+        : '';
+      const nextToFeatured = nextToInventory.ownedGeneralShopItemIds.includes(toStats.selectedGeneralShopFeaturedItemId)
+        ? toStats.selectedGeneralShopFeaturedItemId
+        : '';
+      tx.set(fromRef, {
+        username: trade.fromUser,
+        displayName: sanitizeNullableText((fromSnap.exists ? (fromSnap.data() || {}).displayName : '') || trade.fromUser, trade.fromUser),
+        ...fromStats,
+        ...nextFromInventory,
+        selectedGeneralShopFeaturedItemId: nextFromFeatured,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(toRef, {
+        username: trade.toUser,
+        displayName: sanitizeNullableText((toSnap.exists ? (toSnap.data() || {}).displayName : '') || trade.toUser, trade.toUser),
+        ...toStats,
+        ...nextToInventory,
+        selectedGeneralShopFeaturedItemId: nextToFeatured,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(tradeRef, {
+        status: 'accepted',
+        countdownEndsAtMs: 0,
+        completedAtMs: Date.now(),
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+    await loadCasinoBalance().catch(() => {});
+    await loadInventoryHistoryForUser(user).catch(() => []);
+    renderGeneralShopInventoryModal();
+    renderGeneralShopTradeModal();
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not finalize that trade.');
+  } finally {
+    generalShopTradeFinalizeInFlight = '';
+  }
+}
+
+async function loadGeneralShopTradeModalIfNeeded() {
+  if (!activeGeneralShopTradeId) return null;
+  return fetchGeneralShopTradeById(activeGeneralShopTradeId);
+}
+
+function renderGeneralShopTradeParticipantHeader(username, accepted = false, subtle = '') {
+  const safeUser = normalizeUsername(username || '') || 'unknown';
+  return `<div class="trade-board-user-row"><div class="trade-board-avatar">${renderInlineProfileAvatarHtml(safeUser)}</div><div class="trade-board-user-meta"><div class="trade-board-user">${escapeHtml(safeUser)}${accepted ? ' • Ready' : ''}</div>${subtle ? `<div class="trade-board-user-subtle">${escapeHtml(subtle)}</div>` : ''}</div></div>`;
+}
+
+function renderGeneralShopTradeInviteModal() {
+  const container = document.getElementById('general-shop-trade-invite-content');
+  if (!container) return;
+  const trade = getGeneralShopTradeById(activeGeneralShopTradeInviteId);
+  if (!trade) {
+    container.innerHTML = '<div class="submission-empty">Trade request not found.</div>';
+    return;
+  }
+  const offeredEntry = getGeneralShopTradeSideEntries(trade, 'from')[0] || null;
+  const offeredItem = offeredEntry ? getGeneralShopItem(offeredEntry.itemId) : null;
+  const offeredRarity = getGeneralShopRarityConfig(offeredItem && offeredItem.rarity || trade.rarity || 'mil-spec');
+  container.innerHTML = `<div class="trade-invite-card"><div class="trade-invite-header">${renderInlineProfileAvatarHtml(trade.fromUser)}<div class="trade-invite-copy"><div class="trade-invite-title">${escapeHtml(trade.fromUser)} sent you a trade</div><div class="overlay-subtle">${trade.note ? escapeHtml(trade.note) : 'No note added.'}</div></div></div><div class="trade-invite-preview"><div class="trade-invite-item"><div class="trade-invite-item-visual" style="${getGeneralShopVisualStyleText(offeredItem && offeredItem.visualData, '')}"></div><div class="trade-invite-copy"><div class="trade-invite-title">${escapeHtml(offeredItem && offeredItem.title || trade.itemTitle || 'Trade item')}</div><div style="color:${escapeHtml(offeredRarity.color)}; font-weight:700;">${escapeHtml(offeredRarity.label)}</div><div class="overlay-subtle">$${Math.max(0, Number(offeredEntry && offeredEntry.saleValue || trade.saleValue || 0)).toLocaleString()}</div></div></div><div class="trade-invite-arrow">⇄</div></div><div class="submission-actions"><button type="button" onclick="cancelGeneralShopTrade('${encodeURIComponent(trade.id)}')" style="background:#5d4037; color:#fff; border:none; border-radius:0.55rem;">Decline</button><button type="button" onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','accept')" style="background:#2e7d32; color:#fff; border:none; border-radius:0.55rem;">Accept</button></div></div>`;
+}
+
+function renderGeneralShopTradeOfferSlots(trade, side, canEdit) {
+  const entries = getGeneralShopTradeSideEntries(trade, side);
+  return Array.from({ length: 9 }, (_, index) => {
+    const entry = entries[index] || null;
+    if (!entry) return '<div class="trade-board-slot is-empty"></div>';
+    const item = getGeneralShopItem(entry.itemId);
+    const rarity = getGeneralShopRarityConfig(item && item.rarity || 'mil-spec');
+    const removeBtn = canEdit ? `<button type="button" onclick="removeItemFromGeneralShopTrade('${encodeURIComponent(trade.id)}','${side}',${index})" style="position:absolute; top:0.3rem; right:0.3rem; width:1.5rem; height:1.5rem; border:none; border-radius:999px; background:rgba(10,14,20,0.84); color:#fff; cursor:pointer;">×</button>` : '';
+    return `<div class="trade-board-slot is-filled" style="--trade-rarity-color:${escapeHtml(rarity.color)};"><div class="trade-board-slot-fill" style="${getGeneralShopVisualStyleText(item && item.visualData, 'justify-content:flex-start;')}"><div class="trade-item-stack"><div class="trade-slot-title">${escapeHtml(item && item.title || entry.itemId)}</div><div class="trade-slot-value">$${Math.max(0, Number(entry.saleValue || 0)).toLocaleString()} • ${escapeHtml(rarity.label)}</div></div>${removeBtn}</div></div>`;
+  }).join('');
+}
+
+function renderGeneralShopTradeAvailablePool(trade, username) {
+  const available = getAvailableGeneralShopTradeEntriesForUser(trade, username);
+  if (!available.length) return '<div class="overlay-subtle">No extra case drops available to add.</div>';
+  return `<div style="display:flex; gap:0.45rem; flex-wrap:wrap; margin-top:0.7rem;">${available.map((entry) => {
+    const item = entry.item;
+    const entryKey = encodeURIComponent(`${entry.itemId}|${Math.max(0, Number(entry.saleValue || 0))}`);
+    return `<button type="button" onclick="addItemToGeneralShopTrade('${encodeURIComponent(trade.id)}','${entryKey}')" style="padding:0.45rem 0.65rem; border-radius:0.6rem; border:1px solid rgba(125,157,194,0.22); background:#182434; color:#e8f3ff; cursor:pointer;">${escapeHtml(item && item.title || entry.itemId)} • $${Math.max(0, Number(entry.saleValue || 0)).toLocaleString()}</button>`;
+  }).join('')}</div>`;
+}
+
+function renderGeneralShopTradeModal() {
+  const container = document.getElementById('general-shop-trade-content');
+  const status = document.getElementById('general-shop-trade-status');
+  if (!container || !status) return;
+  const trade = getGeneralShopTradeById(activeGeneralShopTradeId);
+  if (!trade) {
+    container.innerHTML = '<div class="submission-empty">Trade session not found.</div>';
+    status.textContent = '';
+    return;
+  }
+  const myUser = getCasinoPlayerKey();
+  const mySide = getGeneralShopTradeParticipantSide(trade, myUser);
+  const otherUser = getGeneralShopTradeOtherUser(trade, myUser);
+  const canEdit = canMutateGeneralShopTrade(trade, myUser) && (trade.status !== 'countdown');
+  const myAccepted = getGeneralShopTradeAcceptedState(trade, myUser);
+  const otherAccepted = getGeneralShopTradeAcceptedState(trade, otherUser);
+  const countdownMs = getGeneralShopTradeCountdownRemainingMs(trade);
+  const waitingInvite = trade.status === 'pending';
+  status.textContent = waitingInvite
+    ? (trade.toUser === myUser ? 'Trade request waiting for your answer.' : `Waiting for ${trade.toUser} to accept this trade request.`)
+    : trade.status === 'countdown'
+      ? `Trade locks in ${Math.ceil(countdownMs / 1000)}...`
+      : trade.status === 'accepted'
+        ? 'Trade completed.'
+        : trade.status === 'rejected'
+          ? 'Trade declined.'
+          : trade.status === 'cancelled'
+            ? 'Trade cancelled.'
+            : 'Edit your side, then both players accept.';
+  status.style.color = trade.status === 'accepted'
+    ? '#9fe3a5'
+    : trade.status === 'rejected' || trade.status === 'cancelled'
+      ? '#ffb4a8'
+      : '#9fb0c2';
+  const myUserLabel = escapeHtml(myUser || 'you');
+  const otherUserLabel = escapeHtml(otherUser || 'other player');
+  const closeLabel = trade.status === 'pending' && trade.toUser === myUser ? 'Decline' : (trade.status === 'accepted' ? 'Close' : 'Cancel Trade');
+  const closeAction = trade.status === 'accepted' ? `closeGeneralShopTradeModal()` : `cancelGeneralShopTrade('${encodeURIComponent(trade.id)}')`;
+  container.innerHTML = `
+    <div class="trade-board-card">
+      <div class="trade-board-shell">
+        <div class="trade-board-side">
+          ${renderGeneralShopTradeParticipantHeader(myUserLabel, myAccepted, 'Your side')}
+          <div class="trade-board-grid">${renderGeneralShopTradeOfferSlots(trade, mySide === 'to' ? 'to' : 'from', canEdit)}</div>
+          ${canEdit ? renderGeneralShopTradeAvailablePool(trade, myUser) : ''}
+        </div>
+        <div class="trade-board-center">
+          <div class="trade-board-icon">⇄</div>
+          <div class="trade-board-status" data-state="${escapeHtml(trade.status)}">${escapeHtml(trade.status)}</div>
+          ${trade.status === 'countdown' ? `<div class="overlay-subtle" style="color:#d9ebff; text-align:center;">Finalizing in ${Math.ceil(countdownMs / 1000)}</div>` : ''}
+        </div>
+        <div class="trade-board-side">
+          ${renderGeneralShopTradeParticipantHeader(otherUserLabel, otherAccepted, 'Other side')}
+          <div class="trade-board-grid">${renderGeneralShopTradeOfferSlots(trade, mySide === 'to' ? 'from' : 'to', false)}</div>
+          <div class="overlay-subtle" style="margin-top:0.7rem;">${trade.note ? escapeHtml(trade.note) : 'No note added.'}</div>
+        </div>
+      </div>
+      <div class="trade-board-meta">
+        <div class="trade-board-note">${escapeHtml(trade.fromUser)} ↔ ${escapeHtml(trade.toUser)}</div>
+        <div>${escapeHtml(formatRelativeTime(Math.max(trade.updatedAtMs, trade.createdAtMs)))}</div>
+      </div>
+      <div class="submission-actions" style="margin-top:0.9rem;">
+        ${trade.status === 'open' || trade.status === 'countdown' ? `<button type="button" onclick="toggleGeneralShopTradeAccepted('${encodeURIComponent(trade.id)}')" style="background:${myAccepted ? '#455a64' : '#2e7d32'}; color:#fff; border:none; border-radius:0.55rem;">${myAccepted ? 'Unaccept' : 'Accept Trade'}</button>` : ''}
+        ${trade.status === 'pending' && trade.toUser === myUser ? `<button type="button" onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','accept')" style="background:#2e7d32; color:#fff; border:none; border-radius:0.55rem;">Accept Request</button>` : ''}
+        <button type="button" onclick="${closeAction}" style="background:#5d4037; color:#fff; border:none; border-radius:0.55rem;">${closeLabel}</button>
+      </div>
+    </div>`;
+  if (generalShopTradeCountdownInterval) clearInterval(generalShopTradeCountdownInterval);
+  generalShopTradeCountdownInterval = null;
+  if (trade.status === 'countdown') {
+    generalShopTradeCountdownInterval = setInterval(() => {
+      renderGeneralShopTradeModal();
+      if (getGeneralShopTradeCountdownRemainingMs(getGeneralShopTradeById(trade.id) || trade) <= 0) {
+        finalizeGeneralShopTrade(trade.id);
+      }
+    }, 250);
+  }
+}
+
+async function loadGeneralShopTradesForUser(username) {
+  const key = normalizeUsername(username || getCasinoPlayerKey());
+  if (!key) {
+    generalShopTradeCache = [];
+    return generalShopTradeCache;
+  }
+  try {
+    const db = getGeneralShopTradesCollection();
+    const [incoming, outgoing] = await Promise.all([
+      db.where('toUser', '==', key).limit(60).get(),
+      db.where('fromUser', '==', key).limit(60).get()
+    ]);
+    const seen = new Set();
+    generalShopTradeCache = incoming.docs.concat(outgoing.docs)
+      .filter((doc) => {
+        if (seen.has(doc.id)) return false;
+        seen.add(doc.id);
+        return true;
+      })
+      .map((doc) => normalizeGeneralShopTradeOfferData(doc.id, doc.data() || {}))
+      .sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+  } catch (_) {
+    generalShopTradeCache = [];
+  }
+  return generalShopTradeCache;
+}
+
+function mergeLiveGeneralShopTradeCache() {
+const seen = new Set();
+generalShopTradeCache = generalShopTradeLiveSnapshots.incoming.concat(generalShopTradeLiveSnapshots.outgoing)
+  .filter((trade) => {
+    if (!trade || !trade.id || seen.has(trade.id)) return false;
+    seen.add(trade.id);
+    return true;
+  })
+  .sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+if (document.getElementById('player-hub-modal')?.style.display === 'flex') {
+  renderPlayerHubModal();
+}
+}
+
+function processGeneralShopTradeSnapshot(snapshot, direction) {
+const normalized = snapshot.docs.map((doc) => normalizeGeneralShopTradeOfferData(doc.id, doc.data() || {}));
+const readyKey = direction === 'incoming' ? 'incomingReady' : 'outgoingReady';
+const shouldNotify = generalShopTradeListenerState[readyKey];
+generalShopTradeLiveSnapshots[direction] = normalized;
+if (shouldNotify) {
+  normalized.forEach((trade) => {
+    const previousStatus = generalShopTradeListenerState.statuses[trade.id];
+    if (direction === 'incoming' && previousStatus === undefined && trade.status === 'pending') {
+      pushNotification({ type: 'trade', title: `Trade from ${trade.fromUser}`, body: `${trade.itemTitle || 'Item'} is waiting for your answer.`, read: false, action: { kind: 'trade', tradeId: trade.id } });
+      openTradeRequestPrompt(trade.id);
+    }
+    if (direction === 'outgoing' && previousStatus === 'pending' && trade.status === 'accepted') {
+      pushNotification({ type: 'trade', title: 'Trade completed', body: `${trade.toUser} completed ${trade.itemTitle || 'your trade'}.`, read: false, action: { kind: 'trade', tradeId: trade.id } });
+    }
+    if (direction === 'outgoing' && previousStatus === 'pending' && trade.status === 'rejected') {
+      pushNotification({ type: 'trade', title: 'Trade declined', body: `${trade.toUser} declined ${trade.itemTitle || 'your trade'}.`, read: false, action: { kind: 'trade', tradeId: trade.id } });
+    }
+  });
+}
+normalized.forEach((trade) => {
+  generalShopTradeListenerState.statuses[trade.id] = trade.status;
+  if (direction === 'incoming' && trade.status === 'pending' && !generalShopTradeInvitePromptedIds.has(trade.id)) {
+    openTradeRequestPrompt(trade.id);
+  }
+  if (activeGeneralShopTradeInviteId === trade.id) {
+    if (trade.status !== 'pending') {
+      closeGeneralShopTradeInviteModal();
+    } else {
+      renderGeneralShopTradeInviteModal();
+    }
+  }
+  if ((trade.status === 'open' || trade.status === 'countdown') && (trade.fromUser === getCasinoPlayerKey() || trade.toUser === getCasinoPlayerKey()) && !activeGeneralShopTradeId) {
+    openGeneralShopTradeModal(encodeURIComponent(trade.id));
+  }
+  if (activeGeneralShopTradeId === trade.id) {
+    renderGeneralShopTradeModal();
+  }
+  if (trade.status === 'countdown' && trade.countdownEndsAtMs && trade.countdownEndsAtMs <= Date.now()) {
+    finalizeGeneralShopTrade(trade.id);
+  }
+});
+generalShopTradeListenerState[readyKey] = true;
+mergeLiveGeneralShopTradeCache();
+}
+
+function listenForGeneralShopTrades(username) {
+const key = normalizeUsername(username || getCasinoPlayerKey());
+if (key && generalShopTradeUnsub && generalShopTradeListenerState.key === key) {
+  return;
+}
+if (generalShopTradeUnsub) {
+  generalShopTradeUnsub();
+  generalShopTradeUnsub = null;
+}
+generalShopTradeLiveSnapshots = { incoming: [], outgoing: [] };
+if (!key || !chatInitialized) {
+  generalShopTradeCache = [];
+  return;
+}
+generalShopTradeListenerState = { key, incomingReady: false, outgoingReady: false, statuses: {} };
+const db = getGeneralShopTradesCollection();
+const incomingUnsub = db.where('toUser', '==', key).limit(60).onSnapshot((snapshot) => {
+  processGeneralShopTradeSnapshot(snapshot, 'incoming');
+}, () => {});
+const outgoingUnsub = db.where('fromUser', '==', key).limit(60).onSnapshot((snapshot) => {
+  processGeneralShopTradeSnapshot(snapshot, 'outgoing');
+}, () => {});
+generalShopTradeUnsub = () => {
+  incomingUnsub();
+  outgoingUnsub();
+};
+}
+
+async function openTradeOfferPrompt(encodedItemId) {
+  const user = getCasinoPlayerKey();
+  const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+  if (!user || !itemId) return;
+  const item = getGeneralShopItem(itemId);
+  if (!item || item.itemType !== 'case-drop') return;
+  const ownedEntry = getOwnedGeneralShopItemEntries(getCachedCasinoProfileStats(user)).find((entry) => entry.itemId === itemId);
+  if (!ownedEntry) {
+    setGeneralShopInventoryStatus('You do not own that case drop anymore.', 'error');
+    return;
+  }
+  const targetUser = normalizeUsername(prompt('Send trade offer to which username?', '') || '');
+  if (!targetUser) return;
+  if (targetUser === user) {
+    setGeneralShopInventoryStatus('You cannot trade with yourself.', 'error');
+    return;
+  }
+  const note = sanitizeNullableText(prompt('Optional trade note', `Trade offer for ${item.title}`) || '', '').slice(0, 220);
+  try {
+    const tradeRef = await getGeneralShopTradesCollection().add({
+      fromUser: user,
+      toUser: targetUser,
+      itemId: item.id,
+      itemTitle: item.title,
+      saleValue: Math.max(0, Math.floor(Number(ownedEntry.saleValue || 0))),
+      rarity: normalizeGeneralShopRarity(item.rarity),
+      fromItems: [{ itemId: item.id, saleValue: Math.max(0, Math.floor(Number(ownedEntry.saleValue || 0))) }],
+      toItems: [],
+      fromAccepted: false,
+      toAccepted: false,
+      countdownEndsAtMs: 0,
+      note,
+      status: 'pending',
+      createdAtMs: Date.now(),
+      updatedAtMs: Date.now(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await addCasinoInventoryHistory({ type: 'trade_offer_sent', actor: user, targetUser, itemId: item.id, itemTitle: item.title, itemType: item.itemType, rarity: item.rarity, value: ownedEntry.saleValue, note });
+    pushNotification({ type: 'trade', title: 'Trade offer sent', body: `${item.title} offered to ${targetUser}.`, read: false, action: { kind: 'trade', tradeId: tradeRef.id } });
+    setGeneralShopInventoryStatus(`Trade offer sent to ${targetUser}.`, 'success');
+    await openGeneralShopTradeModal(encodeURIComponent(tradeRef.id));
+  } catch (err) {
+    setGeneralShopInventoryStatus('Could not send that trade offer.', 'error');
+  }
+}
+
+async function respondToGeneralShopTradeOffer(encodedTradeId, action = 'reject') {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  try {
+    if (action === 'accept') {
+      await getGeneralShopTradesCollection().doc(tradeId).set({
+        status: 'open',
+        openedAtMs: Date.now(),
+        fromAccepted: false,
+        toAccepted: false,
+        countdownEndsAtMs: 0,
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        acceptedBy: user
+      }, { merge: true });
+      pushNotification({ type: 'trade', title: 'Trade request accepted', body: 'The trade window is ready.', read: false, action: { kind: 'trade', tradeId } });
+    } else {
+      await tradeRef.set({ status: 'rejected', countdownEndsAtMs: 0, updatedAtMs: Date.now(), updatedAt: firebase.firestore.FieldValue.serverTimestamp(), rejectedBy: user }, { merge: true });
+    }
+    await loadGeneralShopTradesForUser(user);
+    await loadInventoryHistoryForUser(user);
+    renderGeneralShopInventoryModal();
+    if (activeGeneralShopTradeInviteId === tradeId) {
+      closeGeneralShopTradeInviteModal();
+    }
+    if (action === 'accept') {
+      await openGeneralShopTradeModal(encodeURIComponent(tradeId));
+    }
+    await refreshCasinoProfileUiForUser(user);
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not update that trade offer.');
+  }
+}
+
+function normalizeSiteEventData(data = {}) {
+  const title = sanitizeNullableText(data.title, '').slice(0, 80);
+  const body = sanitizeNullableText(data.body, '').slice(0, 240);
+  const accent = /^#[0-9a-fA-F]{6}$/.test(String(data.accent || '')) ? String(data.accent) : '#2f8d46';
+  const endsAtMs = data.endsAt && typeof data.endsAt.toDate === 'function' ? data.endsAt.toDate().getTime() : Math.max(0, Number(data.endsAtMs || 0));
+  return title ? { title, body, accent, endsAtMs } : null;
+}
+
+async function loadActiveSiteEvent() {
+  try {
+    const doc = await getAdminDb().collection('chat_meta').doc(SITE_EVENT_DOC_ID).get();
+    activeSiteEventCache = doc.exists ? normalizeSiteEventData(doc.data() || {}) : null;
+  } catch (_) {
+    activeSiteEventCache = null;
+  }
+  return activeSiteEventCache;
+}
+
+function renderActiveSiteEventBanner() {
+  const banner = document.getElementById('site-announcement-banner');
+  if (!banner) return;
+  const eventData = activeSiteEventCache;
+  if (!eventData || (eventData.endsAtMs && eventData.endsAtMs <= Date.now())) {
+    if (!moderationSettings.announcementText) {
+      banner.style.display = 'none';
+      banner.textContent = '';
+    }
+    return;
+  }
+  banner.style.display = 'block';
+  banner.style.background = `${eventData.accent}`;
+  banner.style.borderColor = eventData.accent;
+  banner.textContent = `${eventData.title}${eventData.body ? ` • ${eventData.body}` : ''}${eventData.endsAtMs ? ` • Ends ${new Date(eventData.endsAtMs).toLocaleString()}` : ''}`;
+}
+
+function setPlayerHubTab(tab) {
+  currentPlayerHubTab = ['notifications', 'history', 'cases', 'rewards', 'events', 'threads'].includes(tab) ? tab : 'notifications';
+  renderPlayerHubModal();
+}
+
+function getThreadMessagesForRoot(rootId) {
+  const root = window._chatDocs && window._chatDocs[rootId] ? { id: rootId, ...(window._chatDocs[rootId] || {}) } : null;
+  const docs = Object.entries(window._chatDocs || {}).map(([id, data]) => ({ id, ...(data || {}) }));
+  const related = docs.filter((entry) => entry.id === rootId || normalizeUsername(entry.room || 'general') === normalizeUsername(currentChatThreadRoomId || currentChatRoom || 'general'));
+  return related.filter((entry) => {
+    if (entry.id === rootId) return true;
+    const replyTo = entry.replyTo || {};
+    return sanitizeNullableText(replyTo.rootDocId || replyTo.docId, '') === rootId;
+  }).sort((a, b) => getTimestampMs(a.timestamp) - getTimestampMs(b.timestamp));
+}
+
+async function loadThreadMessagesForRoot(rootId, roomId = 'general') {
+  const resolvedRootId = sanitizeNullableText(rootId, '');
+  if (!resolvedRootId) {
+    currentChatThreadMessages = [];
+    currentChatThreadLoading = false;
+    renderChatThreadModal();
+    return [];
+  }
+  currentChatThreadLoading = true;
+  currentChatThreadMessages = getThreadMessagesForRoot(resolvedRootId);
+  renderChatThreadModal();
+  try {
+    const db = getPrimaryDb();
+    const snapshot = await db.collection('site_messages').orderBy('timestamp', 'desc').limit(450).get();
+    const merged = new Map(currentChatThreadMessages.map((entry) => [entry.id, entry]));
+    snapshot.docs.forEach((doc) => {
+      const entry = { id: doc.id, ...(doc.data() || {}) };
+      const entryRoom = normalizeUsername(entry.room || 'general');
+      const replyTo = entry.replyTo || {};
+      const replyRoot = sanitizeNullableText(replyTo.rootDocId || replyTo.docId, '');
+      if (entry.id !== resolvedRootId && replyRoot !== resolvedRootId) return;
+      if (roomId && entryRoom !== normalizeUsername(roomId)) return;
+      merged.set(entry.id, entry);
+    });
+    currentChatThreadMessages = Array.from(merged.values()).sort((a, b) => getTimestampMs(a.timestamp) - getTimestampMs(b.timestamp));
+  } catch (_) {
+  } finally {
+    currentChatThreadLoading = false;
+    renderChatThreadModal();
+  }
+  return currentChatThreadMessages;
+}
+
+function renderChatThreadModal() {
+  const containers = [document.getElementById('chat-thread-content'), document.getElementById('player-hub-thread-content')].filter(Boolean);
+  if (!containers.length) return;
+  if (currentChatThreadLoading && !currentChatThreadMessages.length) {
+    containers.forEach((container) => {
+      container.innerHTML = '<div class="submission-empty">Loading thread...</div>';
+    });
+    return;
+  }
+  const items = currentChatThreadMessages.length ? currentChatThreadMessages : getThreadMessagesForRoot(currentChatThreadRootId);
+  if (!items.length) {
+    containers.forEach((container) => {
+      container.innerHTML = '<div class="submission-empty">No thread messages found yet.</div>';
+    });
+    return;
+  }
+  const html = items.map((entry) => {
+    const name = sanitizeNullableText(entry.displayUser || entry.user, 'unknown');
+    const text = sanitizeNullableText(entry.message, entry.imageData ? '[image]' : (entry.videoUrl || entry.videoData ? '[video]' : (entry.type === 'gif' ? '[gif]' : '')));
+    const time = entry.timestamp && typeof entry.timestamp.toDate === 'function' ? entry.timestamp.toDate().toLocaleString() : '';
+    return `<div class="modal-history-item"><div class="modal-history-meta">${escapeHtml(name)}${time ? ` • ${escapeHtml(time)}` : ''}</div><div>${escapeHtml(text || 'No text')}</div></div>`;
+  }).join('');
+  containers.forEach((container) => {
+    container.innerHTML = `${currentChatThreadLoading ? '<div class="overlay-subtle" style="margin-bottom:0.65rem;">Loading older replies...</div>' : ''}${html}`;
+  });
+}
+
+async function openChatThreadModal(encodedDocId = '') {
+  currentChatThreadRootId = sanitizeNullableText(decodeURIComponent(encodedDocId || ''), '');
+  currentChatThreadRoomId = currentChatRoom;
+  currentChatThreadMessages = getThreadMessagesForRoot(currentChatThreadRootId);
+  renderChatThreadModal();
+  openModalById('chat-thread-modal');
+  await loadThreadMessagesForRoot(currentChatThreadRootId, currentChatThreadRoomId);
+}
+
+function closeChatThreadModal() {
+  closeModalById('chat-thread-modal');
+  currentChatThreadRootId = '';
+  currentChatThreadMessages = [];
+  currentChatThreadLoading = false;
+}
+
+function renderTradeBoardSlots(item, rarity, filledIndex = -1) {
+  return Array.from({ length: 9 }, (_, index) => {
+    if (index !== filledIndex || !item) return '<div class="trade-board-slot is-empty"></div>';
+    return `<div class="trade-board-slot is-filled" style="--trade-rarity-color:${escapeHtml(rarity.color)};"><div class="trade-board-slot-fill" style="${getGeneralShopVisualStyleText(item.visualData, 'justify-content:flex-start;')}">${escapeHtml(item.title)}</div></div>`;
+  }).join('');
+}
+
+function renderGeneralShopTradeBoard(trade, myKey) {
+  const item = getGeneralShopItem(trade.itemId);
+  const rarity = getGeneralShopRarityConfig(trade.rarity || (item && item.rarity) || 'mil-spec');
+  const incoming = trade.toUser === myKey;
+  const state = sanitizeNullableText(trade.status, 'pending');
+  const senderGetsItem = state !== 'accepted';
+  const leftSlots = renderTradeBoardSlots(senderGetsItem ? item : null, rarity, senderGetsItem && item ? 0 : -1);
+  const rightSlots = renderTradeBoardSlots(!senderGetsItem ? item : null, rarity, !senderGetsItem && item ? 0 : -1);
+  const note = sanitizeNullableText(trade.note, 'No note');
+  const actions = state === 'pending' && incoming
+    ? `<div class="submission-actions" style="margin-top:0.8rem;"><button onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','reject')" style="background:#7b2f2f; color:#fff;">Decline</button><button onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','accept')" style="background:#2e7d32; color:#fff;">Accept</button></div>`
+    : '';
+  return `<div class="trade-board-card"><div class="trade-board-shell"><div class="trade-board-side"><div class="trade-board-user">${escapeHtml(trade.fromUser)}</div><div class="trade-board-grid">${leftSlots}</div></div><div class="trade-board-center"><div class="trade-board-icon">⇄</div><div class="trade-board-status" data-state="${escapeHtml(state)}">${escapeHtml(state)}</div></div><div class="trade-board-side"><div class="trade-board-user">${escapeHtml(trade.toUser)}</div><div class="trade-board-grid">${rightSlots}</div></div></div><div class="trade-board-meta"><div class="trade-board-note">${escapeHtml(note)}${item ? ` • ${escapeHtml(item.title)}` : ''}</div><div>${escapeHtml(formatRelativeTime(Math.max(trade.updatedAtMs, trade.createdAtMs)))}</div></div>${actions}</div>`;
+}
+
+function renderPlayerHubModal() {
+  const container = document.getElementById('player-hub-content');
+  if (!container) return;
+  ['notifications', 'history', 'cases', 'rewards', 'events', 'threads'].forEach((tab) => {
+    const btn = document.getElementById(`player-hub-tab-${tab}`);
+    if (!btn) return;
+    btn.style.background = currentPlayerHubTab === tab ? '#1565c0' : '#263238';
+    btn.style.color = '#fff';
+  });
+  const myKey = getCasinoPlayerKey() || getMyProfileKey();
+  if (currentPlayerHubTab === 'notifications') {
+    container.innerHTML = `<div class="notification-actions"><button onclick="markAllNotificationsRead()">Mark All Read</button><button onclick="clearNotifications()">Clear</button></div><div id="notification-list" class="notification-list"></div>`;
+    renderNotificationCenter();
+    return;
+  }
+  if (currentPlayerHubTab === 'history') {
+    container.innerHTML = inventoryHistoryCache.length ? inventoryHistoryCache.map((entry) => `<div class="modal-history-item"><div class="modal-history-meta">${escapeHtml(entry.type.replace(/_/g, ' '))} • ${escapeHtml(formatRelativeTime(entry.atMs))}</div><div>${escapeHtml(entry.itemTitle || entry.caseTitle || entry.note || 'Inventory action')}</div><div style="margin-top:0.2rem; color:#9fb0c2;">${entry.value ? `$${entry.value.toLocaleString()}` : ''}${entry.note ? ` • ${escapeHtml(entry.note)}` : ''}</div></div>`).join('') : '<div class="submission-empty">No inventory history yet.</div>';
+    return;
+  }
+  if (currentPlayerHubTab === 'cases') {
+    const openings = inventoryHistoryCache.filter((entry) => entry.type === 'open_case');
+    const totalOpened = openings.length;
+    const totalRewardValue = openings.reduce((sum, entry) => sum + Math.max(0, Number(entry.value || 0)), 0);
+    const best = openings.slice().sort((a, b) => Math.max(0, Number(b.value || 0)) - Math.max(0, Number(a.value || 0)))[0] || null;
+    container.innerHTML = `<div class="profile-detail-list" style="margin-bottom:0.8rem;">${[
+      ['Cases Opened', String(totalOpened)],
+      ['Reward Value', `$${totalRewardValue.toLocaleString()}`],
+      ['Average Return', `$${totalOpened ? Math.round(totalRewardValue / totalOpened).toLocaleString() : '0'}`],
+      ['Best Pull', best ? `${best.itemTitle} ($${Math.max(0, Number(best.value || 0)).toLocaleString()})` : 'None']
+    ].map(([label, value]) => `<div class="profile-detail-card"><div class="profile-detail-label">${escapeHtml(label)}</div><div class="profile-detail-value">${escapeHtml(value)}</div></div>`).join('')}</div><div class="modal-history-list">${openings.length ? openings.map((entry) => `<div class="modal-history-item"><div class="modal-history-meta">${escapeHtml(entry.caseTitle || 'Case')} • ${escapeHtml(formatRelativeTime(entry.atMs))}</div><div>${escapeHtml(entry.itemTitle || 'Unknown drop')}</div><div style="margin-top:0.2rem; color:#9fb0c2;">$${Math.max(0, Number(entry.value || 0)).toLocaleString()} • ${escapeHtml(getGeneralShopRarityConfig(entry.rarity).label)}</div></div>`).join('') : '<div class="submission-empty">No case openings yet.</div>'}</div>`;
+    return;
+  }
+  if (currentPlayerHubTab === 'rewards') {
+    const stats = getStatsForUserKey(getMyProfileKey());
+    const casinoStats = getCachedCasinoProfileStats(getMyProfileKey());
+    const profile = getCachedProfile(getMyProfileKey());
+    const titles = getUnlockedProfileRewardTitles(stats, casinoStats);
+    const equippedTitle = getEquippedProfileRewardTitle(getMyProfileKey(), stats, casinoStats, profile);
+    const cosmetics = getUnlockedProfileRewardCosmetics(stats, casinoStats);
+    const equippedCosmetic = getEquippedProfileRewardCosmetic(getMyProfileKey(), stats, casinoStats, profile);
+    const rewardGuide = getProfileRewardGuideData(stats, casinoStats, getMyProfileKey());
+    container.innerHTML = `<div class="overlay-subtle" style="margin-bottom:0.8rem;">Rewards now show the exact unlock requirement, so you can see how to get each title and trim.</div><div style="font-weight:700; color:#d7e3f4; margin-bottom:0.45rem;">Unlocked Titles</div><div class="profile-badge-row" style="margin-bottom:1rem;">${titles.length ? titles.map((title) => `<span class="profile-badge" style="background:${title === equippedTitle ? '#1565c0' : '#263238'};">${escapeHtml(title)}</span>`).join('') : '<span style="color:#999;">No reward titles unlocked yet.</span>'}</div><div style="font-weight:700; color:#d7e3f4; margin-bottom:0.45rem;">Unlocked Trims</div><div class="reward-cosmetic-grid">${cosmetics.length ? cosmetics.map((cosmetic) => `<div class="reward-cosmetic-card ${equippedCosmetic && equippedCosmetic.id === cosmetic.id ? 'is-equipped' : ''}" style="--reward-accent-soft:${escapeHtml(cosmetic.soft)}; --reward-accent-glow:${escapeHtml(cosmetic.glow)};"><div class="reward-cosmetic-swatch" style="background:${escapeHtml(cosmetic.swatch)};"></div><div style="font-weight:800; color:${escapeHtml(cosmetic.accent)};">${escapeHtml(cosmetic.label)}</div><div class="overlay-subtle" style="margin-top:0.35rem; color:#b9cada;">${escapeHtml(cosmetic.description)}</div></div>`).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">No cosmetic trims unlocked yet.</div>'}</div><div style="font-weight:700; color:#d7e3f4; margin:1rem 0 0.45rem;">How To Get Reward Titles</div><div class="profile-detail-list" style="margin-bottom:1rem;">${rewardGuide.titles.map((reward) => `<div class="profile-detail-card"><div class="profile-detail-label">${escapeHtml(reward.label)}</div><div class="profile-detail-value" style="font-size:0.95rem; color:${reward.unlocked ? '#9ee3b0' : '#dce6f7'};">${reward.unlocked ? 'Unlocked' : 'Locked'}</div><div class="overlay-subtle" style="margin-top:0.35rem;">${escapeHtml(reward.howToGet)}</div><div style="margin-top:0.35rem; color:#90a4ae; font-size:0.8rem;">${escapeHtml(reward.progress)}</div></div>`).join('')}</div><div style="font-weight:700; color:#d7e3f4; margin-bottom:0.45rem;">How To Get Reward Trims</div><div class="profile-detail-list">${rewardGuide.cosmetics.map((reward) => `<div class="profile-detail-card"><div class="profile-detail-label">${escapeHtml(reward.label)}</div><div class="profile-detail-value" style="font-size:0.95rem; color:${reward.unlocked ? '#9ee3b0' : '#dce6f7'};">${reward.unlocked ? 'Unlocked' : 'Locked'}</div><div class="overlay-subtle" style="margin-top:0.35rem;">${escapeHtml(reward.howToGet)}</div><div style="margin-top:0.35rem; color:#90a4ae; font-size:0.8rem;">${escapeHtml(reward.progress)}</div></div>`).join('')}</div>`;
+    return;
+  }
+  if (currentPlayerHubTab === 'events') {
+    const eventData = activeSiteEventCache;
+    container.innerHTML = eventData ? `<div class="store-mini-card"><div class="store-mini-card-title">${escapeHtml(eventData.title)}</div><div class="store-mini-card-meta">${escapeHtml(eventData.body || 'Limited-time event')}</div><div class="store-mini-card-meta" style="color:#9fb0c2;">${eventData.endsAtMs ? `Ends ${new Date(eventData.endsAtMs).toLocaleString()}` : 'No end date set'}</div></div>` : '<div class="submission-empty">No active event right now.</div>';
+    return;
+  }
+  container.innerHTML = `<div id="player-hub-thread-content">${currentChatThreadRootId ? '' : '<div class="submission-empty">Open a thread from a chat message to view it here.</div>'}</div>`;
+  renderChatThreadModal();
+}
+
+async function openPlayerHubModal(defaultTab = '') {
+  if (defaultTab) currentPlayerHubTab = ['notifications', 'history', 'cases', 'rewards', 'events', 'threads'].includes(defaultTab) ? defaultTab : 'notifications';
+  listenForGeneralShopTrades(getCasinoPlayerKey());
+  await Promise.all([
+    loadInventoryHistoryForUser(getCasinoPlayerKey()).catch(() => []),
+    loadGeneralShopTradesForUser(getCasinoPlayerKey()).catch(() => []),
+    loadActiveSiteEvent().catch(() => null)
+  ]);
+  renderActiveSiteEventBanner();
+  renderPlayerHubModal();
+  openModalById('player-hub-modal');
+}
+
+function closePlayerHubModal() {
+  closeModalById('player-hub-modal');
 }
 
 function openCaseSuggestionModal() {
@@ -13659,7 +15506,7 @@ return `<div class="admin-compact-card">
   <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
     <div>
       <div style="font-weight:bold; color:#ffca28;">${escapeHtml(entry.username || 'unknown')}</div>
-      <div style="margin-top:0.2rem; color:#90a4ae; font-size:0.78rem;">Firestore account • Role: ${escapeHtml(role)} • ${escapeHtml(presence)}</div>
+      <div style="margin-top:0.2rem; color:#90a4ae; font-size:0.78rem;">Firestore account • Role: ${escapeHtml(getRoleDisplayName(role))} • ${escapeHtml(presence)}</div>
     </div>
     <div class="admin-chip-row" style="margin-top:0;">
       <span class="admin-info-chip">Level ${escapeHtml(String(levelInfo.level || 1))}</span>
@@ -13686,7 +15533,7 @@ function renderAdminAccountManager() {
 const container = document.getElementById('admin-account-manager');
 if (!container) return;
 syncAdminAccountFilterInputs();
-if (!canAdminSettings(currentChatUser)) {
+if (!canUseAdminPermission('manageAccounts')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -13794,6 +15641,7 @@ try {
       approvedAtMs: data.approvedAt && typeof data.approvedAt.toDate === 'function' ? data.approvedAt.toDate().getTime() : (data.approvedAtMs || 0)
     };
   });
+      if (activeGeneralShopTradeInviteId === tradeId) closeGeneralShopTradeInviteModal();
   gameSubmissionsLoaded = true;
   updateReviewQueueBadges();
   renderGameStorefront();
@@ -13843,7 +15691,7 @@ return `admin-game-bio-${normalizeRoomId(gameId || '')}`;
 function renderAdminGameBioManager() {
 const container = document.getElementById('admin-game-bio-manager');
 if (!container) return;
-if (!canManageRoles(currentChatUser)) {
+if (!canUseAdminPermission('manageGameBios')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -13870,7 +15718,7 @@ container.innerHTML = games.map((game) => {
 }
 
 async function adminSaveGameBio(encodedGameId) {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageGameBios')) return;
 const gameId = decodeURIComponent(encodedGameId || '');
 const game = getStoreGameById(gameId);
 const statusDiv = document.getElementById('admin-ban-status');
@@ -13926,6 +15774,10 @@ function getPendingLoginRequestCount() {
 return loginRequestsCache.filter((item) => normalizeReviewStatus(item && item.status) === 'pending').length;
 }
 
+function canManageLoginRequests(username = currentChatUser) {
+return canUseAdminPermission('manageLoginRequests', username);
+}
+
 function getPendingCaseSuggestionCount() {
 return caseSuggestionsCache.filter((item) => normalizeReviewStatus(item && item.status) === 'pending').length;
 }
@@ -13934,7 +15786,7 @@ function updateReviewQueueBadges() {
 const pendingCount = getPendingGameSubmissionCount();
 const pendingCaseCount = getPendingCaseSuggestionCount();
 const pendingLoginCount = getPendingLoginRequestCount();
-const totalPending = pendingCount + pendingCaseCount + pendingLoginCount;
+const totalPending = (canReviewSubmissions(currentChatUser) ? (pendingCount + pendingCaseCount) : 0) + (canManageLoginRequests(currentChatUser) ? pendingLoginCount : 0);
 const titleBadge = document.getElementById('admin-submissions-pending-count');
 const caseBadge = document.getElementById('admin-case-suggestions-pending-count');
 const loginBadge = document.getElementById('admin-login-requests-pending-count');
@@ -13949,7 +15801,7 @@ if (caseBadge) {
 }
 if (loginBadge) {
   loginBadge.textContent = String(pendingLoginCount);
-  loginBadge.style.display = pendingLoginCount > 0 && canReviewSubmissions(currentChatUser) ? 'inline-flex' : 'none';
+  loginBadge.style.display = pendingLoginCount > 0 && canManageLoginRequests(currentChatUser) ? 'inline-flex' : 'none';
 }
 if (menuBadge) {
   menuBadge.textContent = String(totalPending);
@@ -14120,7 +15972,7 @@ const container = document.getElementById('admin-login-requests');
 if (force) loginRequestsLoaded = false;
 if (loginRequestsLoading) return;
 loginRequestsLoading = true;
-if (container && canReviewSubmissions(currentChatUser) && !loginRequestsLoaded) {
+if (container && canManageLoginRequests(currentChatUser) && !loginRequestsLoaded) {
   container.innerHTML = '<div class="submission-empty">Loading login requests...</div>';
 }
 try {
@@ -14146,7 +15998,7 @@ try {
   renderLoginRequestQueue();
 } catch (err) {
   updateReviewQueueBadges();
-  if (container && canReviewSubmissions(currentChatUser)) {
+  if (container && canManageLoginRequests(currentChatUser)) {
     container.innerHTML = '<div class="submission-empty">Could not load login requests from Firestore.</div>';
   }
 } finally {
@@ -14159,7 +16011,7 @@ const container = document.getElementById('admin-login-requests');
 if (!container) return;
 updateReviewQueueBadges();
 syncReviewQueueFilterInputs();
-if (!canReviewSubmissions(currentChatUser)) {
+if (!canManageLoginRequests(currentChatUser)) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -14453,7 +16305,7 @@ async function applyCaseSuggestionReview(id, status, reason = '') {
    }, { merge: true });
    if (status === 'approved' && conversionResult) {
      await writeAuditLog('case_suggestion_convert', conversionResult.caseId, `Auto-converted ${conversionResult.suggestion.caseName} into ${conversionResult.dropIds.length} draft drops and one draft case`);
-     if (canManageRoles(currentChatUser)) {
+     if (canUseAdminPermission('manageGeneralShop')) {
        renderAdminGeneralShopManager();
        loadAdminGeneralShopForm(encodeURIComponent(conversionResult.caseId));
        setAdminGeneralShopStatus(`Draft case ${conversionResult.caseId} created from ${conversionResult.suggestion.caseName}.`, 'success');
@@ -14516,7 +16368,7 @@ openConfirmActionModal(`Delete ${status} game submission`, `This permanently rem
 }
 
 async function reviewLoginRequest(encodedId, action) {
-if (!canReviewSubmissions(currentChatUser)) return;
+if (!canManageLoginRequests(currentChatUser)) return;
 const id = normalizeUsername(decodeURIComponent(encodedId || ''));
 if (!id) return;
 if (action === 'reject') {
@@ -14551,7 +16403,7 @@ try {
 }
 
 async function deleteLoginRequest(encodedId) {
-if (!canReviewSubmissions(currentChatUser)) return;
+if (!canManageLoginRequests(currentChatUser)) return;
 const id = normalizeUsername(decodeURIComponent(encodedId || ''));
 if (!id) return;
 const item = loginRequestsCache.find((entry) => entry && entry.username === id);
@@ -14565,6 +16417,7 @@ openConfirmActionModal('Delete Login Request', `This permanently removes the ${n
 
 async function bulkReviewQueueAction(queueType, action) {
 const targetKey = queueType === 'logins' ? 'logins' : 'games';
+if (targetKey === 'logins' && !canManageLoginRequests(currentChatUser)) return;
 const selection = targetKey === 'logins' ? Array.from(selectedLoginRequestIds) : Array.from(selectedGameSubmissionIds);
 if (!selection.length) return;
 if (targetKey === 'logins' && action === 'reject') {
@@ -14605,7 +16458,7 @@ if (targetKey === 'logins' && action === 'reject') {
 async function loadAdminAccountManager() {
 const container = document.getElementById('admin-account-manager');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) {
+if (!canUseAdminPermission('manageAccounts')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -14714,7 +16567,7 @@ async function loadAdminCasinoManager(targetUsername = '') {
 const container = document.getElementById('admin-casino-manager');
 const statusDiv = document.getElementById('admin-casino-status');
 if (!container) return;
-if (!canManageRoles(currentChatUser)) {
+if (!canUseAdminPermission('manageCasino')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -14738,7 +16591,7 @@ try {
 }
 
 async function loadAdminCasinoGameSettings() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const settings = await loadCasinoGameSettings().catch(() => getCachedCasinoGameSettings());
 populateAdminCasinoGameSettingsForm(settings);
 }
@@ -14784,7 +16637,7 @@ syncAdminCasinoSlotWeightLabels();
 }
 
 async function adminApplyCasinoGameSettingsPreset(presetKey) {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 const labelMap = {
   'player-favored': 'Player favored',
@@ -14807,7 +16660,7 @@ try {
 }
 
 async function adminSaveCasinoGameSettings() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 try {
   const nextSettings = normalizeCasinoGameSettingsData({
@@ -14836,7 +16689,7 @@ try {
 }
 
 function adminCasinoUseSelectedUser() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const username = getSelectedAdminUser();
 const input = document.getElementById('admin-casino-username');
 if (input) input.value = username;
@@ -14854,7 +16707,7 @@ scheduleDynamicLeaderboardTagRefresh();
 }
 
 async function adminUpdateCasinoBalance(mode) {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 const username = normalizeUsername(resolveAdminTargetUsername('admin-casino-username'));
 const inputId = mode === 'set' ? 'admin-casino-balance-set' : 'admin-casino-balance-adjust';
@@ -14903,7 +16756,7 @@ try {
 }
 
 async function adminSetCasinoBankruptcies() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 const username = normalizeUsername(resolveAdminTargetUsername('admin-casino-username'));
 const input = document.getElementById('admin-casino-bankruptcies-input');
@@ -14985,7 +16838,7 @@ setAdminProfileBackgroundShopStatus('', 'neutral');
 }
 
 function loadAdminProfileBackgroundShopForm(encodedItemId) {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageProfileBackgrounds')) return;
 const itemId = normalizeRoomId(decodeURIComponent(encodedItemId || ''));
 const item = getProfileBackgroundShopItem(itemId);
 if (!item) {
@@ -15012,7 +16865,7 @@ setAdminProfileBackgroundShopStatus(`Editing ${item.title}.`, 'neutral');
 function renderAdminProfileBackgroundShopManager() {
 const container = document.getElementById('admin-profile-background-shop-manager');
 if (!container) return;
-if (!canManageRoles(currentChatUser)) {
+if (!canUseAdminPermission('manageProfileBackgrounds')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -15048,7 +16901,7 @@ updateAdminProfileBackgroundShopPreview();
 }
 
 async function adminDeleteProfileBackgroundShopItem(encodedItemId) {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageProfileBackgrounds')) return;
 const itemId = normalizeOptionalProfileBackgroundId(decodeURIComponent(encodedItemId || ''));
 const item = getProfileBackgroundShopItem(itemId);
 if (!item) {
@@ -15072,7 +16925,7 @@ try {
 }
 
 async function adminSaveProfileBackgroundShopItem() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageProfileBackgrounds')) return;
 const titleInput = document.getElementById('admin-profile-background-shop-title');
 const priceInput = document.getElementById('admin-profile-background-shop-price');
 const descriptionInput = document.getElementById('admin-profile-background-shop-description');
@@ -15254,7 +17107,7 @@ setAdminGeneralShopStatus('', 'neutral');
 }
 
 function loadAdminGeneralShopForm(encodedItemId) {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageGeneralShop')) return;
 const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
 const item = getGeneralShopItem(itemId);
 if (!item) {
@@ -15296,7 +17149,7 @@ setAdminGeneralShopStatus(`Editing ${item.title}.`, 'neutral');
 function renderAdminGeneralShopManager() {
 const container = document.getElementById('admin-general-shop-manager');
 if (!container) return;
-if (!canManageRoles(currentChatUser)) {
+if (!canUseAdminPermission('manageGeneralShop')) {
   container.textContent = 'Insufficient permissions.';
   return;
 }
@@ -15337,7 +17190,7 @@ updateAdminGeneralShopPreview();
 }
 
 async function adminDeleteGeneralShopItem(encodedItemId) {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageGeneralShop')) return;
 const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
 const item = getGeneralShopItem(itemId);
 if (!item) {
@@ -15373,7 +17226,7 @@ try {
 }
 
 async function adminSaveGeneralShopItem() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageGeneralShop')) return;
 const titleInput = document.getElementById('admin-general-shop-title');
 const priceInput = document.getElementById('admin-general-shop-price');
 const descriptionInput = document.getElementById('admin-general-shop-description');
@@ -15434,7 +17287,7 @@ try {
 }
 
 async function adminCreateApprovedAccount() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageAccounts')) return;
 const username = normalizeUsername(prompt('Username for the new approved account:', '') || '');
 const statusDiv = document.getElementById('admin-ban-status');
 if (!username) {
@@ -15473,7 +17326,7 @@ try {
 }
 
 async function adminResetManagedAccountPassword(encodedUsername) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageAccounts')) return;
 const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
 const statusDiv = document.getElementById('admin-ban-status');
 if (!username) return;
@@ -15497,7 +17350,7 @@ try {
 }
 
 async function adminSuspendManagedAccount(encodedUsername) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageAccounts')) return;
 const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
 const statusDiv = document.getElementById('admin-ban-status');
 if (!username) return;
@@ -15519,7 +17372,7 @@ try {
 }
 
 async function adminDeleteManagedAccount(encodedUsername) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageAccounts')) return;
 const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
 const statusDiv = document.getElementById('admin-ban-status');
 if (!username) return;
@@ -16053,7 +17906,7 @@ container.innerHTML = `${renderGeneralShopCaseOpeningPanel()}
           <div class="store-mini-card-meta" style="color:${item.active ? '#93a9c1' : '#ffcc80'};">${count} in inventory • ${rewardCount} possible drop${rewardCount === 1 ? '' : 's'}</div>
           ${renderGeneralShopCaseContentsPreview(item)}
           <div class="store-mini-card-actions">
-            <button type="button" onclick="openGeneralShopCase('${encodedId}')" style="background:${generalShopCaseOpeningState.opening ? '#455a64' : '#1565c0'}; color:#fff; border:none; border-radius:0.55rem;" ${generalShopCaseOpeningState.opening ? 'disabled' : ''}>${generalShopCaseOpeningState.opening ? 'Opening...' : 'Open Case'}</button>
+            <button type="button" onclick="openGeneralShopCase('${encodedId}')" style="background:${(generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) ? '#455a64' : '#1565c0'}; color:#fff; border:none; border-radius:0.55rem;" ${(generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) ? 'disabled' : ''}>${(generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) ? 'Opening...' : 'Open Case'}</button>
           </div>
         </div>`;
       }).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">You do not have any cases yet.</div>') : '<div class="submission-empty" style="grid-column:1 / -1;">Sign in to access your inventory.</div>'}
@@ -16081,7 +17934,7 @@ container.innerHTML = `${renderGeneralShopCaseOpeningPanel()}
           <div class="store-mini-card-meta" style="color:${item.active ? '#93a9c1' : '#ffcc80'};">${escapeHtml(rarity.label)}${item.itemType === 'case-drop' ? ` • Owned case drop • Sell for $${caseDropSalePrice.toLocaleString()}${featured ? ' • Best Drop' : ''}` : ' • Owned shop item'}${item.active ? '' : ' • Legacy item removed from the live shop'}</div>
           <div class="store-mini-card-actions">
             ${item.itemType === 'case-drop'
-              ? `<button type="button" onclick="sellOwnedGeneralShopCaseDrop('${encodedId}')" style="background:#2e7d32; color:#fff; border:none; border-radius:0.55rem;">Sell $${caseDropSalePrice.toLocaleString()}</button><button type="button" onclick="setSelectedGeneralShopFeaturedItem('${encodedId}')" style="background:${featured ? '#c28b18' : '#37474f'}; color:#fff; border:none; border-radius:0.55rem;">${featured ? 'Best Drop' : 'Set Best Drop'}</button>`
+              ? `<button type="button" onclick="sellOwnedGeneralShopCaseDrop('${encodedId}')" style="background:#2e7d32; color:#fff; border:none; border-radius:0.55rem;">Sell $${caseDropSalePrice.toLocaleString()}</button><button type="button" onclick="openTradeOfferPrompt('${encodedId}')" style="background:#6a1b9a; color:#fff; border:none; border-radius:0.55rem;">Trade</button><button type="button" onclick="setSelectedGeneralShopFeaturedItem('${encodedId}')" style="background:${featured ? '#c28b18' : '#37474f'}; color:#fff; border:none; border-radius:0.55rem;">${featured ? 'Best Drop' : 'Set Best Drop'}</button>`
               : `<button type="button" onclick="deleteOwnedGeneralShopItem('${encodedId}')" style="background:#5d4037; color:#fff; border:none; border-radius:0.55rem;">Delete</button>`}
           </div>
         </div>`;
@@ -16156,12 +18009,23 @@ try {
   await refreshCasinoProfileUiForUser(user);
   scheduleDynamicLeaderboardTagRefresh();
   if (purchasedNew) {
+    await addCasinoInventoryHistory({
+      type: item.itemType === 'case' ? 'buy_case' : 'buy_item',
+      actor: user,
+      itemId: item.id,
+      itemTitle: item.title,
+      itemType: item.itemType,
+      rarity: item.rarity,
+      value: item.price,
+      amount: item.itemType === 'case' ? getOwnedGeneralShopCaseCount(nextStats, item.id) : 1
+    });
     await publishCasinoActivity({
       type: 'shop',
       title: `${displayName} bought a ${item.itemType === 'case' ? 'case' : 'shop item'}`,
       body: `${item.title} added to their inventory for $${item.price.toLocaleString()}.`,
       by: user
     });
+    pushNotification({ type: 'shop', title: 'Purchase complete', body: `${item.title} added to your inventory.`, read: false, action: { kind: 'hub', tab: 'history' } });
     setGeneralShopStatus(`${item.title} added to your inventory.`, 'success');
     setGeneralShopInventoryStatus(`${item.title} added to your inventory.`, 'success');
   } else {
@@ -16241,12 +18105,14 @@ if (!user) {
   setGeneralShopInventoryStatus('You must be logged in to open a case.', 'error');
   return;
 }
-if (generalShopCaseOpeningState.opening) return;
+if (generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) return;
 const caseItem = getGeneralShopItem(itemId);
 if (!caseItem || caseItem.itemType !== 'case') {
   setGeneralShopInventoryStatus('That case could not be found.', 'error');
   return;
 }
+generalShopCaseOpenRequestInFlight = true;
+renderGeneralShopInventoryModal();
 try {
   const balanceRef = getCasinoBalanceCollection().doc(user);
   const displayName = getCasinoPlayerDisplayName();
@@ -16271,23 +18137,6 @@ try {
     } else {
       nextCaseCounts[caseItem.id] = currentCount - 1;
     }
-    nextStats = {
-      ...liveStats,
-      ownedGeneralShopCaseCounts: nextCaseCounts
-    };
-    tx.set(balanceRef, {
-      username: user,
-      displayName: sanitizeNullableText((snap.exists ? (snap.data() || {}).displayName : '') || displayName, user),
-      ...nextStats,
-      updatedAtMs: Date.now()
-    }, { merge: true });
-  });
-  casinoProfileStatsCache[user] = nextStats;
-  renderGeneralShopInventoryModal();
-  await animateGeneralShopCaseOpening(caseItem, rewardInfo);
-  await getCasinoDb().runTransaction(async (tx) => {
-    const snap = await tx.get(balanceRef);
-    const liveStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
     const nextOwnedItemIds = liveStats.ownedGeneralShopItemIds.concat(rewardInfo.item.id);
     const currentBestDrop = getAllTimeBestGeneralShopDropRecord(liveStats);
     const currentBestDropValue = Math.max(0, Number(currentBestDrop && currentBestDrop.value || 0));
@@ -16299,6 +18148,7 @@ try {
       || (rewardSaleValue === currentBestDropValue && rewardDropRarity === currentBestDropRarity && rewardInfo.item.title.localeCompare(currentBestDrop.title) < 0);
     nextStats = {
       ...liveStats,
+      ownedGeneralShopCaseCounts: nextCaseCounts,
       ownedGeneralShopItemIds: sanitizeOwnedGeneralShopItemIds(nextOwnedItemIds),
       ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextOwnedItemIds, (liveStats.ownedGeneralShopItemSaleValues || []).concat(rewardSaleValue)),
       allTimeBestGeneralShopDropItemId: shouldUpdateBestDrop ? rewardInfo.item.id : liveStats.allTimeBestGeneralShopDropItemId,
@@ -16314,6 +18164,22 @@ try {
     }, { merge: true });
   });
   casinoProfileStatsCache[user] = nextStats;
+  await loadCasinoBalance().catch(() => {});
+  renderGeneralShopInventoryModal();
+  await animateGeneralShopCaseOpening(caseItem, rewardInfo).catch(() => {});
+  await addCasinoInventoryHistory({
+    type: 'open_case',
+    actor: user,
+    itemId: rewardInfo.item.id,
+    itemTitle: rewardInfo.item.title,
+    itemType: rewardInfo.item.itemType,
+    caseId: caseItem.id,
+    caseTitle: caseItem.title,
+    rarity: rewardInfo.item.rarity,
+    value: rewardSaleValue,
+    amount: getOwnedGeneralShopCaseCount(nextStats, caseItem.id)
+  });
+  pushNotification({ type: 'case', title: 'Case opened', body: `${caseItem.title} gave you ${rewardInfo.item.title}.`, read: false, action: { kind: 'hub', tab: 'cases' } });
   await publishCasinoActivity({
     type: 'shop',
     title: `${displayName} opened ${caseItem.title}`,
@@ -16326,6 +18192,9 @@ try {
   setGeneralShopInventoryStatus(`You opened ${caseItem.title} and got ${rewardInfo.rarity === 'special' ? `GOLD: ${rewardInfo.item.title}` : rewardInfo.item.title}.`, 'success');
 } catch (err) {
   setGeneralShopInventoryStatus(err && err.message ? err.message : 'Could not open that case.', 'error');
+} finally {
+  generalShopCaseOpenRequestInFlight = false;
+  renderGeneralShopInventoryModal();
 }
 }
 
@@ -16380,6 +18249,13 @@ try {
   });
   casinoProfileStatsCache[user] = nextStats;
   await refreshCasinoProfileUiForUser(user);
+  await addCasinoInventoryHistory({
+    type: 'delete_item',
+    actor: user,
+    itemId,
+    itemTitle: label,
+    itemType: item && item.itemType === 'case-drop' ? 'case-drop' : 'shop-item'
+  });
   renderGeneralShopModal();
   renderGeneralShopInventoryModal();
   setGeneralShopStatus(`${label} removed from your account.`, 'success');
@@ -16454,6 +18330,8 @@ try {
     body: `${item.title} sold for $${salePrice.toLocaleString()}.`,
     by: user
   });
+  await addCasinoInventoryHistory({ type: 'sell_case_drop', actor: user, itemId: item.id, itemTitle: item.title, itemType: item.itemType, rarity: item.rarity, value: salePrice });
+  pushNotification({ type: 'shop', title: 'Case drop sold', body: `${item.title} sold for $${salePrice.toLocaleString()}.`, read: false, action: { kind: 'hub', tab: 'history' } });
   renderGeneralShopModal();
   renderGeneralShopInventoryModal();
   setGeneralShopStatus(`${item.title} sold for $${salePrice.toLocaleString()}.`, 'success');
@@ -16486,9 +18364,15 @@ const casinoAchievementsUnlocked = Array.isArray(casinoStats.achievementIds) ? c
 const equippedProfileBackground = getProfileBackgroundShopItem(casinoStats.selectedProfileBackgroundId);
 const featuredDrop = getSelectedGeneralShopFeaturedItem(casinoStats);
 const featuredDropRarity = featuredDrop ? getGeneralShopRarityConfig(featuredDrop.rarity) : null;
+const equippedRewardTitle = getEquippedProfileRewardTitle(profileUserKey, stats, casinoStats, profile);
+const equippedRewardCosmetic = getEquippedProfileRewardCosmetic(profileUserKey, stats, casinoStats, profile);
+const statusQuote = sanitizeNullableText(profile.statusQuote, '');
 badgesEl.innerHTML = badges.length ? badges.map((badge) => `<span class="profile-badge">${escapeHtml(badge.icon)} ${escapeHtml(badge.label)}</span>`).join('') : '<span style="color:#888; font-size:0.84rem;">No badges yet.</span>';
 detailListEl.innerHTML = [
+  ['Title', equippedRewardTitle || 'None equipped'],
+  ['Accent', equippedRewardCosmetic ? equippedRewardCosmetic.label : 'None equipped'],
   ['Bio', profile.bio || 'No bio yet'],
+  ['Quote', statusQuote || 'No quote set'],
   ['Favorite Game', favoriteGameName],
   ['Joined', joinedLabel],
   ['Profile Background', equippedProfileBackground ? equippedProfileBackground.title : 'Default'],
@@ -16565,6 +18449,17 @@ if (isOwnProfile && currentProfileEditorVisible) {
         <button type="button" onclick="removeProfileBanner()" style="padding:0.4rem 0.7rem; background:#5d4037; color:#fff; border:none; border-radius:0.35rem;">Remove Banner</button>
       </div>
       <div id="profile-banner-status" style="font-size:0.78rem; color:#9fb0c2;">Use an image upload or paste a direct image or GIF URL for your banner.</div>
+    </div>
+    <div style="display:grid; gap:0.55rem; margin-top:0.95rem;">
+      <input id="profile-edit-quote" type="text" maxlength="120" placeholder="Profile quote" value="${escapeHtml(profile.statusQuote || '')}" />
+      <select id="profile-edit-title">
+        <option value="">No title</option>
+        ${getUnlockedProfileRewardTitles(stats, casinoStats, profileUserKey).map((title) => `<option value="${escapeHtml(title)}" ${sanitizeNullableText(profile.profileTitle, '') === title ? 'selected' : ''}>${escapeHtml(title)}</option>`).join('')}
+      </select>
+      <select id="profile-edit-accent">
+        <option value="">No accent</option>
+        ${getUnlockedProfileRewardCosmetics(stats, casinoStats, profileUserKey).map((cosmetic) => `<option value="${escapeHtml(cosmetic.id)}" ${sanitizeNullableText(profile.profileAccentId, '') === cosmetic.id ? 'selected' : ''}>${escapeHtml(cosmetic.label)}</option>`).join('')}
+      </select>
     </div>
     <textarea id="profile-edit-bio" maxlength="220" placeholder="Short bio">${escapeHtml(profile.bio || '')}</textarea>`;
   applyProfileBannerBackground(document.getElementById('profile-edit-banner-preview'), pendingProfileBannerData, document.getElementById('profile-edit-banner-empty'));
@@ -16882,6 +18777,9 @@ async function saveProfileDetails() {
 const key = getMyProfileKey();
 if (!key || currentProfileViewUser !== key) return;
 const bioEl = document.getElementById('profile-edit-bio');
+const quoteEl = document.getElementById('profile-edit-quote');
+const titleEl = document.getElementById('profile-edit-title');
+const accentEl = document.getElementById('profile-edit-accent');
 const favoriteIds = Array.from(getFavoriteGameIds());
 const primaryFavorite = favoriteIds.length ? getStoreGameById(favoriteIds[0]) : null;
 const nextProfile = {
@@ -16891,6 +18789,9 @@ const nextProfile = {
   favoriteGameId: primaryFavorite ? primaryFavorite.id : '',
   favoriteGameName: primaryFavorite ? primaryFavorite.name : '',
   bio: sanitizeNullableText(bioEl && bioEl.value, '').slice(0, 220),
+  statusQuote: sanitizeNullableText(quoteEl && quoteEl.value, '').slice(0, 120),
+  profileTitle: sanitizeNullableText(titleEl && titleEl.value, '').slice(0, 40),
+  profileAccentId: sanitizeNullableText(accentEl && accentEl.value, '').slice(0, 24),
   joinLabel: getCachedProfile(key).joinLabel || new Date().toLocaleDateString(),
   updatedAtMs: Date.now()
 };
@@ -16925,6 +18826,8 @@ loadStoreFilters();
  loadRoomReadMarkers();
  loadGameRatings();
 localProfileCache = getLocalProfileStore();
+loadActiveSiteEvent().then(() => renderAnnouncementBanner()).catch(() => {});
+listenForGeneralShopTrades(getCasinoPlayerKey());
 syncAdminSectionCardStates();
 renderSubmissionQueue();
 renderLoginRequestQueue();
@@ -17250,9 +19153,9 @@ selected.textContent = overrideThumb
 status.textContent = '';
 uploadWrap.style.display = state.pollActive ? 'block' : 'none';
 uploadInput.disabled = !state.pollActive;
-overrideWrap.style.display = canAdminSettings(currentChatUser) ? 'block' : 'none';
+overrideWrap.style.display = canUseAdminPermission('manageGameBios') ? 'block' : 'none';
 overrideInput.value = '';
-adminActions.innerHTML = canAdminSettings(currentChatUser)
+adminActions.innerHTML = canUseAdminPermission('manageGameBios')
 ? `${state.pollActive && options.length ? `<button onclick="finalizeGameThumbnailPoll('${game.id}')" style="background:#2e7d32; color:#fff;">Finalize Winner</button>` : ''}<button onclick="startGameThumbnailPoll('${game.id}')" style="background:#1565c0; color:#fff;">${state.pollActive ? 'Restart Poll' : 'Start Poll'}</button>`
 : '';
 if (!options.length) {
@@ -17306,7 +19209,7 @@ renderGameStorefront();
 }
 
 async function startGameThumbnailPoll(gameId) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageGameBios')) return;
 const game = getStoreGameById(gameId);
 if (!game) return;
 const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(gameId);
@@ -17327,7 +19230,7 @@ updatedAt: firebase.firestore.FieldValue.serverTimestamp()
 }
 
 async function submitAdminGameThumbnailOverride() {
-if (!canAdminSettings(currentChatUser) || !activeGameThumbnailPollId) return;
+if (!canUseAdminPermission('manageGameBios') || !activeGameThumbnailPollId) return;
 const status = document.getElementById('game-thumbnail-poll-status');
 const input = document.getElementById('game-thumbnail-admin-override-input');
 if (status) status.textContent = '';
@@ -17363,7 +19266,7 @@ if (status) status.textContent = err && err.message ? err.message : 'Failed to a
 }
 
 async function clearAdminGameThumbnailOverride() {
-if (!canAdminSettings(currentChatUser) || !activeGameThumbnailPollId) return;
+if (!canUseAdminPermission('manageGameBios') || !activeGameThumbnailPollId) return;
 const game = getStoreGameById(activeGameThumbnailPollId);
 const status = document.getElementById('game-thumbnail-poll-status');
 if (!game) return;
@@ -17492,7 +19395,7 @@ if (status) status.textContent = err && err.message ? err.message : 'Failed to s
 }
 
 async function finalizeGameThumbnailPoll(gameId) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageGameBios')) return;
 const game = getStoreGameById(gameId);
 if (!game) return;
 const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(gameId);
@@ -17616,9 +19519,9 @@ closeCustomUrlModal();
 }
 
 async function adminOpenBlooketBotTool() {
-if (!canManageRoles(currentChatUser)) {
+if (!canUseAdminPermission('useOwnerTool')) {
 const status = document.getElementById('admin-ban-status');
-if (status) status.textContent = 'Only the owner account can open this tool.';
+if (status) status.textContent = 'You do not have permission to open this tool.';
 return;
 }
 const status = document.getElementById('admin-ban-status');
@@ -18030,6 +19933,7 @@ blockedWords: [],
 announcementText: '',
 announcementEndsAt: null,
 slowModeSeconds: DEFAULT_SLOW_MODE_SECONDS,
+customProfileTags: [],
 rolePermissions: JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMISSIONS))
 };
 const CHAT_IMAGE_MAX_WIDTH = 1280;
@@ -18244,7 +20148,7 @@ function getRoomRole(room, username = currentChatUser) {
 const targetRoom = buildChatRoomConfig(room && room.id ? room.id : 'general', room || {});
 const me = normalizeUsername(username);
 if (!me) return 'guest';
-if (canAdminSettings(me) || normalizeUsername(targetRoom.createdBy) === me) return 'manager';
+if (canUseAdminPermission('manageRooms', me) || normalizeUsername(targetRoom.createdBy) === me) return 'manager';
 return targetRoom.roleAssignments[me] || 'member';
 }
 
@@ -18324,9 +20228,9 @@ function canAccessRoom(room, username = currentChatUser) {
 const targetRoom = buildChatRoomConfig(room && room.id ? room.id : 'general', room || {});
 const me = normalizeUsername(username);
 if (targetRoom.id === 'general') return true;
-if (targetRoom.id === 'admin-room') return getRoleRank(getUserRole(me)) >= 2;
+if (targetRoom.id === 'admin-room') return canModerate(me);
 if (!doesChatRoomExist(targetRoom.id)) return false;
-if (canAdminSettings(me)) return true;
+if (canUseAdminPermission('manageRooms', me)) return true;
 if (targetRoom.isPublic) return true;
 if (!me) return false;
 return targetRoom.createdBy === me || targetRoom.members.includes(me);
@@ -18338,7 +20242,7 @@ const me = normalizeUsername(username);
 if (!me) return false;
 if (targetRoom.id === 'general') return getUserRole(me) === 'owner';
 if (targetRoom.id === 'admin-room') return getUserRole(me) === 'owner';
-if (canAdminSettings(me)) return true;
+if (canUseAdminPermission('manageRooms', me)) return true;
 return targetRoom.createdBy === me || targetRoom.roleAssignments[me] === 'manager';
 }
 
@@ -18676,7 +20580,7 @@ localStorage.setItem('chatRoom', currentChatRoom);
 renderChatRoomSummary();
 refreshRoomPinnedMessageListener();
 if (activeRoomModerationId) renderRoomModerationModal();
-if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canAdminSettings(currentChatUser)) {
+if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canUseAdminPermission('manageRooms')) {
 loadAdminRoomManager();
 }
 if (chatInitialized) loadChatMessages();
@@ -18686,7 +20590,7 @@ chatRoomsCache = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdm
 renderChatRoomSummary();
 refreshRoomPinnedMessageListener();
 if (activeRoomModerationId) renderRoomModerationModal();
-if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canAdminSettings(currentChatUser)) {
+if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canUseAdminPermission('manageRooms')) {
 loadAdminRoomManager();
 }
 }
@@ -18744,7 +20648,7 @@ await db.collection(CHAT_ROOMS_COLLECTION).doc(roomId).set(payload, { merge: tru
 currentChatRoom = roomId;
 localStorage.setItem('chatRoom', currentChatRoom);
 closeCreateRoomModal();
-if (canAdminSettings(currentChatUser)) loadAdminRoomManager();
+if (canUseAdminPermission('manageRooms')) loadAdminRoomManager();
 loadChatMessages();
 renderChatRoomSummary();
 } catch (err) {
@@ -18779,7 +20683,7 @@ currentChatRoom = 'general';
 localStorage.setItem('chatRoom', currentChatRoom);
 clearReply();
 renderChatRoomSummary();
-if (canAdminSettings(currentChatUser)) loadAdminRoomManager();
+if (canUseAdminPermission('manageRooms')) loadAdminRoomManager();
 loadChatMessages();
 } catch (err) {
 alert('Failed to delete room.');
@@ -19367,10 +21271,13 @@ const profile = getCachedProfile(resolvedUserKey);
 const casinoStats = getCachedCasinoProfileStats(resolvedUserKey);
 const unlocked = getUnlockedAchievements(stats, resolvedUserKey);
 const isKaidenProfile = resolvedUserKey === 'kaiden';
-usernameEl.textContent = resolvedUserKey ? `@${resolvedUserKey}` : 'Not logged in';
+const equippedRewardTitle = getEquippedProfileRewardTitle(resolvedUserKey, stats, casinoStats, profile);
+usernameEl.textContent = resolvedUserKey ? `@${resolvedUserKey}${equippedRewardTitle ? ` • ${equippedRewardTitle}` : ''}` : 'Not logged in';
 if (profilePanelEl) {
 const equippedProfileBackground = getProfileBackgroundShopItem(casinoStats.selectedProfileBackgroundId);
 applyProfileModalBackground(profilePanelEl, equippedProfileBackground ? equippedProfileBackground.backgroundData : '');
+const equippedRewardCosmetic = getEquippedProfileRewardCosmetic(resolvedUserKey, stats, casinoStats, profile);
+applyProfileRewardCosmetic(profilePanelEl, equippedRewardCosmetic);
 profilePanelEl.classList.toggle('profile-modal-preview-only', profileModalBackgroundOnly);
 }
 if (backgroundOnlyBtn) {
@@ -19391,7 +21298,7 @@ avatarFallbackEl.style.display = 'flex';
 }
 }
 if (roleEl) {
-roleEl.textContent = resolvedUserKey ? `Role: ${getUserRole(resolvedUserKey).toUpperCase()}` : '';
+roleEl.textContent = resolvedUserKey ? `Role: ${getRoleDisplayName(getUserRole(resolvedUserKey))}` : '';
 }
 if (bannerEl) {
 applyProfileBannerBackground(bannerEl, profile.bannerData, bannerEmptyEl);
@@ -19873,9 +21780,9 @@ listEl.innerHTML = finalNotes.map(note => `<li>${escapeHtml(note)}</li>`).join('
 updateNotesUpdatedByCache = updatedBy || updateNotesUpdatedByCache || '';
 updateNotesUpdatedAtCache = updatedAt instanceof Date ? updatedAt : updateNotesUpdatedAtCache;
 renderWhatsNewPanel();
-if (editBtn) editBtn.style.display = canAdminSettings(currentChatUser) ? 'inline-block' : 'none';
+if (editBtn) editBtn.style.display = canUseAdminPermission('manageSettings') ? 'inline-block' : 'none';
 if (statusEl && !statusEl.textContent) {
-statusEl.textContent = canAdminSettings(currentChatUser) ? 'Admins can edit these notes inline.' : '';
+statusEl.textContent = canUseAdminPermission('manageSettings') ? 'Admins can edit these notes inline.' : '';
 }
 
 if (updatedBy || updatedAt) {
@@ -19926,7 +21833,7 @@ const editBtn = document.getElementById('update-notes-edit-btn');
 const saveBtn = document.getElementById('update-notes-save-btn');
 const cancelBtn = document.getElementById('update-notes-cancel-btn');
 const statusEl = document.getElementById('update-notes-status');
-const canEdit = canAdminSettings(currentChatUser);
+const canEdit = canUseAdminPermission('manageSettings');
 const editing = !!shouldEdit && canEdit;
 if (listEl) listEl.style.display = editing ? 'none' : 'block';
 if (editorEl) {
@@ -19940,7 +21847,7 @@ if (statusEl) statusEl.textContent = editing ? 'One update per line. Up to 30 no
 }
 
 async function submitUpdateNotesEditor() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 const editorEl = document.getElementById('update-notes-editor');
 const statusEl = document.getElementById('update-notes-status');
 const statusDiv = document.getElementById('admin-ban-status');
@@ -19977,7 +21884,7 @@ try {
 }
 
 async function adminEditUpdateNotes() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 openUpdateNotesModal();
 await loadUpdateNotes();
 toggleUpdateNotesEditor(true);
@@ -19986,7 +21893,7 @@ toggleUpdateNotesEditor(true);
 function updateAdminMenuButtonVisibility() {
 const btn = document.getElementById('admin-menu-btn');
 if (!btn) return;
-btn.style.display = (siteLoginPassed && (canModerate(currentChatUser) || canReviewSubmissions(currentChatUser))) ? 'block' : 'none';
+btn.style.display = (siteLoginPassed && canOpenAdminMenuForUser(currentChatUser)) ? 'block' : 'none';
 updateReviewQueueBadges();
 }
 
@@ -20038,16 +21945,7 @@ snapshot.forEach(doc => {
 const data = doc.data() || {};
 const key = normalizeUsername(doc.id);
 if (!key) return;
-next[key] = {
-bio: sanitizeNullableText(data.bio, '').slice(0, 220),
-avatarData: sanitizeProfileAvatar(data.avatarData),
-bannerData: sanitizeNullableText(data.bannerData, '').slice(0, 120),
-favoriteGameId: sanitizeNullableText(data.favoriteGameId, '').slice(0, 120),
-favoriteGameName: sanitizeNullableText(data.favoriteGameName, '').slice(0, 80),
-joinLabel: sanitizeNullableText(data.joinLabel, ''),
-updatedAtMs: data.updatedAt && typeof data.updatedAt.toDate === 'function' ? data.updatedAt.toDate().getTime() : (data.updatedAtMs || 0),
-createdAtMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : (data.createdAtMs || Date.now())
-};
+next[key] = buildProfileCacheEntry(key, data);
 });
 userProfileCache = next;
 refreshInlineProfileAvatars();
@@ -20128,6 +22026,14 @@ return rawWords
 function renderAnnouncementBanner() {
 const banner = document.getElementById('site-announcement-banner');
 if (!banner) return;
+const eventData = activeSiteEventCache;
+if (eventData && (!eventData.endsAtMs || eventData.endsAtMs > Date.now())) {
+banner.style.display = 'block';
+banner.style.background = eventData.accent || '#2f8d46';
+banner.style.borderColor = eventData.accent || '#2f8d46';
+banner.textContent = `${eventData.title}${eventData.body ? ` • ${eventData.body}` : ''}${eventData.endsAtMs ? ` • Ends ${new Date(eventData.endsAtMs).toLocaleString()}` : ''}`;
+return;
+}
 const text = moderationSettings.announcementText || '';
 const endsAt = moderationSettings.announcementEndsAt;
 const active = text && (!endsAt || endsAt.getTime() > Date.now());
@@ -20200,9 +22106,11 @@ setLastSeenGlobalAlertKey(nextAlertKey);
 moderationSettings.slowModeSeconds = data.slowModeSeconds !== undefined
 ? (parseInt(data.slowModeSeconds, 10) || DEFAULT_SLOW_MODE_SECONDS)
 : DEFAULT_SLOW_MODE_SECONDS;
+moderationSettings.customProfileTags = normalizeCustomProfileTagDefinitions(data.customProfileTags);
 moderationSettings.rolePermissions = normalizeRolePermissions(data.rolePermissions);
 markSlowModeFromSettings();
 renderAdminRolePermissions();
+renderAdminCustomTagManager();
 renderAnnouncementBanner();
 applyReadOnlyUiState();
 });
@@ -20211,8 +22119,126 @@ console.error('Failed to load moderation settings:', err);
 }
 }
 
+function renderAdminCustomTagManager() {
+const container = document.getElementById('admin-custom-tag-list');
+if (!container) return;
+if (!canUseAdminPermission('manageCustomTags')) {
+  container.textContent = 'Only the owner can manage custom tags.';
+  return;
+}
+const entries = Array.isArray(moderationSettings.customProfileTags) ? moderationSettings.customProfileTags : [];
+if (!entries.length) {
+  container.innerHTML = '<div class="submission-empty">No custom tags yet.</div>';
+  return;
+}
+container.innerHTML = entries.map((entry) => `<div class="admin-compact-card"><div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;"><div><div style="font-weight:bold; color:#ffca28;">${escapeHtml(entry.label)}</div><div style="margin-top:0.25rem; color:#90a4ae; font-size:0.78rem;">${escapeHtml(entry.id)}</div><div style="margin-top:0.45rem;"><span class="custom-tag" style="background:${escapeHtml(entry.background)}; color:${escapeHtml(entry.color)}; border-color:${escapeHtml(entry.border)};">${escapeHtml(entry.label)}</span></div></div><div class="admin-compact-actions"><button onclick="loadCustomProfileTagIntoForm('${encodeURIComponent(entry.id)}')" style="padding:0.3rem 0.55rem; background:#37474f; color:#fff; border:none; border-radius:0.25rem;">Load</button><button onclick="adminDeleteCustomProfileTag('${encodeURIComponent(entry.id)}')" style="padding:0.3rem 0.55rem; background:#6d2727; color:#fff; border:none; border-radius:0.25rem;">Delete</button></div></div></div>`).join('');
+}
+
+function renderAdminCustomTagPreview() {
+const preview = document.getElementById('admin-custom-tag-preview');
+const idEl = document.getElementById('admin-custom-tag-id');
+const labelEl = document.getElementById('admin-custom-tag-label');
+const bgEl = document.getElementById('admin-custom-tag-bg');
+const textEl = document.getElementById('admin-custom-tag-text');
+const borderEl = document.getElementById('admin-custom-tag-border');
+if (!preview || !idEl || !labelEl || !bgEl || !textEl || !borderEl) return;
+const normalizedId = normalizeProfileTagId(idEl.value);
+const label = sanitizeNullableText(labelEl.value, '').slice(0, 24) || 'Preview Tag';
+const background = normalizeProfileTagColor(bgEl.value, '#21344f');
+const color = normalizeProfileTagColor(textEl.value, '#f3f7ff');
+const border = normalizeProfileTagColor(borderEl.value, '#6e9fe6');
+preview.innerHTML = `<div style="display:flex; gap:0.65rem; align-items:center; flex-wrap:wrap;"><span class="custom-tag" style="background:${escapeHtml(background)}; color:${escapeHtml(color)}; border-color:${escapeHtml(border)};">${escapeHtml(label)}</span><span style="font-size:0.76rem; color:#90a4ae;">${escapeHtml(normalizedId || 'no-id-yet')}</span></div>`;
+}
+
+function loadCustomProfileTagIntoForm(encodedId = '') {
+const targetId = normalizeProfileTagId(decodeURIComponent(encodedId || document.getElementById('admin-custom-tag-id')?.value || ''));
+if (!targetId) return;
+const entry = (moderationSettings.customProfileTags || []).find((item) => item && item.id === targetId);
+if (!entry) return;
+const idEl = document.getElementById('admin-custom-tag-id');
+const labelEl = document.getElementById('admin-custom-tag-label');
+const bgEl = document.getElementById('admin-custom-tag-bg');
+const textEl = document.getElementById('admin-custom-tag-text');
+const borderEl = document.getElementById('admin-custom-tag-border');
+if (idEl) idEl.value = entry.id;
+if (labelEl) labelEl.value = entry.label;
+if (bgEl) bgEl.value = entry.background;
+if (textEl) textEl.value = entry.color;
+if (borderEl) borderEl.value = entry.border;
+renderAdminCustomTagPreview();
+}
+
+async function adminSaveCustomProfileTag() {
+if (!canUseAdminPermission('manageCustomTags')) return;
+const idEl = document.getElementById('admin-custom-tag-id');
+const labelEl = document.getElementById('admin-custom-tag-label');
+const bgEl = document.getElementById('admin-custom-tag-bg');
+const textEl = document.getElementById('admin-custom-tag-text');
+const borderEl = document.getElementById('admin-custom-tag-border');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!idEl || !labelEl || !bgEl || !textEl || !borderEl || !statusDiv) return;
+const id = normalizeProfileTagId(idEl.value);
+const label = sanitizeNullableText(labelEl.value, '').slice(0, 24);
+if (!id || !label) {
+  statusDiv.textContent = 'Enter both a tag id and tag label.';
+  return;
+}
+if (PROFILE_TAGS[id]) {
+  statusDiv.textContent = 'That tag id is already used by a built-in tag.';
+  return;
+}
+const nextEntry = {
+  id,
+  label,
+  background: normalizeProfileTagColor(bgEl.value, '#21344f'),
+  color: normalizeProfileTagColor(textEl.value, '#f3f7ff'),
+  border: normalizeProfileTagColor(borderEl.value, '#6e9fe6')
+};
+const current = Array.isArray(moderationSettings.customProfileTags) ? moderationSettings.customProfileTags.slice() : [];
+const next = current.filter((entry) => entry && entry.id !== id);
+next.push(nextEntry);
+next.sort((a, b) => a.label.localeCompare(b.label));
+try {
+  await getAdminDb().collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+    customProfileTags: next,
+    updatedBy: currentChatUser,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  moderationSettings.customProfileTags = next;
+  renderAdminCustomTagManager();
+  renderAdminCustomTagPreview();
+  refreshTagDependentUi();
+  statusDiv.textContent = `Saved custom tag ${label}.`;
+} catch (err) {
+  statusDiv.textContent = 'Failed to save custom tag.';
+}
+}
+
+async function adminDeleteCustomProfileTag(encodedId = '') {
+if (!canUseAdminPermission('manageCustomTags')) return;
+const statusDiv = document.getElementById('admin-ban-status');
+const rawId = decodeURIComponent(encodedId || document.getElementById('admin-custom-tag-id')?.value || '');
+const id = normalizeProfileTagId(rawId);
+if (!id || !statusDiv) return;
+const next = (moderationSettings.customProfileTags || []).filter((entry) => entry && entry.id !== id);
+try {
+  await getAdminDb().collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+    customProfileTags: next,
+    updatedBy: currentChatUser,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  moderationSettings.customProfileTags = next;
+  renderAdminCustomTagManager();
+  renderAdminCustomTagPreview();
+  refreshTagDependentUi();
+  statusDiv.textContent = `Deleted custom tag ${id}.`;
+} catch (err) {
+  statusDiv.textContent = 'Failed to delete custom tag.';
+}
+}
+
 async function adminSendAlertPopup() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 const text = (prompt('Alert popup text (shows to everyone):', '') || '').trim();
 if (!text) return;
 const durationInput = (prompt('How many seconds should it stay visible? (2-30)', '10') || '').trim();
@@ -20235,7 +22261,7 @@ alert('Failed to send alert popup.');
 
 // === SLOW MODE ADMIN ===
 async function adminSetSlowMode() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 const input = document.getElementById('admin-slowmode-seconds');
 const seconds = Math.max(0, Math.min(60, parseInt((input ? input.value : '0') || '0', 10) || 0));
 try {
@@ -20260,14 +22286,14 @@ alert('Failed to set slow mode.');
 function renderAdminRolePermissions() {
 const container = document.getElementById('admin-role-permissions');
 if (!container) return;
-const roles = ['owner', 'admin', 'reviewer', 'moderator', 'helper', 'member'];
-const permissions = ['ban', 'mute', 'kick', 'warn', 'tempBan', 'manageSettings', 'assignRoles', 'deleteMessage', 'reviewSubmissions'];
-const permLabels = { ban: 'Ban', mute: 'Mute', kick: 'Kick', warn: 'Warn', tempBan: 'Temp Ban', manageSettings: 'Settings', assignRoles: 'Assign Roles', deleteMessage: 'Delete Msg', reviewSubmissions: 'Review Queues' };
+const roles = ['owner', 'admin', 'mod', 'moderator', 'reviewer', 'helper', 'chud', 'cameronsbitch', 'member'];
+const permissions = ['ban', 'mute', 'kick', 'warn', 'tempBan', 'manageSettings', 'assignRoles', 'deleteMessage', 'reviewSubmissions', 'manageLoginRequests', 'viewReports', 'viewUserHistory', 'viewArchives', 'manageAccounts', 'manageCasino', 'manageProfileBackgrounds', 'manageGeneralShop', 'manageGameBios', 'manageLeaderboard', 'useOwnerTool', 'viewAppeals', 'viewAuditLog', 'viewAnalytics', 'manageRooms', 'manageCustomTags'];
+const permLabels = { ban: 'Ban', mute: 'Mute', kick: 'Kick', warn: 'Warn', tempBan: 'Temp Ban', manageSettings: 'Core Settings', assignRoles: 'Assign Roles', deleteMessage: 'Delete Msg', reviewSubmissions: 'Game/Case Reviews', manageLoginRequests: 'Login Requests', viewReports: 'Message Reports', viewUserHistory: 'User History', viewArchives: 'Archived Chats', manageAccounts: 'Accounts', manageCasino: 'Casino Controls', manageProfileBackgrounds: 'Profile BG Shop', manageGeneralShop: 'General Shop', manageGameBios: 'Game Bios', manageLeaderboard: 'Reset Leaderboard', useOwnerTool: 'Owner Tool', viewAppeals: 'Appeals', viewAuditLog: 'Audit Log', viewAnalytics: 'Analytics', manageRooms: 'Rooms', manageCustomTags: 'Custom Tags' };
 const perms = moderationSettings.rolePermissions || DEFAULT_ROLE_PERMISSIONS;
 container.innerHTML = roles.map(role => {
 const isOwner = role === 'owner';
 return `<div style="margin-bottom:0.5rem;">
-<div style="font-weight:bold; color:#90caf9; text-transform:capitalize; margin-bottom:0.2rem;">${role}</div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.2rem;">${escapeHtml(getRoleDisplayName(role))}</div>
 <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">${permissions.map(perm => {
 const checked = isOwner ? true : (perms[role] ? !!perms[role][perm] : false);
 const dis = isOwner ? 'disabled' : '';
@@ -20278,7 +22304,7 @@ return `<label style="font-size:0.78rem; color:#ddd; display:flex; align-items:c
 }
 
 async function adminSaveRolePermissions() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 const checks = document.querySelectorAll('.role-perm-check');
 const builtPerms = deepCloneRolePermissions(DEFAULT_ROLE_PERMISSIONS);
 checks.forEach(cb => {
@@ -20331,7 +22357,7 @@ alert('Failed to submit appeal. Please try again.');
 async function loadAuditLogs() {
 const container = document.getElementById('admin-audit-log');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) { container.textContent = 'Insufficient permissions.'; return; }
+if (!canUseAdminPermission('viewAuditLog')) { container.textContent = 'Insufficient permissions.'; return; }
 container.textContent = 'Loading...';
 try {
 const db = getAdminDb();
@@ -20359,7 +22385,7 @@ container.textContent = 'Failed to load audit log.';
 async function loadAdminAnalytics() {
 const container = document.getElementById('admin-analytics-panel');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) {
+if (!canUseAdminPermission('viewAnalytics')) {
 container.textContent = 'Insufficient permissions.';
 return;
 }
@@ -20403,7 +22429,7 @@ const data = doc.data() || {};
 const updatedMs = getTimestampMs(data.updatedAt);
 return (data.status || 'offline') !== 'offline' && updatedMs && (Date.now() - updatedMs) < 10 * 60000;
 }).length;
-const modCount = roleDocs.filter((doc) => getRoleRank((doc.data() || {}).role || 'member') >= 2).length;
+const modCount = roleDocs.filter((doc) => roleHasAnyPermission((doc.data() || {}).role || 'member', ['ban', 'mute', 'kick', 'warn', 'tempBan', 'deleteMessage', 'manageSettings'])).length;
 const uniqueSenders = new Set();
 const senderCounts = {};
 const roomCounts = {};
@@ -20645,7 +22671,7 @@ container.textContent = 'Failed to load user history.';
 }
 
 async function adminRebuildSelectedUserStats() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('viewUserHistory')) return;
 const username = normalizeUsername(resolveAdminTargetUsername('admin-history-username'));
 const statusDiv = document.getElementById('admin-ban-status');
 const historyContainer = document.getElementById('admin-user-history');
@@ -20688,7 +22714,7 @@ try {
 async function loadAdminRoomManager() {
 const container = document.getElementById('admin-room-manager');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) {
+if (!canUseAdminPermission('manageRooms')) {
 container.textContent = 'Insufficient permissions.';
 return;
 }
@@ -20819,7 +22845,7 @@ members.innerHTML = memberList.length ? memberList.map((username) => {
 }
 
 function openRoomModerationModal(encodedRoomId = '') {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageRooms')) return;
 const roomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
 const room = getChatRoomConfig(roomId || currentChatRoom);
 activeRoomModerationId = room.id;
@@ -20910,7 +22936,7 @@ openAdminRoomById(encodeURIComponent(room.id));
 }
 
 async function toggleRoomModerationPrivacy() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageRooms')) return;
 const room = getActiveModerationRoom();
 const status = document.getElementById('room-moderation-status');
 if (!room || isProtectedRoomId(room.id)) return;
@@ -20931,7 +22957,7 @@ try {
 }
 
 async function addRoomModerationMember() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageRooms')) return;
 const room = getActiveModerationRoom();
 const input = document.getElementById('room-moderation-member-input');
 const status = document.getElementById('room-moderation-status');
@@ -20958,7 +22984,7 @@ try {
 }
 
 async function removeRoomModerationMember(encodedUsername) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageRooms')) return;
 const room = getActiveModerationRoom();
 const status = document.getElementById('room-moderation-status');
 const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
@@ -20983,7 +23009,7 @@ try {
 }
 
 async function clearRoomModerationMessages() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageRooms')) return;
 const room = getActiveModerationRoom();
 const status = document.getElementById('room-moderation-status');
 if (!room) return;
@@ -21277,7 +23303,7 @@ openModalById('chat-history-modal');
 async function loadAppealsQueue() {
 const container = document.getElementById('admin-appeals-queue');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) { container.textContent = 'Insufficient permissions.'; return; }
+if (!canUseAdminPermission('viewAppeals')) { container.textContent = 'Insufficient permissions.'; return; }
 container.textContent = 'Loading...';
 try {
 const db = getAdminDb();
@@ -21309,6 +23335,7 @@ container.textContent = 'Failed to load appeals.';
 }
 
 async function approveAppeal(appealDocId, encodedUsername) {
+if (!canUseAdminPermission('viewAppeals')) return;
 const username = decodeURIComponent(encodedUsername || '');
 if (!username) return;
 try {
@@ -21321,6 +23348,7 @@ loadAppealsQueue();
 }
 
 async function rejectAppeal(appealDocId) {
+if (!canUseAdminPermission('viewAppeals')) return;
 try {
 const db = getAdminDb();
 await db.collection(APPEALS_COLLECTION).doc(decodeURIComponent(appealDocId)).update({ status: 'rejected', resolvedBy: currentChatUser });
@@ -21755,7 +23783,7 @@ container.innerHTML = '<div style="color:#f88; font-size:0.85rem; padding:0.5rem
 }
 
 async function adminResetCasinoLeaderboard() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 if (!confirm('Reset every casino leaderboard? This sets balances back to $1,000, clears owned casino shop inventory, cases, all-time best drops, and deletes all coin flip records.')) {
   return;
@@ -21822,7 +23850,7 @@ try {
 }
 
 async function adminResetCasinoStats() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 if (!confirm('Reset all casino win/loss stats, streaks, achievements, and bankruptcy counters while keeping current balances? Open coin flips will be cancelled, refunded, and removed.')) {
   return;
@@ -21893,7 +23921,7 @@ try {
 }
 
 async function adminClearCasinoFeed() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 if (!confirm('Clear every item from the casino feed?')) {
   return;
@@ -21991,7 +24019,7 @@ return { refundedCount, deletedCount };
 }
 
 async function adminClearCasinoCoinFlips() {
-if (!canManageRoles(currentChatUser)) return;
+if (!canUseAdminPermission('manageCasino')) return;
 const statusDiv = document.getElementById('admin-casino-status');
 if (!confirm('Clear all coin flip history and cancel open coin flips with refunds before deleting them?')) {
   return;
@@ -22035,7 +24063,7 @@ alert('Failed to send message.');
 }
 
 async function adminToggleReadOnlyMode() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 try {
 const db = getAdminDb();
 await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
@@ -22051,7 +24079,7 @@ alert('Failed to toggle read-only mode.');
 }
 
 async function adminEditWordFilter() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 const current = moderationSettings.blockedWords.join('\n');
 const input = prompt('Blocked words (one per line):', current);
 if (input === null) return;
@@ -22071,7 +24099,7 @@ alert('Failed to update word filter.');
 }
 
 async function adminSetAnnouncement() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 const text = (prompt('Announcement text:', moderationSettings.announcementText || '') || '').trim();
 if (!text) return;
 const minsInput = (prompt('How many minutes should it stay visible? (blank = no auto-expire)', '60') || '').trim();
@@ -22093,7 +24121,7 @@ alert('Failed to set announcement.');
 }
 
 async function adminClearAnnouncement() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('manageSettings')) return;
 try {
 const db = getAdminDb();
 await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
@@ -22109,15 +24137,57 @@ alert('Failed to clear announcement.');
 }
 }
 
+async function adminSetSiteEvent() {
+if (!canUseAdminPermission('manageSettings')) return;
+const title = sanitizeNullableText(prompt('Event title:', activeSiteEventCache && activeSiteEventCache.title || '') || '', '').slice(0, 80);
+if (!title) return;
+const body = sanitizeNullableText(prompt('Event description:', activeSiteEventCache && activeSiteEventCache.body || '') || '', '').slice(0, 240);
+const accent = sanitizeNullableText(prompt('Hex accent color:', activeSiteEventCache && activeSiteEventCache.accent || '#2f8d46') || '#2f8d46', '').slice(0, 7);
+const minsInput = (prompt('How many minutes should the event stay active? (blank = no auto-expire)', '1440') || '').trim();
+const minutes = minsInput ? Math.max(1, Math.min(43200, parseInt(minsInput, 10) || 1440)) : 0;
+const endsAt = minutes ? new Date(Date.now() + minutes * 60000) : null;
+try {
+  await getAdminDb().collection('chat_meta').doc(SITE_EVENT_DOC_ID).set({
+    title,
+    body,
+    accent: /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : '#2f8d46',
+    endsAtMs: endsAt ? endsAt.getTime() : 0,
+    endsAt: endsAt ? firebase.firestore.Timestamp.fromDate(endsAt) : null,
+    updatedBy: currentChatUser,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  await loadActiveSiteEvent();
+  renderAnnouncementBanner();
+  pushNotification({ type: 'event', title: 'New site event', body: title, read: false, action: { kind: 'hub', tab: 'events' } });
+  const statusDiv = document.getElementById('admin-ban-status');
+  if (statusDiv) statusDiv.textContent = 'Site event updated.';
+} catch (err) {
+  alert('Failed to set site event.');
+}
+}
+
+async function adminClearSiteEvent() {
+if (!canUseAdminPermission('manageSettings')) return;
+try {
+  await getAdminDb().collection('chat_meta').doc(SITE_EVENT_DOC_ID).delete();
+  activeSiteEventCache = null;
+  renderAnnouncementBanner();
+  const statusDiv = document.getElementById('admin-ban-status');
+  if (statusDiv) statusDiv.textContent = 'Site event cleared.';
+} catch (err) {
+  alert('Failed to clear site event.');
+}
+}
+
 async function adminAssignRole() {
-if (!canManageRoles(currentChatUser)) {
-alert('Only the owner can assign roles.');
+if (!canAssignRoles(currentChatUser)) {
+alert('You do not have permission to assign roles.');
 return;
 }
 const username = resolveAdminTargetUsername('admin-role-username');
 const role = normalizeUsername(document.getElementById('admin-role-select').value || 'member');
 const statusDiv = document.getElementById('admin-ban-status');
-const allowed = ['cameronsbitch','chud','member', 'helper', 'reviewer', 'moderator', 'admin'];
+const allowed = ['cameronsbitch','chud','member', 'helper', 'reviewer', 'mod', 'moderator', 'admin'];
 if (!username) {
 statusDiv.textContent = 'Enter a username for role assignment.';
 return;
@@ -22133,7 +24203,7 @@ role,
 updatedBy: currentChatUser,
 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
 }, { merge: true });
-statusDiv.textContent = `Set role of ${username} to ${role}.`;
+statusDiv.textContent = `Set role of ${username} to ${getRoleDisplayName(role)}.`;
 document.getElementById('admin-role-username').value = '';
 } catch (err) {
 statusDiv.textContent = 'Failed to assign role.';
@@ -22217,7 +24287,7 @@ adminDb.collection('kicked_users').doc(key).delete()
 async function loadActiveTempBans() {
 const container = document.getElementById('admin-tempban-list');
 if (!container) return;
-if (!canAdminSettings(currentChatUser)) {
+if (!canUseAdminPermission('tempBan')) {
 container.textContent = 'Insufficient permissions.';
 return;
 }
@@ -22279,7 +24349,7 @@ container.textContent = 'Failed to load temp bans.';
 }
 
 async function adminUnbanTempBannedUser(encodedUsername) {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('tempBan')) return;
 const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
 const statusDiv = document.getElementById('admin-ban-status');
 if (!username) {
@@ -22297,7 +24367,7 @@ if (statusDiv) statusDiv.textContent = 'Failed to remove temp ban.';
 }
 
 async function adminTempBanUser() {
-if (!canAdminSettings(currentChatUser)) return;
+if (!canUseAdminPermission('tempBan')) return;
 const username = resolveAdminTargetUsername('admin-tempban-username');
 const minutes = Math.max(1, Math.min(10080, parseInt(document.getElementById('admin-tempban-minutes').value || '60', 10) || 60));
 const reason = (document.getElementById('admin-tempban-reason').value || 'Temporary ban').trim().slice(0, 120);
@@ -23360,7 +25430,12 @@ try {
   const captionLink = extractFirstUrl(caption);
   if (captionLink) msgData.linkPreview = buildLinkPreviewData(captionLink);
   if (currentReplyTo) {
-    msgData.replyTo = { user: currentReplyTo.user, text: currentReplyTo.text };
+    msgData.replyTo = {
+      user: currentReplyTo.user,
+      text: currentReplyTo.text,
+      docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+      rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+    };
   }
   await db.collection('site_messages').add(msgData);
   lastChatSendAtMs = Date.now();
@@ -23545,6 +25620,7 @@ const timeStr = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleStrin
 const roomBadge = !isSystem ? `<span class="chat-room-badge">${escapeHtml(getChatRoomConfig(data.room || 'general').name)}</span>` : '';
 const displayUser = sanitizeNullableText(data.displayUser || data.user, 'unknown');
 const profileUser = normalizeUsername(data.profileUser || data.user || 'unknown');
+const rewardCosmetic = !isSystem ? getEquippedProfileRewardCosmetic(profileUser, getStatsForUserKey(profileUser), getCachedCasinoProfileStats(profileUser), getCachedProfile(profileUser)) : null;
 
 const replyHtml = data.replyTo ? `
          <div class="chat-message-reply-quote">
@@ -23572,6 +25648,7 @@ return `<span class="reaction-pill ${hasReacted ? 'reacted' : ''}" onclick="togg
 }).join('');
 
 const replyBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="setReplyTo('${docId}')">↩ Reply</button>`;
+const threadBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="openChatThreadModal('${docId}')">🧵 Thread</button>`;
 const reactBtns = isSystem ? '' : ['❤️','😂','😢','🔥'].map(e => `<button class="chat-action-btn" onclick="toggleReaction('${docId}','${e}')">${e}</button>`).join('');
 const imageReactBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="promptImageReaction('${docId}')">🖼 Img</button>`;
 const canDeleteMessage = hasRolePermission(currentChatUser, 'deleteMessage');
@@ -23593,6 +25670,10 @@ const historyBtn = isAdmin && Array.isArray(data.editHistory) && data.editHistor
 const editedMarker = data.editedAt ? `<span class="chat-edited-marker">edited</span>` : '';
 
 messageDiv.className = `chat-message ${isSystem ? 'system' : (isOwn ? 'own' : 'other')}`;
+if (rewardCosmetic) {
+  messageDiv.style.borderColor = rewardCosmetic.accent;
+  messageDiv.style.boxShadow = `0 0 0 1px ${rewardCosmetic.soft}, 0 16px 30px ${rewardCosmetic.glow}`;
+}
 const ownerTag = !isSystem ? getOwnerTagHtml(profileUser || displayUser) : '';
 const customTag = !isSystem ? getUserTagHtml(profileUser || displayUser) : '';
 const profileTarget = encodeURIComponent(profileUser || normalizeUsername(displayUser || 'unknown'));
@@ -23617,7 +25698,7 @@ messageDiv.innerHTML = `
          ${linkPreviewHtml}
          ${!isSystem && timeStr ? `<div class="chat-message-meta-row">${roomBadge}<div class="chat-message-time">${timeStr}</div>${editedMarker}</div>` : ''}
          ${(reactionsHtml || imageReactionsHtml) ? `<div class="chat-reactions">${reactionsHtml}${imageReactionsHtml}</div>` : ''}
-         ${(isSystem && isAdmin) || !isSystem ? `<div class="chat-message-actions">${replyBtn}${reactBtns}${imageReactBtn}${editBtn}${historyBtn}${modUserBtn}${muteBtn}${kickBtn}${tempBanBtn}${pinBtn}${deleteBtn}${reportBtn}</div>` : ''}
+         ${(isSystem && isAdmin) || !isSystem ? `<div class="chat-message-actions">${replyBtn}${threadBtn}${reactBtns}${imageReactBtn}${editBtn}${historyBtn}${modUserBtn}${muteBtn}${kickBtn}${tempBanBtn}${pinBtn}${deleteBtn}${reportBtn}</div>` : ''}
        `;
 messagesDiv.appendChild(messageDiv);
 });
@@ -23708,7 +25789,12 @@ if (linkPreview) {
 msgData.linkPreview = linkPreview;
 }
 if (currentReplyTo) {
-msgData.replyTo = { user: currentReplyTo.user, text: currentReplyTo.text };
+msgData.replyTo = {
+  user: currentReplyTo.user,
+  text: currentReplyTo.text,
+  docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+  rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+};
 }
 await db.collection('site_messages').add(msgData);
 lastChatSendAtMs = Date.now();
@@ -23800,7 +25886,12 @@ if (imageData) msgData.imageData = imageData;
 const captionLink = extractFirstUrl(caption);
 if (captionLink) msgData.linkPreview = buildLinkPreviewData(captionLink);
 if (currentReplyTo) {
-msgData.replyTo = { user: currentReplyTo.user, text: currentReplyTo.text };
+msgData.replyTo = {
+  user: currentReplyTo.user,
+  text: currentReplyTo.text,
+  docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+  rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+};
 }
 await db.collection('site_messages').add(msgData);
 lastChatSendAtMs = Date.now();
@@ -23899,7 +25990,12 @@ if (videoPayload && videoPayload.kind === 'remote' && videoPayload.value) msgDat
 const captionLink = extractFirstUrl(caption);
 if (captionLink) msgData.linkPreview = buildLinkPreviewData(captionLink);
 if (currentReplyTo) {
-msgData.replyTo = { user: currentReplyTo.user, text: currentReplyTo.text };
+msgData.replyTo = {
+  user: currentReplyTo.user,
+  text: currentReplyTo.text,
+  docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+  rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+};
 }
 await db.collection('site_messages').add(msgData);
 lastChatSendAtMs = Date.now();
@@ -24144,6 +26240,8 @@ function setReplyTo(docId) {
 const data = window._chatDocs && window._chatDocs[docId];
 if (!data) return;
 currentReplyTo = {
+userDocId: docId,
+rootDocId: sanitizeNullableText((data.replyTo && (data.replyTo.rootDocId || data.replyTo.docId)) || docId, docId),
 user: sanitizeNullableText(data.displayUser || data.user, 'unknown'),
 text: sanitizeNullableText(data.message, '')
 };
