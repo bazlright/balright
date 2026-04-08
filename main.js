@@ -1,0 +1,20688 @@
+let siteLoginPassed = false;
+
+window.getActiveTimedBan = window.getActiveTimedBan || async function() {
+  return null;
+};
+
+function setDocumentScrollLock(isLocked) {
+  document.body.style.overflow = isLocked ? 'hidden' : 'auto';
+}
+
+function setSiteLoginError(message = '') {
+  const errorDiv = document.getElementById('site-login-error');
+  if (errorDiv) {
+    errorDiv.textContent = message;
+  }
+}
+
+function updateAdminMenuButtonVisibilityForUser(username) {
+  const adminButton = document.getElementById('admin-menu-btn');
+  if (!adminButton) return;
+  adminButton.style.display = canOpenAdminMenuForUser(username) ? 'block' : 'none';
+}
+
+function completeSiteLogin(username) {
+  siteLoginPassed = true;
+  localStorage.setItem('userName', username);
+  hideSiteLoginModal();
+  updateAdminMenuButtonVisibilityForUser(username);
+}
+
+async function getActiveTimedBanSafe(username) {
+  if (typeof window.getActiveTimedBan === 'function') {
+    try {
+      return await window.getActiveTimedBan(username);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function areSiteLoginDependenciesReady() {
+  return typeof normalizeUsername === 'function'
+    && typeof normalizeReviewStatus === 'function'
+    && typeof getAdminDb === 'function'
+    && typeof sanitizeNullableText === 'function'
+    && typeof window.getActiveTimedBan === 'function'
+    && typeof getUserName === 'function'
+    && typeof waitForFirebase === 'function'
+    && typeof initializeChat === 'function'
+    && typeof updateAdminMenuButtonVisibility === 'function'
+    && typeof LOGIN_REQUESTS_COLLECTION !== 'undefined';
+}
+
+async function waitForSiteLoginDependencies(maxWaitMs = 7000) {
+  const startMs = Date.now();
+  while (!areSiteLoginDependenciesReady()) {
+    if (Date.now() - startMs >= maxWaitMs) return false;
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+  }
+  return true;
+}
+
+function showSiteLoginModal() {
+  const modal = document.getElementById('site-login-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  setDocumentScrollLock(true);
+}
+
+function hideSiteLoginModal() {
+  const modal = document.getElementById('site-login-modal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  setDocumentScrollLock(false);
+}
+
+async function getApprovedLoginRequest(username) {
+  const key = normalizeUsername(username);
+  if (!key) return null;
+
+  const cached = loginRequestsCache.find(
+    (item) => item && item.username === key && normalizeReviewStatus(item.status) === 'approved'
+  );
+  if (cached) return cached;
+
+  try {
+    const doc = await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(key).get();
+    if (!doc.exists) return null;
+
+    const data = doc.data() || {};
+    if (normalizeReviewStatus(data.status) !== 'approved') return null;
+
+    return {
+      username: key,
+      password: sanitizeNullableText(data.password, ''),
+      notes: sanitizeNullableText(data.notes, ''),
+      status: normalizeReviewStatus(data.status)
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function siteLoginSubmit() {
+  setDocumentScrollLock(false);
+
+  const username = document.getElementById('site-login-username').value.trim().toLowerCase();
+  const password = document.getElementById('site-login-password').value;
+
+  if (!username || !password) {
+    setSiteLoginError('Please enter both username and password.');
+    return;
+  }
+
+  (async () => {
+    const dependenciesReady = await waitForSiteLoginDependencies();
+    if (!dependenciesReady) {
+      setSiteLoginError('The page is still loading. Try again in a moment.');
+      return;
+    }
+
+    const bannedList = (typeof getBannedUsernames === 'function' ? await getBannedUsernames() : [])
+      .map((value) => value.trim().toLowerCase());
+    const isProtectedUser = typeof isProtectedUsername === 'function'
+      ? isProtectedUsername(username)
+      : false;
+
+    if (!isProtectedUser && bannedList.includes(username)) {
+      hideSiteLoginModal();
+      showUserBanNotification();
+      return;
+    }
+
+    const timedBan = await getActiveTimedBanSafe(username);
+    if (timedBan) {
+      setSiteLoginError(`Temporarily banned until ${timedBan.expiresAt.toLocaleString()}. Reason: ${timedBan.reason}`);
+      return;
+    }
+
+    const approvedRequest = await getApprovedLoginRequest(username);
+    const matchesApprovedRequest = !!(approvedRequest && approvedRequest.password === password);
+    if (!matchesApprovedRequest) {
+      setSiteLoginError('Invalid username or password.');
+      return;
+    }
+
+    completeSiteLogin(username);
+
+    if (!getUserName()) {
+      showNameModal();
+    } else {
+      initIPLogging();
+    }
+
+    currentChatUser = getUserName();
+    waitForFirebase(() => {
+      initializeChat();
+      updateAdminMenuButtonVisibility();
+    });
+  })();
+}
+
+function showNameModal() {
+  document.getElementById('name-modal').style.display = 'flex';
+  setDocumentScrollLock(true);
+  document.getElementById('user-name-input').focus();
+}
+
+function submitUserName() {
+  const name = document.getElementById('user-name-input').value.trim();
+  if (!name) {
+    alert('Please enter your name.');
+    return;
+  }
+  localStorage.setItem('userName', name);
+  document.getElementById('name-modal').style.display = 'none';
+  setDocumentScrollLock(false);
+  initIPLogging();
+}
+
+window.openLoginRequestModal = window.openLoginRequestModal || function() {
+  const modal = document.getElementById('login-request-modal');
+  const status = document.getElementById('login-request-status');
+  if (status) status.textContent = '';
+  if (modal) modal.style.display = 'flex';
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var userList = document.getElementById('admin-user-list');
+  if (typeof bootHighValueFeatureState === 'function') bootHighValueFeatureState();
+  if (typeof renderGameStorefront === 'function') renderGameStorefront();
+  if (typeof initializeAdminSectionCards === 'function') initializeAdminSectionCards();
+  if (typeof scheduleDynamicLeaderboardTagRefresh === 'function') scheduleDynamicLeaderboardTagRefresh(50);
+  if (userList) userList.innerHTML = '<option value="">-- Select a user --</option>';
+});
+
+// --- Casino Modal and Logic ---
+function getCasinoPlayerKey() {
+  return String(currentChatUser || (typeof getUserName === 'function' ? getUserName() : '') || '').trim().toLowerCase();
+}
+
+function getCasinoPlayerDisplayName() {
+  return String(currentChatUser || (typeof getUserName === 'function' ? getUserName() : '') || 'Guest').trim() || 'Guest';
+}
+
+function syncCasinoModalOverflow() {
+  const anyCasinoModalOpen = ['casino-modal', 'casino-leaderboard-modal'].some((id) => {
+    const node = document.getElementById(id);
+    return !!(node && node.style.display === 'flex');
+  });
+  document.body.style.overflow = anyCasinoModalOpen ? 'hidden' : 'auto';
+}
+
+function getCasinoBalanceCollection() {
+  return getCasinoDb().collection('casino_balances');
+}
+
+function getCasinoActivityCollection() {
+  return getCasinoDb().collection(CASINO_ACTIVITY_COLLECTION);
+}
+
+function getCasinoConfigCollection() {
+  return getCasinoDb().collection(CASINO_CONFIG_COLLECTION);
+}
+
+function getCasinoCoinFlipCollection() {
+  return getCasinoDb().collection(CASINO_COIN_FLIP_COLLECTION);
+}
+
+function getGeneralShopCollection() {
+  return getCasinoDb().collection(GENERAL_SHOP_COLLECTION);
+}
+
+function getCasinoInventoryHistoryCollection() {
+  return getCasinoDb().collection(CASINO_INVENTORY_HISTORY_COLLECTION);
+}
+
+function getGeneralShopTradesCollection() {
+  return getCasinoDb().collection(GENERAL_SHOP_TRADES_COLLECTION);
+}
+
+function getProfileBackgroundShopCollection() {
+  return getCasinoDb().collection(PROFILE_BACKGROUND_SHOP_COLLECTION);
+}
+
+function getCaseSuggestionsCollection() {
+  return getAdminDb().collection(CASE_SUGGESTIONS_COLLECTION);
+}
+
+function getCasinoGameSettingsDoc() {
+  return getCasinoConfigCollection().doc(CASINO_GAME_SETTINGS_DOC_ID);
+}
+
+const CASINO_BAILOUT_COOLDOWN_MS = 60 * 60 * 1000;
+
+function getDefaultCasinoGameSettings() {
+  return {
+    blackjackDealerStandValue: 17,
+    rouletteSelectedBoostPct: 0,
+    slotsNoMatchChancePct: 0,
+    slotsSymbolWeights: { ...SLOT_SYMBOL_DEFAULT_WEIGHTS }
+  };
+}
+
+function normalizeCasinoGameSettingsData(data = {}) {
+  const defaults = getDefaultCasinoGameSettings();
+  const rawWeights = (data && typeof data.slotsSymbolWeights === 'object' && data.slotsSymbolWeights) ? data.slotsSymbolWeights : {};
+  const normalizedWeights = {};
+  Object.keys(defaults.slotsSymbolWeights).forEach((symbol) => {
+    const fallback = defaults.slotsSymbolWeights[symbol];
+    normalizedWeights[symbol] = Math.max(1, Math.min(50, Math.floor(Number(rawWeights[symbol] ?? fallback) || fallback)));
+  });
+  return {
+    blackjackDealerStandValue: Math.max(15, Math.min(19, Math.floor(Number(data.blackjackDealerStandValue ?? defaults.blackjackDealerStandValue) || defaults.blackjackDealerStandValue))),
+    rouletteSelectedBoostPct: Math.max(-80, Math.min(300, Math.floor(Number(data.rouletteSelectedBoostPct ?? defaults.rouletteSelectedBoostPct) || 0))),
+    slotsNoMatchChancePct: Math.max(0, Math.min(100, Math.floor(Number(data.slotsNoMatchChancePct ?? defaults.slotsNoMatchChancePct) || 0))),
+    slotsSymbolWeights: normalizedWeights
+  };
+}
+
+function getCasinoGameSettingsPreset(presetKey = 'fair') {
+  const defaults = getDefaultCasinoGameSettings();
+  const presets = {
+    'player-favored': {
+      blackjackDealerStandValue: 19,
+      rouletteSelectedBoostPct: 40,
+      slotsNoMatchChancePct: 0,
+      slotsSymbolWeights: {
+        '7': 50,
+        BAR: 20,
+        CHERRY: 10,
+        STAR: 10,
+        BELL: 10
+      }
+    },
+    fair: {
+      blackjackDealerStandValue: defaults.blackjackDealerStandValue,
+      rouletteSelectedBoostPct: defaults.rouletteSelectedBoostPct,
+      slotsNoMatchChancePct: defaults.slotsNoMatchChancePct,
+      slotsSymbolWeights: {
+        '7': 8,
+        BAR: 15,
+        CHERRY: 31,
+        STAR: 23,
+        BELL: 23
+      }
+    },
+    'casino-favored': {
+      blackjackDealerStandValue: 15,
+      rouletteSelectedBoostPct: -35,
+      slotsNoMatchChancePct: 45,
+      slotsSymbolWeights: {
+        '7': 5,
+        BAR: 10,
+        CHERRY: 15,
+        STAR: 15,
+        BELL: 25
+      }
+    }
+  };
+  return normalizeCasinoGameSettingsData(presets[presetKey] || defaults);
+}
+
+function getCachedCasinoGameSettings() {
+  if (!casinoGameSettingsCache) {
+    casinoGameSettingsCache = getDefaultCasinoGameSettings();
+  }
+  return normalizeCasinoGameSettingsData(casinoGameSettingsCache);
+}
+
+async function loadCasinoGameSettings(force = false) {
+  if (!force && casinoGameSettingsCache) {
+    return getCachedCasinoGameSettings();
+  }
+  if (!force && casinoGameSettingsLoadPromise) return casinoGameSettingsLoadPromise;
+  casinoGameSettingsLoadPromise = (async () => {
+    try {
+      const doc = await getCasinoGameSettingsDoc().get();
+      const nextSettings = normalizeCasinoGameSettingsData(doc.exists ? (doc.data() || {}) : {});
+      casinoGameSettingsCache = nextSettings;
+      if (!doc.exists) {
+        await getCasinoGameSettingsDoc().set(nextSettings, { merge: true });
+      }
+    } catch (_) {
+      casinoGameSettingsCache = getCachedCasinoGameSettings();
+    }
+    return getCachedCasinoGameSettings();
+  })().finally(() => {
+    casinoGameSettingsLoadPromise = null;
+  });
+  return casinoGameSettingsLoadPromise;
+}
+
+async function saveCasinoGameSettings(settings) {
+  const normalized = normalizeCasinoGameSettingsData(settings);
+  await getCasinoGameSettingsDoc().set(normalized, { merge: true });
+  casinoGameSettingsCache = normalized;
+  return normalized;
+}
+
+function getSlotWeightEntries(settings = getCachedCasinoGameSettings()) {
+  const weights = settings.slotsSymbolWeights || SLOT_SYMBOL_DEFAULT_WEIGHTS;
+  const total = Math.max(1, Object.values(weights).reduce((sum, value) => sum + Math.max(1, Number(value) || 0), 0));
+  return Object.keys(SLOT_SYMBOL_DEFAULT_WEIGHTS).map((symbol) => ({
+    symbol,
+    weight: Math.max(1, Number(weights[symbol] || SLOT_SYMBOL_DEFAULT_WEIGHTS[symbol])),
+    pct: Math.round((Math.max(1, Number(weights[symbol] || SLOT_SYMBOL_DEFAULT_WEIGHTS[symbol])) / total) * 1000) / 10
+  }));
+}
+
+function pickWeightedSlotSymbol(settings = getCachedCasinoGameSettings(), excludedSymbols = []) {
+  const blockedSymbols = new Set(Array.isArray(excludedSymbols) ? excludedSymbols : []);
+  const entries = getSlotWeightEntries(settings).filter((entry) => !blockedSymbols.has(entry.symbol));
+  const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * total;
+  for (const entry of entries) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.symbol;
+  }
+  return entries[entries.length - 1].symbol;
+}
+
+function pickNoMatchSlotReels(settings = getCachedCasinoGameSettings()) {
+  const reels = [];
+  while (reels.length < 3) {
+    reels.push(pickWeightedSlotSymbol(settings, reels));
+  }
+  return reels;
+}
+
+function getSlotSymbolEmoji(symbol) {
+  return SLOT_SYMBOL_EMOJIS[symbol] || SLOT_SYMBOL_EMOJIS['?'];
+}
+
+function getCasinoCardLabel(card) {
+  if (!card) return '🂠';
+  return `${card.rank}${card.suit}`;
+}
+
+function isCasinoRedSuit(card) {
+  return !!(card && (card.suit === '♥' || card.suit === '♦'));
+}
+
+function renderCasinoPlayingCard(card, options = {}) {
+  const hidden = !!options.hidden;
+  const compact = !!options.compact;
+  const selectable = !!options.selectable;
+  const selected = !!options.selected;
+  const label = hidden ? '🂠' : getCasinoCardLabel(card);
+  const accentColor = hidden ? '#1d2b3b' : (isCasinoRedSuit(card) ? '#b71c1c' : '#111');
+  const baseStyle = `display:inline-flex; align-items:center; justify-content:center; flex-direction:column; min-width:${compact ? '3.05rem' : '3.7rem'}; min-height:${compact ? '4.05rem' : '5rem'}; padding:${compact ? '0.45rem 0.42rem' : '0.65rem 0.55rem'}; border-radius:0.75rem; background:linear-gradient(180deg, #ffffff 0%, #eef4fb 100%); color:${accentColor}; font-weight:800; border:2px solid ${selected ? '#ff7043' : '#d7dee8'}; box-shadow:${selected ? '0 0 0 2px rgba(255,112,67,0.28), 0 14px 24px rgba(0,0,0,0.14)' : '0 14px 24px rgba(0,0,0,0.14)'}; letter-spacing:0.03em;`;
+  if (!selectable) {
+    return `<span style="${baseStyle}">${escapeHtml(label)}</span>`;
+  }
+  return `<button onclick="togglePokerDiscard(${Number(options.index) || 0})" style="${baseStyle}; cursor:pointer;">${escapeHtml(label)}</button>`;
+}
+
+function renderCasinoCardRow(cards, options = {}) {
+  const hiddenSecond = !!options.hiddenSecond;
+  const hidden = !!options.hidden;
+  const compact = !!options.compact;
+  const selectable = !!options.selectable;
+  const selectedIndexes = Array.isArray(options.selectedIndexes) ? options.selectedIndexes : [];
+  return (Array.isArray(cards) ? cards : []).map((card, index) => renderCasinoPlayingCard(card, {
+    hidden: hidden || (hiddenSecond && index === 1),
+    compact,
+    selectable,
+    selected: selectedIndexes.includes(index),
+    index
+  })).join('');
+}
+
+const ROULETTE_WHEEL_ORDER = [...Array.from({ length: 24 }, (_, index) => index + 1), 0];
+
+function getRoulettePocketColor(value) {
+  if (value === 0) return 'green';
+  return value % 2 === 0 ? 'black' : 'red';
+}
+
+function getRoulettePockets() {
+  const angleStep = 360 / ROULETTE_WHEEL_ORDER.length;
+  return ROULETTE_WHEEL_ORDER.map((value, index) => ({
+    value,
+    index,
+    angleDeg: (index * angleStep) - 90,
+    color: getRoulettePocketColor(value)
+  }));
+}
+
+function getRoulettePocketByValue(value) {
+  const normalizedValue = Number(value);
+  return getRoulettePockets().find((pocket) => pocket.value === normalizedValue) || getRoulettePockets()[0];
+}
+
+function getRouletteBetLabel(choice, selectedNumber = null) {
+  if (choice === 'number' && Number.isInteger(Number(selectedNumber))) {
+    return `#${Number(selectedNumber)}`;
+  }
+  if (choice === 'green') return 'GREEN';
+  if (choice === 'black') return 'BLACK';
+  if (choice === 'red') return 'RED';
+  return 'WAITING';
+}
+
+function renderRouletteNumberBetButtons() {
+  return [...Array.from({ length: 24 }, (_, index) => index + 1), 0].map((value) => {
+    const color = getRoulettePocketColor(value);
+    const background = color === 'red' ? '#b71c1c' : color === 'black' ? '#12161d' : '#2e7d32';
+    const textColor = color === 'black' ? '#f4f7fb' : '#ffffff';
+    return `<button onclick="spinRouletteNumber(${value})" style="padding:0.45rem 0.2rem; min-height:2.35rem; border-radius:0.65rem; border:1px solid rgba(255,255,255,0.12); background:${background}; color:${textColor}; font-weight:800;">${value}</button>`;
+  }).join('');
+}
+
+function renderRouletteVisualization(state = rouletteVisualState) {
+  const node = document.getElementById('roulette-visual');
+  if (!node) return;
+  const pockets = getRoulettePockets();
+  const activeValue = Number.isInteger(state.activeValue) ? state.activeValue : null;
+  const winningValue = Number.isInteger(state.winningValue) ? state.winningValue : null;
+  const activePocket = activeValue != null ? getRoulettePocketByValue(activeValue) : pockets[0];
+  const ballAngleDeg = Number.isFinite(Number(state.ballAngleDeg)) ? Number(state.ballAngleDeg) : activePocket.angleDeg;
+  const betLabel = state.selectedChoice ? escapeHtml(String(state.selectedChoice)) : 'Pick a color or number';
+  node.innerHTML = `
+    <div style="display:grid; gap:0.7rem; width:min(34rem, 100%);">
+      <div style="padding:0.9rem; border-radius:1rem; background:radial-gradient(circle at top, rgba(56,142,60,0.36) 0%, rgba(8,20,12,0.95) 72%); border:1px solid #244028; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04); display:grid; gap:0.7rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap; font-size:0.78rem; color:#c7d4e2;">
+          <span>Ball ${state.spinning ? `tracking pocket ${activeValue != null ? activeValue : pockets[0].value}...` : (winningValue != null ? `stopped on ${winningValue}` : 'waiting for spin')}</span>
+          <span>Bet: ${betLabel}</span>
+        </div>
+        <div style="position:relative; width:min(25rem, 92vw); aspect-ratio:1 / 1; margin:0 auto;">
+          <div style="position:absolute; left:50%; top:0.2rem; transform:translateX(-50%); width:0; height:0; border-left:0.75rem solid transparent; border-right:0.75rem solid transparent; border-top:1.15rem solid #f6d365; filter:drop-shadow(0 8px 10px rgba(0,0,0,0.28)); z-index:6;"></div>
+          <div style="position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle at 50% 45%, rgba(34,49,67,0.95) 0%, rgba(12,18,26,0.98) 55%, rgba(6,10,14,1) 100%); border:1px solid rgba(255,255,255,0.08); box-shadow:inset 0 0 40px rgba(0,0,0,0.35), 0 26px 38px rgba(0,0,0,0.28);"></div>
+          <div style="position:absolute; inset:1.4rem; border-radius:50%; background:radial-gradient(circle at center, rgba(19,26,35,0.98) 0%, rgba(8,13,18,1) 72%); border:1px solid rgba(255,255,255,0.08);"></div>
+          ${pockets.map((pocket) => {
+            const isActive = activeValue === pocket.value;
+            const isWinner = winningValue === pocket.value;
+            const background = pocket.color === 'red' ? '#b71c1c' : (pocket.color === 'black' ? '#12161d' : '#2e7d32');
+            return `<div style="position:absolute; left:50%; top:50%; width:2.55rem; height:2.55rem; display:flex; align-items:center; justify-content:center; transform:translate(-50%, -50%) rotate(${pocket.angleDeg}deg) translateY(-9.55rem) rotate(${-pocket.angleDeg}deg); border-radius:0.8rem; font-weight:800; color:#fff; background:${background}; border:2px solid ${isWinner ? '#f6d365' : isActive ? '#90caf9' : 'rgba(255,255,255,0.14)'}; box-shadow:${isWinner ? '0 0 0 2px rgba(246,211,101,0.28), 0 14px 28px rgba(0,0,0,0.22)' : isActive ? '0 0 0 2px rgba(144,202,249,0.2)' : 'none'}; transition:transform 120ms ease, box-shadow 120ms ease; z-index:${isWinner ? 4 : isActive ? 3 : 2};">${pocket.value}</div>`;
+          }).join('')}
+          <div style="position:absolute; left:50%; top:50%; width:1.05rem; height:1.05rem; border-radius:50%; background:radial-gradient(circle at 35% 35%, #ffffff 0%, #eef5ff 45%, #d8e2f1 100%); border:2px solid rgba(24,31,42,0.6); box-shadow:0 0 18px rgba(255,255,255,0.5), 0 8px 18px rgba(0,0,0,0.3); transform:translate(-50%, -50%) rotate(${ballAngleDeg}deg) translateY(-11.2rem); z-index:7;"></div>
+          <div style="position:absolute; left:50%; top:50%; width:5.4rem; height:5.4rem; border-radius:50%; background:radial-gradient(circle at 50% 35%, rgba(47,66,86,0.92) 0%, rgba(16,23,31,0.98) 75%); border:1px solid rgba(255,255,255,0.08); transform:translate(-50%, -50%); z-index:5; display:flex; align-items:center; justify-content:center; text-align:center; padding:0.6rem; font-size:0.78rem; color:#dce6f2; font-weight:700;">${state.spinning ? 'Ball in motion' : winningValue != null ? `Pocket ${winningValue}` : 'Ready'}</div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:center; gap:0.6rem; flex-wrap:wrap; font-size:0.8rem; color:#9fb0c2;">
+        <span style="padding:0.35rem 0.6rem; border-radius:999px; background:#241012; color:#ffb4b4; border:1px solid rgba(255,255,255,0.08);">Red pockets</span>
+        <span style="padding:0.35rem 0.6rem; border-radius:999px; background:#0d1016; color:#dce6f2; border:1px solid rgba(255,255,255,0.08);">Black pockets</span>
+        <span style="padding:0.35rem 0.6rem; border-radius:999px; background:#102418; color:#b9f6ca; border:1px solid rgba(255,255,255,0.08);">0 is green</span>
+        <span style="padding:0.35rem 0.6rem; border-radius:999px; background:#14253d; color:#90caf9; border:1px solid rgba(255,255,255,0.08);">Straight number pays +24x</span>
+      </div>
+    </div>`;
+}
+
+async function animateRouletteSpin(finalPocket, selectedChoice) {
+  const pockets = getRoulettePockets();
+  const finalIndex = Math.max(0, pockets.findIndex((pocket) => pocket.value === Number(finalPocket && finalPocket.value)));
+  const currentIndex = Number.isInteger(rouletteVisualState.activeValue)
+    ? Math.max(0, pockets.findIndex((pocket) => pocket.value === rouletteVisualState.activeValue))
+    : 0;
+  rouletteVisualState = {
+    selectedChoice,
+    winningValue: null,
+    activeValue: pockets[currentIndex].value,
+    ballAngleDeg: pockets[currentIndex].angleDeg,
+    spinning: true
+  };
+  renderRouletteVisualization();
+  const totalSteps = (pockets.length * 4) + ((finalIndex - currentIndex + pockets.length) % pockets.length);
+  for (let step = 1; step <= totalSteps; step += 1) {
+    const activePocket = pockets[(currentIndex + step) % pockets.length];
+    rouletteVisualState = {
+      selectedChoice,
+      winningValue: null,
+      activeValue: activePocket.value,
+      ballAngleDeg: activePocket.angleDeg,
+      spinning: true
+    };
+    renderRouletteVisualization();
+    await waitForMs(Math.min(220, 38 + Math.floor((step / totalSteps) * 170)));
+  }
+  rouletteVisualState = {
+    selectedChoice,
+    winningValue: finalPocket.value,
+    activeValue: finalPocket.value,
+    ballAngleDeg: Number.isFinite(Number(finalPocket && finalPocket.angleDeg)) ? Number(finalPocket.angleDeg) : getRoulettePocketByValue(finalPocket.value).angleDeg,
+    spinning: false
+  };
+  renderRouletteVisualization();
+}
+
+function renderSlotFace(symbol, options = {}) {
+  const label = String(options.label || (symbol === '?' ? 'ANY' : symbol || '?')).trim();
+  const emoji = String(options.emoji || getSlotSymbolEmoji(symbol));
+  const compact = !!options.compact;
+  const spinning = !!options.spinning;
+  return `
+    <div style="min-width:${compact ? '2.9rem' : '4.6rem'}; min-height:${compact ? '3.3rem' : '5rem'}; padding:${compact ? '0.3rem 0.35rem' : '0.45rem 0.5rem'}; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:${compact ? '0.18rem' : '0.28rem'}; border-radius:0.8rem; background:linear-gradient(180deg, #fff8e1 0%, #f6d365 100%); color:#24140d; border:2px solid rgba(255,255,255,0.4); box-shadow:${spinning ? '0 16px 30px rgba(246, 211, 101, 0.3)' : '0 10px 24px rgba(0,0,0,0.18)'}; transform:${spinning ? 'translateY(-2px) scale(1.03)' : 'none'}; transition:transform 120ms ease, box-shadow 120ms ease;">
+      <span style="font-size:${compact ? '1.55rem' : '2.25rem'}; line-height:1;">${escapeHtml(emoji)}</span>
+      <span style="font-size:${compact ? '0.56rem' : '0.68rem'}; font-weight:800; letter-spacing:0.08em; color:#5f3a18;">${escapeHtml(label)}</span>
+    </div>`;
+}
+
+function setSlotsSpinButtonState(isSpinning) {
+  const button = document.getElementById('slots-spin-button');
+  if (!button) return;
+  button.disabled = !!isSpinning;
+  button.textContent = isSpinning ? 'Spinning...' : 'Spin';
+  button.style.opacity = isSpinning ? '0.7' : '1';
+  button.style.cursor = isSpinning ? 'wait' : 'pointer';
+}
+
+function waitForMs(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function animateSlotsSpin(finalReels, settings = getCachedCasinoGameSettings()) {
+  const totalFrames = 16;
+  for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
+    const frame = finalReels.map((finalSymbol, reelIndex) => {
+      const lockFrame = totalFrames - ((reelIndex + 1) * 4);
+      return frameIndex >= lockFrame ? finalSymbol : pickWeightedSlotSymbol(settings);
+    });
+    slotsVisualState = frame.slice();
+    renderSlotsVisualization(frame, settings, { spinning: true });
+    await waitForMs(75 + (frameIndex * 7));
+  }
+  slotsVisualState = finalReels.slice();
+  renderSlotsVisualization(finalReels, settings, { spinning: false });
+}
+
+function renderSlotsVisualization(reels = slotsVisualState, settings = getCachedCasinoGameSettings(), options = {}) {
+  const reelNode = document.getElementById('slots-reel-visual');
+  const oddsNode = document.getElementById('slots-odds-visual');
+  const spinning = !!options.spinning;
+  if (reelNode) {
+    reelNode.innerHTML = (Array.isArray(reels) ? reels : slotsVisualState).map((symbol) => renderSlotFace(symbol, { spinning })).join('');
+  }
+  if (oddsNode) {
+    oddsNode.innerHTML = `
+      <div style="padding:0.8rem; border-radius:0.8rem; background:#10151d; border:1px solid #263140; display:grid; gap:0.55rem;">
+        <div style="font-size:0.82rem; font-weight:700; color:#fff;">Slots payout combinations</div>
+        <div style="display:grid; gap:0.45rem;">
+          <div style="display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:0.6rem; align-items:center;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${['7', '7', '7'].map((symbol) => renderSlotFace(symbol, { compact: true })).join('')}<span style="font-size:0.76rem; color:#9fb0c2; align-self:center;">if all 3 are 7s</span></div><div style="font-weight:700; color:#9fe3a5;">8x bet</div></div>
+          <div style="display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:0.6rem; align-items:center;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${['BAR', 'BAR', 'BAR'].map((symbol) => renderSlotFace(symbol, { compact: true })).join('')}<span style="font-size:0.76rem; color:#9fb0c2; align-self:center;">if all 3 match</span></div><div style="font-weight:700; color:#9fe3a5;">3x bet</div></div>
+          <div style="display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:0.6rem; align-items:center;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${renderSlotFace('CHERRY', { compact: true })}${renderSlotFace('CHERRY', { compact: true })}${renderSlotFace('?', { compact: true, label: 'ANY', emoji: '✨' })}<span style="font-size:0.76rem; color:#9fb0c2; align-self:center;">if any 2 match</span></div><div style="font-weight:700; color:#90caf9;">1x bet</div></div>
+          <div style="display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:0.6rem; align-items:center;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${['7', 'BAR', 'BELL'].map((symbol) => renderSlotFace(symbol, { compact: true })).join('')}<span style="font-size:0.76rem; color:#9fb0c2; align-self:center;">if none match</span></div><div style="font-weight:700; color:#ffb4a8;">lose bet</div></div>
+        </div>
+      </div>`;
+  }
+}
+
+function sanitizeCasinoAchievementIds(ids) {
+  const knownIds = new Set(CASINO_ACHIEVEMENTS.map((item) => item.id));
+  return Array.from(new Set((Array.isArray(ids) ? ids : [])
+    .map((id) => sanitizeNullableText(id, ''))
+    .filter((id) => knownIds.has(id)))).sort();
+}
+
+function getCasinoUnlockedAchievements(stats) {
+  return CASINO_ACHIEVEMENTS.filter((item) => Math.max(0, Number(stats && stats[item.stat] || 0)) >= item.goal);
+}
+
+function getCasinoUnlockedAchievementIds(stats) {
+  return getCasinoUnlockedAchievements(stats).map((item) => item.id);
+}
+
+function sanitizeOwnedProfileBackgroundIds(ids) {
+  return Array.from(new Set((Array.isArray(ids) ? ids : [])
+    .map((id) => normalizeRoomId(id))
+    .filter(Boolean))).slice(0, 120);
+}
+
+function sanitizeOwnedGeneralShopItemIds(ids) {
+  return (Array.isArray(ids) ? ids : [])
+    .map((id) => normalizeOptionalGeneralShopItemId(id))
+    .filter(Boolean)
+    .slice(0, 240);
+}
+
+function sanitizeOwnedGeneralShopItemSaleValues(ids, saleValues) {
+  const normalizedIds = sanitizeOwnedGeneralShopItemIds(ids);
+  const source = Array.isArray(saleValues) ? saleValues : [];
+  return normalizedIds.map((_, index) => Math.max(0, Math.min(1000000000, Math.floor(Number(source[index]) || 0))));
+}
+
+function getGeneralShopCaseDropSaleMultiplier(rarity) {
+  const resolved = normalizeGeneralShopRarity(rarity);
+  if (resolved === 'restricted') return 0.75;
+  if (resolved === 'classified') return 1;
+  if (resolved === 'covert') return 2;
+  if (resolved === 'special') return 5;
+  return 0.5;
+}
+
+function getGeneralShopCaseDropSaleValue(caseItem, rewardItem) {
+  const casePrice = Math.max(0, Math.floor(Number(caseItem && caseItem.price) || 0));
+  const multiplier = getGeneralShopCaseDropSaleMultiplier(rewardItem && rewardItem.rarity);
+  return Math.max(0, Math.floor(casePrice * multiplier));
+}
+
+function getLegacyGeneralShopCaseDropSaleValue(item) {
+  if (!item || item.itemType !== 'case-drop') return 0;
+  const matchingCases = getAllGeneralShopItems().filter((entry) => entry && entry.itemType === 'case' && getResolvedGeneralShopCaseRewards(entry).some((reward) => reward && reward.itemId === item.id));
+  if (!matchingCases.length) return 0;
+  return matchingCases.reduce((best, caseItem) => Math.max(best, getGeneralShopCaseDropSaleValue(caseItem, item)), 0);
+}
+
+function sanitizeOwnedGeneralShopCaseCounts(rawCounts) {
+  const source = rawCounts && typeof rawCounts === 'object' ? rawCounts : {};
+  const next = {};
+  Object.keys(source).forEach((key) => {
+    const itemId = normalizeOptionalGeneralShopItemId(key);
+    const count = Math.max(0, Math.min(9999, Math.floor(Number(source[key]) || 0)));
+    if (itemId && count > 0) next[itemId] = count;
+  });
+  return next;
+}
+
+function normalizeOptionalGeneralShopItemId(value) {
+  const raw = typeof value === 'string' ? value.trim() : String(value || '').trim();
+  return raw ? normalizeRoomId(raw) : '';
+}
+
+function normalizeOptionalProfileBackgroundId(value) {
+  const raw = typeof value === 'string' ? value.trim() : String(value || '').trim();
+  return raw ? normalizeRoomId(raw) : '';
+}
+
+function getCasinoGameLabel(gameKey) {
+  if (gameKey === 'blackjack') return 'Blackjack';
+  if (gameKey === 'coinflip') return 'Coin Flip';
+  if (gameKey === 'roulette') return 'Roulette';
+  if (gameKey === 'slots') return 'Slots';
+  if (gameKey === 'poker') return 'Poker';
+  return 'Casino';
+}
+
+function normalizeCoinFlipChoice(value) {
+  const choice = String(value || '').trim().toLowerCase();
+  return choice === 'tails' ? 'tails' : 'heads';
+}
+
+function getCoinFlipChoiceLabel(value) {
+  return normalizeCoinFlipChoice(value) === 'tails' ? 'Tails' : 'Heads';
+}
+
+function normalizeCasinoCoinFlipData(id, data = {}) {
+  const createdAtMs = data.createdAt && typeof data.createdAt.toDate === 'function'
+    ? data.createdAt.toDate().getTime()
+    : Math.max(0, Number(data.createdAtMs || 0));
+  const resolvedAtMs = Math.max(0, Number(data.resolvedAtMs || 0));
+  const updatedAtMs = Math.max(createdAtMs, Math.max(0, Number(data.updatedAtMs || 0)));
+  const challenger = normalizeUsername(data.challenger || '');
+  const acceptor = normalizeUsername(data.acceptor || '');
+  const opponentTarget = normalizeUsername(data.opponentTarget || '');
+  const status = ['open', 'resolved', 'cancelled'].includes(String(data.status || '').trim().toLowerCase())
+    ? String(data.status || '').trim().toLowerCase()
+    : 'open';
+  return {
+    id: sanitizeNullableText(id, ''),
+    status,
+    bet: Math.max(1, Math.floor(Number(data.bet) || 0)),
+    challenger,
+    challengerDisplayName: sanitizeNullableText(data.challengerDisplayName, challenger || 'Player'),
+    challengerSide: normalizeCoinFlipChoice(data.challengerSide),
+    opponentTarget,
+    opponentTargetDisplayName: sanitizeNullableText(data.opponentTargetDisplayName, opponentTarget),
+    openToAny: !opponentTarget,
+    acceptor,
+    acceptorDisplayName: sanitizeNullableText(data.acceptorDisplayName, acceptor),
+    acceptorSide: normalizeCoinFlipChoice(data.acceptorSide || (normalizeCoinFlipChoice(data.challengerSide) === 'heads' ? 'tails' : 'heads')),
+    winner: normalizeUsername(data.winner || ''),
+    winnerDisplayName: sanitizeNullableText(data.winnerDisplayName, data.winner || ''),
+    loser: normalizeUsername(data.loser || ''),
+    loserDisplayName: sanitizeNullableText(data.loserDisplayName, data.loser || ''),
+    flipResult: normalizeCoinFlipChoice(data.flipResult || 'heads'),
+    cancelledBy: normalizeUsername(data.cancelledBy || ''),
+    createdAtMs,
+    updatedAtMs,
+    resolvedAtMs
+  };
+}
+
+function createDefaultCasinoCoinFlipVisualState() {
+  return {
+    matchId: '',
+    flipping: false,
+    displayedFace: 'heads',
+    settledFace: 'heads',
+    spinDeg: 0,
+    offsetX: 0,
+    offsetY: 0,
+    challengerDisplayName: '',
+    challengerSide: 'heads',
+    acceptorDisplayName: '',
+    acceptorSide: 'tails',
+    winnerDisplayName: '',
+    bet: 0,
+    updatedAtMs: 0,
+    statusText: 'Waiting for the next PvP flip.',
+    captionText: 'Post a challenge or take one to animate the coin.'
+  };
+}
+
+function setCasinoCoinFlipVisualStateFromMatch(match, options = {}) {
+  const nextMatch = match && typeof match === 'object' ? match : {};
+  const finalFace = normalizeCoinFlipChoice(nextMatch.flipResult || nextMatch.challengerSide || 'heads');
+  coinFlipVisualState = {
+    ...createDefaultCasinoCoinFlipVisualState(),
+    matchId: sanitizeNullableText(nextMatch.id, ''),
+    flipping: !!options.flipping,
+    displayedFace: normalizeCoinFlipChoice(options.displayedFace || finalFace),
+    settledFace: finalFace,
+    spinDeg: Number.isFinite(Number(options.spinDeg)) ? Number(options.spinDeg) : 0,
+    offsetX: Number.isFinite(Number(options.offsetX)) ? Number(options.offsetX) : 0,
+    offsetY: Number.isFinite(Number(options.offsetY)) ? Number(options.offsetY) : 0,
+    challengerDisplayName: sanitizeNullableText(nextMatch.challengerDisplayName, nextMatch.challenger || 'Challenger'),
+    challengerSide: normalizeCoinFlipChoice(nextMatch.challengerSide || 'heads'),
+    acceptorDisplayName: sanitizeNullableText(nextMatch.acceptorDisplayName, nextMatch.acceptor || 'Opponent'),
+    acceptorSide: normalizeCoinFlipChoice(nextMatch.acceptorSide || (normalizeCoinFlipChoice(nextMatch.challengerSide) === 'tails' ? 'heads' : 'tails')),
+    winnerDisplayName: sanitizeNullableText(nextMatch.winnerDisplayName, nextMatch.winner || ''),
+    bet: Math.max(0, Number(nextMatch.bet || 0)),
+    updatedAtMs: Math.max(0, Number(nextMatch.updatedAtMs || nextMatch.resolvedAtMs || nextMatch.createdAtMs || Date.now())),
+    statusText: String(options.statusText || (nextMatch.status === 'resolved'
+      ? `${nextMatch.winnerDisplayName || nextMatch.winner || 'Winner'} won on ${getCoinFlipChoiceLabel(finalFace)}.`
+      : nextMatch.status === 'cancelled'
+        ? 'The last coin flip challenge was cancelled.'
+        : 'Waiting for the next PvP flip.')),
+    captionText: String(options.captionText || (nextMatch.status === 'resolved'
+      ? `${nextMatch.challengerDisplayName || nextMatch.challenger || 'Challenger'} called ${getCoinFlipChoiceLabel(nextMatch.challengerSide)}. ${nextMatch.acceptorDisplayName || nextMatch.acceptor || 'Opponent'} covered ${getCoinFlipChoiceLabel(nextMatch.acceptorSide)}.`
+      : nextMatch.status === 'cancelled'
+        ? 'Reserved cash was returned to the challenger.'
+        : 'Post a challenge or take one to animate the coin.'))
+  };
+}
+
+function renderCasinoCoinFlipVisualization(state = coinFlipVisualState) {
+  const node = document.getElementById('coinflip-visual');
+  if (!node) return;
+  const displayedFace = normalizeCoinFlipChoice(state.displayedFace || state.settledFace || 'heads');
+  const settledFace = normalizeCoinFlipChoice(state.settledFace || displayedFace);
+  const isFlipping = !!state.flipping;
+  const coinRingColor = isFlipping ? '#90caf9' : (settledFace === 'heads' ? '#81d4fa' : '#ffcc80');
+  const coinGlowColor = isFlipping ? 'rgba(144,202,249,0.32)' : (settledFace === 'heads' ? 'rgba(129,212,250,0.22)' : 'rgba(255,204,128,0.24)');
+  const winnerSide = state.winnerDisplayName
+    ? (normalizeCoinFlipChoice(state.challengerSide) === settledFace ? state.challengerSide : state.acceptorSide)
+    : '';
+  const pot = Math.max(0, Number(state.bet || 0)) * 2;
+  const spinDeg = Number.isFinite(Number(state.spinDeg)) ? Number(state.spinDeg) : 0;
+  const spinRadians = (spinDeg * Math.PI) / 180;
+  const faceScaleY = Math.max(0.08, Math.abs(Math.cos(spinRadians)));
+  const coinTransform = `translate(-50%, -50%) scale(${isFlipping ? '1.04' : '1'})`;
+  node.innerHTML = `
+    <div style="display:grid; gap:0.8rem; width:min(100%, 28rem); justify-self:center;">
+      <div style="padding:0.95rem; border-radius:1rem; background:radial-gradient(circle at top, rgba(24,51,82,0.48) 0%, rgba(8,14,22,0.98) 74%); border:1px solid #29415d; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04); display:grid; gap:0.8rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+          <div style="font-size:0.82rem; font-weight:700; color:#fff;">Live Coin View</div>
+          <div style="font-size:0.74rem; color:#b8c7d9;">${escapeHtml(isFlipping ? 'Flipping...' : state.statusText || 'Waiting for the next PvP flip.')}</div>
+        </div>
+        <div style="position:relative; width:min(15rem, 72vw); aspect-ratio:1 / 1; margin:0 auto;">
+          <div style="position:absolute; inset:0.45rem; border-radius:50%; background:radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(20,29,41,0.1) 60%, rgba(6,10,15,0.45) 100%); border:1px solid rgba(255,255,255,0.06);"></div>
+          <div style="position:absolute; inset:1rem; border-radius:50%; border:0.55rem solid rgba(255,255,255,0.08); box-shadow:inset 0 0 2rem rgba(255,255,255,0.06);"></div>
+          <div style="position:absolute; left:50%; top:50%; width:13rem; height:13rem; transform:${coinTransform}; transition:transform 120ms ease, box-shadow 120ms ease; z-index:3;">
+            <div style="position:absolute; left:50%; top:50%; width:8.4rem; height:1.45rem; border-radius:50%; background:radial-gradient(circle, rgba(0,0,0,0.34) 0%, rgba(0,0,0,0.14) 58%, rgba(0,0,0,0) 100%); transform:translate(-50%, 4.95rem) scale(${isFlipping ? '0.8' : '1'}); filter:blur(6px);"></div>
+            <div style="position:absolute; left:50%; top:50%; width:10.7rem; height:10.7rem; border-radius:50%; transform:translate(-50%, -50%); background:linear-gradient(145deg, #d59d1e 0%, #f9dd72 22%, #c98a19 50%, #8e5a10 100%); box-shadow:0 28px 48px rgba(0,0,0,0.32), 0 0 0 0.38rem ${coinGlowColor};"></div>
+            <div style="position:absolute; left:50%; top:50%; width:10.05rem; height:10.05rem; border-radius:50%; background:linear-gradient(145deg, #fff4bf 0%, #f6d365 32%, #d39b22 70%, #9f6715 100%); color:#2c1805; display:flex; flex-direction:column; align-items:center; justify-content:center; transform:translate(-50%, -50%) scaleY(${faceScaleY}) scaleX(${isFlipping ? '1.02' : '1'}); border:0.5rem solid ${coinRingColor}; box-shadow:inset 0 0.22rem 0.5rem rgba(255,255,255,0.34), inset 0 -0.42rem 0.62rem rgba(98,55,9,0.24), 0 1.2rem 2.1rem rgba(0,0,0,0.18); overflow:hidden;">
+              <div style="position:absolute; inset:0.42rem; border-radius:50%; border:1px solid rgba(120,72,12,0.3);"></div>
+              <div style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.06) 34%, rgba(255,255,255,0) 52%);"></div>
+              <div style="position:relative; font-size:4.15rem; font-weight:900; letter-spacing:0.08em; line-height:1; text-shadow:0 1px 0 rgba(255,255,255,0.25);">${displayedFace === 'heads' ? 'H' : 'T'}</div>
+              <div style="position:relative; font-size:1.05rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">${escapeHtml(getCoinFlipChoiceLabel(displayedFace))}</div>
+            </div>
+          </div>
+          <div style="position:absolute; left:50%; bottom:0.35rem; transform:translateX(-50%); padding:0.34rem 0.7rem; border-radius:999px; background:#0f1620; border:1px solid rgba(255,255,255,0.08); font-size:0.72rem; color:#d8e1ec; white-space:nowrap;">${escapeHtml(state.winnerDisplayName ? `${state.winnerDisplayName} wins ${winnerSide ? `with ${getCoinFlipChoiceLabel(winnerSide)}` : ''}`.trim() : 'Ready for the next duel')}</div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.55rem;">
+          <div style="padding:0.65rem 0.7rem; border-radius:0.75rem; background:${normalizeCoinFlipChoice(state.challengerSide) === settledFace ? '#14311f' : '#141b24'}; border:1px solid ${normalizeCoinFlipChoice(state.challengerSide) === settledFace ? '#265d3c' : '#253140'}; display:grid; gap:0.22rem;">
+            <div style="font-size:0.7rem; color:#9fb0c2; text-transform:uppercase; letter-spacing:0.08em;">Caller</div>
+            <div style="font-size:0.84rem; font-weight:700; color:#fff;">${escapeHtml(state.challengerDisplayName || 'Challenger')}</div>
+            <div style="font-size:0.78rem; color:#d7e3f0;">${escapeHtml(getCoinFlipChoiceLabel(state.challengerSide))}</div>
+          </div>
+          <div style="padding:0.65rem 0.7rem; border-radius:0.75rem; background:${normalizeCoinFlipChoice(state.acceptorSide) === settledFace ? '#14311f' : '#141b24'}; border:1px solid ${normalizeCoinFlipChoice(state.acceptorSide) === settledFace ? '#265d3c' : '#253140'}; display:grid; gap:0.22rem; text-align:right;">
+            <div style="font-size:0.7rem; color:#9fb0c2; text-transform:uppercase; letter-spacing:0.08em;">Opponent</div>
+            <div style="font-size:0.84rem; font-weight:700; color:#fff;">${escapeHtml(state.acceptorDisplayName || 'Opponent')}</div>
+            <div style="font-size:0.78rem; color:#d7e3f0;">${escapeHtml(getCoinFlipChoiceLabel(state.acceptorSide))}</div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; font-size:0.78rem; color:#c6d3e0;">
+          <span>Pot: $${pot.toLocaleString()}</span>
+          <span>${escapeHtml(state.captionText || 'Post a challenge or take one to animate the coin.')}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function animateCasinoCoinFlip(match) {
+  const nextMatch = match && typeof match === 'object' ? match : null;
+  if (!nextMatch) return;
+  const finalFace = normalizeCoinFlipChoice(nextMatch.flipResult || 'heads');
+  const totalFrames = 14;
+  for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
+    const progress = totalFrames > 1 ? (frameIndex / (totalFrames - 1)) : 1;
+    const displayedFace = frameIndex % 2 === 0 ? 'heads' : 'tails';
+    setCasinoCoinFlipVisualStateFromMatch(nextMatch, {
+      flipping: true,
+      displayedFace,
+      spinDeg: ((frameIndex + 1) * 180) + (displayedFace === 'tails' ? 10 : -10),
+      offsetX: 0,
+      offsetY: 0,
+      statusText: 'The coin is in the air...',
+      captionText: `${nextMatch.challengerDisplayName || nextMatch.challenger || 'Challenger'} vs ${nextMatch.acceptorDisplayName || nextMatch.acceptor || 'Opponent'}`
+    });
+    renderCasinoCoinFlipVisualization();
+    await waitForMs(55 + (frameIndex * 10));
+  }
+  setCasinoCoinFlipVisualStateFromMatch(nextMatch, {
+    flipping: false,
+    displayedFace: finalFace,
+    spinDeg: (totalFrames * 180) + (finalFace === 'tails' ? 180 : 0),
+    offsetX: 0,
+    offsetY: 0,
+    statusText: `${nextMatch.winnerDisplayName || nextMatch.winner || 'Winner'} won on ${getCoinFlipChoiceLabel(finalFace)}.`,
+    captionText: `Stake was $${Math.max(0, Number(nextMatch.bet || 0)).toLocaleString()} per player.`
+  });
+  renderCasinoCoinFlipVisualization();
+}
+
+function applyCasinoStatsToCurrentUserUi(stats) {
+  const currentUser = getCasinoPlayerKey();
+  const resolvedStats = normalizeCasinoProfileStatsData((stats && stats.username) || currentUser, stats || {});
+  if (!currentUser || normalizeUsername(resolvedStats.username) !== normalizeUsername(currentUser)) return;
+  casinoProfileStatsCache[currentUser] = resolvedStats;
+  const balanceNode = document.getElementById('casino-balance');
+  if (balanceNode) balanceNode.textContent = `Balance: $${Math.max(0, Number(resolvedStats.balance || 0)).toLocaleString()}`;
+  renderCasinoRecoveryAction(resolvedStats);
+  renderCasinoSidebar(resolvedStats);
+}
+
+function normalizeCasinoProfileStatsData(username, data = {}) {
+  const key = normalizeUsername(username);
+  const balance = Math.max(0, Number(data.balance ?? 1000));
+  const biggestBalance = Math.max(balance, Math.max(0, Number(data.biggestBalance ?? 1000)));
+  const normalizedStats = {
+    username: key,
+    balance,
+    bankruptcies: Math.max(0, Number(data.bankruptcies ?? 0)),
+    wins: Math.max(0, Number(data.wins ?? 0)),
+    losses: Math.max(0, Number(data.losses ?? 0)),
+    pushes: Math.max(0, Number(data.pushes ?? 0)),
+    gamesPlayed: Math.max(0, Number(data.gamesPlayed ?? 0)),
+    totalWagered: Math.max(0, Number(data.totalWagered ?? 0)),
+    biggestWin: Math.max(0, Number(data.biggestWin ?? 0)),
+    biggestBalance,
+    currentWinStreak: Math.max(0, Number(data.currentWinStreak ?? 0)),
+    currentLossStreak: Math.max(0, Number(data.currentLossStreak ?? 0)),
+    bestWinStreak: Math.max(0, Number(data.bestWinStreak ?? 0)),
+    worstLossStreak: Math.max(0, Number(data.worstLossStreak ?? 0)),
+    hotHandUntilMs: Math.max(0, Number(data.hotHandUntilMs ?? 0)),
+    coldTableUntilMs: Math.max(0, Number(data.coldTableUntilMs ?? 0)),
+    reliefClaims: Math.max(0, Number(data.reliefClaims ?? 0)),
+    lastReliefClaimAtMs: Math.max(0, Number(data.lastReliefClaimAtMs ?? 0)),
+    lastGameAtMs: Math.max(0, Number(data.lastGameAtMs ?? 0)),
+    ownedGeneralShopCaseCounts: sanitizeOwnedGeneralShopCaseCounts(data.ownedGeneralShopCaseCounts),
+    ownedGeneralShopItemIds: sanitizeOwnedGeneralShopItemIds(data.ownedGeneralShopItemIds),
+    ownedGeneralShopItemSaleValues: [],
+    selectedGeneralShopFeaturedItemId: '',
+    allTimeBestGeneralShopDropItemId: '',
+    allTimeBestGeneralShopDropTitle: '',
+    allTimeBestGeneralShopDropRarity: 'mil-spec',
+    allTimeBestGeneralShopDropValue: 0,
+    ownedProfileBackgroundIds: sanitizeOwnedProfileBackgroundIds(data.ownedProfileBackgroundIds),
+    selectedProfileBackgroundId: ''
+  };
+  normalizedStats.ownedGeneralShopItemSaleValues = sanitizeOwnedGeneralShopItemSaleValues(normalizedStats.ownedGeneralShopItemIds, data.ownedGeneralShopItemSaleValues);
+  const selectedGeneralShopFeaturedItemId = normalizeOptionalGeneralShopItemId(data.selectedGeneralShopFeaturedItemId || '');
+  normalizedStats.selectedGeneralShopFeaturedItemId = normalizedStats.ownedGeneralShopItemIds.includes(selectedGeneralShopFeaturedItemId) ? selectedGeneralShopFeaturedItemId : '';
+  const storedBestDropItemId = normalizeOptionalGeneralShopItemId(data.allTimeBestGeneralShopDropItemId || '');
+  const storedBestDropItem = getGeneralShopItem(storedBestDropItemId);
+  const storedBestDropValue = Math.max(0, Number(data.allTimeBestGeneralShopDropValue || 0));
+  const storedBestDropTitle = sanitizeNullableText(data.allTimeBestGeneralShopDropTitle || (storedBestDropItem ? storedBestDropItem.title : ''), '').slice(0, 40);
+  const storedBestDropRarity = normalizeGeneralShopRarity(data.allTimeBestGeneralShopDropRarity || (storedBestDropItem ? storedBestDropItem.rarity : 'mil-spec'));
+  if (storedBestDropValue > 0 && storedBestDropTitle) {
+    normalizedStats.allTimeBestGeneralShopDropItemId = storedBestDropItemId;
+    normalizedStats.allTimeBestGeneralShopDropTitle = storedBestDropTitle;
+    normalizedStats.allTimeBestGeneralShopDropRarity = storedBestDropRarity;
+    normalizedStats.allTimeBestGeneralShopDropValue = storedBestDropValue;
+  }
+  const selectedProfileBackgroundId = normalizeOptionalProfileBackgroundId(data.selectedProfileBackgroundId || '');
+  normalizedStats.selectedProfileBackgroundId = normalizedStats.ownedProfileBackgroundIds.includes(selectedProfileBackgroundId) ? selectedProfileBackgroundId : '';
+  normalizedStats.achievementIds = Array.from(new Set([
+    ...sanitizeCasinoAchievementIds(data.achievementIds),
+    ...getCasinoUnlockedAchievementIds(normalizedStats)
+  ])).sort();
+  if (!(normalizedStats.allTimeBestGeneralShopDropValue > 0 && normalizedStats.allTimeBestGeneralShopDropTitle)) {
+    const fallbackBestDrop = getMostValuableOwnedGeneralShopDropEntry(normalizedStats);
+    if (fallbackBestDrop && fallbackBestDrop.item) {
+      normalizedStats.allTimeBestGeneralShopDropItemId = fallbackBestDrop.itemId;
+      normalizedStats.allTimeBestGeneralShopDropTitle = fallbackBestDrop.item.title;
+      normalizedStats.allTimeBestGeneralShopDropRarity = normalizeGeneralShopRarity(fallbackBestDrop.item.rarity);
+      normalizedStats.allTimeBestGeneralShopDropValue = Math.max(0, Number(fallbackBestDrop.saleValue || 0));
+    }
+  }
+  return normalizedStats;
+}
+
+function getDefaultCasinoProfileStats(username = '') {
+  return normalizeCasinoProfileStatsData(username, {});
+}
+
+function getCachedCasinoProfileStats(username) {
+  const key = normalizeUsername(username);
+  if (!key) return getDefaultCasinoProfileStats('');
+  return {
+    ...getDefaultCasinoProfileStats(key),
+    ...(casinoProfileStatsCache[key] || {}),
+    username: key
+  };
+}
+
+async function loadCasinoProfileStats(username) {
+  const key = normalizeUsername(username);
+  if (!key) return getDefaultCasinoProfileStats('');
+  try {
+    const doc = await getCasinoBalanceCollection().doc(key).get();
+    if (doc.exists) {
+      casinoProfileStatsCache[key] = normalizeCasinoProfileStatsData(key, doc.data() || {});
+    } else {
+      casinoProfileStatsCache[key] = getDefaultCasinoProfileStats(key);
+    }
+  } catch (_) {}
+  return getCachedCasinoProfileStats(key);
+}
+
+async function ensureCasinoBalanceRecord() {
+  const user = getCasinoPlayerKey();
+  const displayName = getCasinoPlayerDisplayName();
+  if (!user) {
+    const emptyStats = normalizeCasinoProfileStatsData('', { balance: 0 });
+    return { user: '', displayName, ref: null, ...emptyStats };
+  }
+  const ref = getCasinoBalanceCollection().doc(user);
+  const snap = await ref.get();
+  const stats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+  if (snap.exists) {
+    const data = snap.data() || {};
+    if (data.displayName !== displayName
+      || data.username !== user
+      || typeof data.bankruptcies !== 'number'
+      || typeof data.wins !== 'number'
+      || typeof data.losses !== 'number'
+      || typeof data.pushes !== 'number'
+      || typeof data.gamesPlayed !== 'number'
+      || typeof data.totalWagered !== 'number'
+      || typeof data.biggestWin !== 'number'
+      || typeof data.biggestBalance !== 'number'
+      || typeof data.currentWinStreak !== 'number'
+      || typeof data.currentLossStreak !== 'number'
+      || typeof data.bestWinStreak !== 'number'
+      || typeof data.worstLossStreak !== 'number'
+      || typeof data.hotHandUntilMs !== 'number'
+      || typeof data.coldTableUntilMs !== 'number'
+      || typeof data.reliefClaims !== 'number'
+      || typeof data.lastReliefClaimAtMs !== 'number'
+      || typeof data.lastGameAtMs !== 'number'
+      || !Array.isArray(data.achievementIds)) {
+      await ref.set({
+        username: user,
+        displayName,
+        ...stats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+    }
+  } else {
+    await ref.set({
+      username: user,
+      displayName,
+      ...stats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  }
+  casinoProfileStatsCache[user] = stats;
+  return { user, displayName, ref, ...stats };
+}
+
+function renderCasinoActivityFeed() {
+  const container = document.getElementById('casino-activity-feed');
+  if (!container) return;
+  if (!casinoActivityCache.length) {
+    container.innerHTML = '<div class="activity-feed-empty">No casino action yet. Big wins, bankruptcies, and unlocks show here.</div>';
+    return;
+  }
+  container.innerHTML = casinoActivityCache.map((item) => `
+    <div class="activity-feed-item">
+      <div class="activity-feed-head">
+        <div class="activity-feed-title">${escapeHtml(item.title || 'Casino Activity')}</div>
+        <div class="activity-feed-meta">${escapeHtml(formatRelativeTime(item.atMs || 0))}</div>
+      </div>
+      <div class="activity-feed-body">${escapeHtml(item.body || '')}</div>
+    </div>`).join('');
+}
+
+function stopListeningForCasinoActivity() {
+  if (casinoActivityUnsub) {
+    casinoActivityUnsub();
+    casinoActivityUnsub = null;
+  }
+}
+
+function listenForCasinoActivity() {
+  renderCasinoActivityFeed();
+  try {
+    stopListeningForCasinoActivity();
+    casinoActivityUnsub = getCasinoActivityCollection()
+      .orderBy('createdAt', 'desc')
+      .limit(MAX_CASINO_ACTIVITY_ITEMS)
+      .onSnapshot((snapshot) => {
+        casinoActivityCache = snapshot.docs.map((doc) => {
+          const data = doc.data() || {};
+          return {
+            type: sanitizeNullableText(data.type, 'activity'),
+            title: sanitizeNullableText(data.title, 'Casino Activity'),
+            body: sanitizeNullableText(data.body, ''),
+            atMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : Math.max(0, Number(data.atMs || 0))
+          };
+        });
+        renderCasinoActivityFeed();
+      }, () => {
+        renderCasinoActivityFeed();
+      });
+  } catch (_) {
+    renderCasinoActivityFeed();
+  }
+}
+
+async function publishCasinoActivity(items) {
+  const entries = (Array.isArray(items) ? items : [items]).filter(Boolean);
+  if (!entries.length) return;
+  try {
+    await Promise.all(entries.map((item) => getCasinoActivityCollection().add({
+      type: sanitizeNullableText(item.type, 'activity'),
+      title: sanitizeNullableText(item.title, 'Casino Activity').slice(0, 120),
+      body: sanitizeNullableText(item.body, '').slice(0, 220),
+      by: sanitizeNullableText(item.by, getCasinoPlayerKey() || 'guest'),
+      atMs: Date.now(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    })));
+  } catch (_) {}
+}
+
+function stopListeningForCasinoCoinFlips() {
+  if (casinoCoinFlipUnsub) {
+    casinoCoinFlipUnsub();
+    casinoCoinFlipUnsub = null;
+  }
+}
+
+function listenForCasinoCoinFlips() {
+  try {
+    stopListeningForCasinoCoinFlips();
+    casinoCoinFlipUnsub = getCasinoCoinFlipCollection()
+      .orderBy('createdAt', 'desc')
+      .limit(40)
+      .onSnapshot((snapshot) => {
+        const currentUser = getCasinoPlayerKey();
+        const previousLatestResolved = casinoCoinFlipCache.find((match) => match.status === 'resolved');
+        casinoCoinFlipCache = snapshot.docs
+          .map((doc) => normalizeCasinoCoinFlipData(doc.id, doc.data() || {}))
+          .sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+        const nextLatestResolved = casinoCoinFlipCache.find((match) => match.status === 'resolved');
+        const currentUserMatchChanged = !!currentUser && snapshot.docChanges().some((change) => {
+          const nextMatch = normalizeCasinoCoinFlipData(change.doc.id, change.doc.data() || {});
+          return nextMatch.challenger === currentUser || nextMatch.acceptor === currentUser || nextMatch.opponentTarget === currentUser;
+        });
+        if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+          renderActiveCasinoGamePanel();
+          if (nextLatestResolved && (!previousLatestResolved || previousLatestResolved.id !== nextLatestResolved.id || previousLatestResolved.updatedAtMs !== nextLatestResolved.updatedAtMs)) {
+            animateCasinoCoinFlip(nextLatestResolved).catch(() => {
+              setCasinoCoinFlipVisualStateFromMatch(nextLatestResolved);
+              renderCasinoCoinFlipVisualization();
+            });
+          } else if (nextLatestResolved && !coinFlipVisualState.matchId) {
+            setCasinoCoinFlipVisualStateFromMatch(nextLatestResolved);
+            renderCasinoCoinFlipVisualization();
+          } else {
+            renderCasinoCoinFlipVisualization();
+          }
+        }
+        if (currentUserMatchChanged && currentUser) {
+          loadCasinoProfileStats(currentUser)
+            .then((stats) => {
+              applyCasinoStatsToCurrentUserUi(stats);
+            })
+            .catch(() => {});
+        }
+      }, () => {
+        if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+          renderActiveCasinoGamePanel();
+          renderCasinoCoinFlipVisualization();
+        }
+      });
+  } catch (_) {
+    if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+      renderActiveCasinoGamePanel();
+      renderCasinoCoinFlipVisualization();
+    }
+  }
+}
+
+function getCachedCasinoTransferUsers() {
+  return Array.isArray(casinoTransferUsersCache) ? casinoTransferUsersCache.slice() : [];
+}
+
+async function loadCasinoTransferUsers(force = false) {
+  if (!force && casinoTransferUsersLoaded) {
+    return getCachedCasinoTransferUsers();
+  }
+  if (!force && casinoTransferUsersLoadPromise) return casinoTransferUsersLoadPromise;
+  casinoTransferUsersLoadPromise = (async () => {
+    const knownUsers = new Set();
+    const addUser = (value) => {
+      const key = normalizeUsername(value);
+      if (key) knownUsers.add(key);
+    };
+
+    addUser(currentChatUser || getUserName() || '');
+    Object.keys(getStatsStore() || {}).forEach(addUser);
+    Object.keys(roleCache || {}).forEach(addUser);
+    Object.keys(userTagCache || {}).forEach(addUser);
+    Object.keys(casinoProfileStatsCache || {}).forEach(addUser);
+    (loginRequestsCache || []).forEach((item) => {
+      if (normalizeReviewStatus(item && item.status) === 'approved') addUser(item && item.username);
+    });
+    (adminAccountManagerCache || []).forEach((entry) => addUser(entry && entry.username));
+
+    try {
+      const adminDb = getAdminDb();
+      const primaryDb = getPrimaryDb();
+      const [balanceSnapshot, loginSnapshot, statsSnapshot] = await Promise.all([
+        getCasinoBalanceCollection().limit(500).get(),
+        adminDb.collection(LOGIN_REQUESTS_COLLECTION).where('status', '==', 'approved').limit(500).get(),
+        primaryDb.collection(USER_STATS_COLLECTION).limit(500).get()
+      ]);
+      balanceSnapshot.forEach((doc) => addUser(doc.id || ((doc.data() || {}).username)));
+      loginSnapshot.forEach((doc) => addUser(doc.id || ((doc.data() || {}).username)));
+      statsSnapshot.forEach((doc) => addUser(doc.id || ((doc.data() || {}).username)));
+    } catch (_) {}
+
+    const currentUserKey = normalizeUsername(getCasinoPlayerKey() || currentChatUser || getUserName() || '');
+    casinoTransferUsersCache = Array.from(knownUsers)
+      .filter((username) => username && username !== currentUserKey)
+      .sort((a, b) => a.localeCompare(b));
+    casinoTransferUsersLoaded = true;
+    return getCachedCasinoTransferUsers();
+  })();
+  casinoTransferUsersLoadPromise.finally(() => {
+    casinoTransferUsersLoadPromise = null;
+  });
+  casinoTransferUsersLoadPromise.then(() => {
+    if (document.getElementById('casino-transfer-panel')) {
+      renderCasinoSidebar(getCachedCasinoProfileStats(getCasinoPlayerKey()));
+    }
+  }).catch(() => {});
+  return casinoTransferUsersLoadPromise;
+}
+
+function renderCasinoSidebar(stats = getCachedCasinoProfileStats(getCasinoPlayerKey())) {
+  const statsNode = document.getElementById('casino-sidebar-stats');
+  const transferNode = document.getElementById('casino-transfer-panel');
+  const achievementNode = document.getElementById('casino-achievement-list');
+  if (!statsNode || !achievementNode) return;
+  const resolvedStats = normalizeCasinoProfileStatsData((stats && stats.username) || getCasinoPlayerKey(), stats || {});
+  const winRate = resolvedStats.gamesPlayed ? `${Math.round((resolvedStats.wins / resolvedStats.gamesPlayed) * 100)}%` : '0%';
+  const hotHandActive = resolvedStats.hotHandUntilMs > Date.now();
+  const summaryItems = [
+    ['Record', `${resolvedStats.wins}W / ${resolvedStats.losses}L / ${resolvedStats.pushes}P`],
+    ['Win Rate', winRate],
+    ['Hot Streak', String(resolvedStats.currentWinStreak)],
+    ['Loss Streak', String(resolvedStats.currentLossStreak)],
+    ['Best Heater', String(resolvedStats.bestWinStreak)],
+    ['Worst Slide', String(resolvedStats.worstLossStreak)],
+    ['Achievements', `${resolvedStats.achievementIds.length}/${CASINO_ACHIEVEMENTS.length}`],
+    ['Hot Hand', hotHandActive ? `Live for ${formatRemainingDuration(resolvedStats.hotHandUntilMs - Date.now())}` : 'Inactive'],
+    ['Cold Table', resolvedStats.coldTableUntilMs > Date.now() ? `Live for ${formatRemainingDuration(resolvedStats.coldTableUntilMs - Date.now())}` : 'Inactive']
+  ];
+  statsNode.innerHTML = `<div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.45rem;">${summaryItems.map(([label, value]) => `<div style="padding:0.55rem; background:#121720; border:1px solid #263140; border-radius:0.6rem;"><div style="font-size:0.72rem; color:#90a4ae;">${escapeHtml(label)}</div><div style="margin-top:0.2rem; color:#fff; font-weight:700;">${escapeHtml(value)}</div></div>`).join('')}</div>`;
+  if (transferNode) {
+    const transferUsers = getCachedCasinoTransferUsers();
+    if (!casinoTransferUsersLoaded && !casinoTransferUsersLoadPromise) {
+      loadCasinoTransferUsers().catch(() => {});
+    }
+    const existingUserValue = document.getElementById('casino-transfer-username')?.value || '';
+    const existingAmountValue = document.getElementById('casino-transfer-amount')?.value || '100';
+    const transferOptions = transferUsers.length
+      ? '<option value="">-- Select a player --</option>' + transferUsers.map((username) => `<option value="${escapeHtml(username)}"${username === existingUserValue ? ' selected' : ''}>${escapeHtml(username)}</option>`).join('')
+      : `<option value="">${casinoTransferUsersLoaded ? '-- No players found --' : 'Loading players...'}</option>`;
+    transferNode.innerHTML = `
+      <div style="display:grid; gap:0.55rem;">
+        <div style="font-size:0.78rem; color:#9fb0c2;">Send part of your casino balance to another player.</div>
+        <select id="casino-transfer-username" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;" ${transferUsers.length ? '' : 'disabled'}>${transferOptions}</select>
+        <div style="display:flex; gap:0.45rem; flex-wrap:wrap; align-items:center;">
+          <input id="casino-transfer-amount" type="number" min="1" max="1000000" value="${escapeHtml(existingAmountValue || '100')}" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff; width:110px;" />
+          <button onclick="transferCasinoMoney()" style="padding:0.5rem 0.85rem; border:none; border-radius:0.55rem; background:#1565c0; color:#fff; font-weight:700;" ${transferUsers.length ? '' : 'disabled'}>Send Money</button>
+        </div>
+        <div style="font-size:0.72rem; color:#90a4ae;">Player list pulls from approved accounts, saved casino balances, and known site stats.</div>
+        <div style="font-size:0.74rem; color:#90a4ae;">Available: $${resolvedStats.balance.toLocaleString()}</div>
+      </div>`;
+  }
+  achievementNode.innerHTML = CASINO_ACHIEVEMENTS.map((item) => {
+    const progress = Math.max(0, Number(resolvedStats[item.stat] || 0));
+    const unlocked = resolvedStats.achievementIds.includes(item.id);
+    const displayProgress = Math.min(item.goal, progress);
+    const nearComplete = !unlocked && item.goal > 1 && (displayProgress / item.goal) >= 0.8;
+    return `<div class="achievement-item ${unlocked ? 'unlocked' : ''}"><div><div style="font-weight:bold;">${escapeHtml(item.label)}</div><div style="font-size:0.78rem; color:#bbb; margin-top:0.15rem;">${escapeHtml(item.description)}</div>${nearComplete ? '<div class="achievement-near">Almost there</div>' : ''}</div><div style="white-space:nowrap; color:${unlocked ? '#66bb6a' : '#ffca28'}; font-weight:bold;">${displayProgress}/${item.goal}</div></div>`;
+  }).join('');
+}
+
+function openCasinoModal() {
+  if (!getCasinoPlayerKey()) {
+    alert('You must be logged in to play the casino.');
+    return;
+  }
+  let modal = document.getElementById('casino-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'casino-modal';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100vw';
+    modal.style.height = '100vh';
+    modal.style.background = 'rgba(0,0,0,0.85)';
+    modal.style.zIndex = '9999';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.innerHTML = `
+      <div style="background:#181c24;padding:2rem;border-radius:1.2rem;box-shadow:0 8px 32px #000;width:min(74rem, calc(100vw - 2rem));max-width:95vw;max-height:88vh;overflow:auto;text-align:left;color:#fff;position:relative;">
+        <h2 style="margin-top:0;margin-bottom:0.6rem;font-size:2rem;">Casino 🎰</h2>
+        <div id="casino-balance" style="font-size:1.1rem;margin-bottom:1rem;">Loading...</div>
+        <div id="casino-game-area"></div>
+        <button onclick="closeCasinoModal()" style="position:absolute;top:1rem;right:1rem;background:#222;border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:1.2rem;">×</button>
+      </div>
+    `;
+    modal.addEventListener('click', function(event) {
+      if (event.target === modal) closeCasinoModal();
+    });
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  syncCasinoModalOverflow();
+  renderCasinoGame();
+  listenForCasinoActivity();
+  listenForCasinoCoinFlips();
+  loadCasinoGameSettings().then(() => {
+    if (document.getElementById('casino-modal')?.style.display === 'flex') {
+      renderActiveCasinoGamePanel();
+    }
+  }).catch(() => {});
+  loadCasinoBalance().catch(() => {
+    const balanceNode = document.getElementById('casino-balance');
+    if (balanceNode) balanceNode.textContent = 'Could not load balance.';
+  });
+}
+
+function closeCasinoModal() {
+  const modal = document.getElementById('casino-modal');
+  if (modal) modal.style.display = 'none';
+  stopListeningForCasinoActivity();
+  stopListeningForCasinoCoinFlips();
+  if (typeof stopListeningForPokerRooms === 'function') stopListeningForPokerRooms();
+  syncCasinoModalOverflow();
+}
+
+function openCasinoLeaderboardModal() {
+  let modal = document.getElementById('casino-leaderboard-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'casino-leaderboard-modal';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100vw';
+    modal.style.height = '100vh';
+    modal.style.background = 'rgba(0,0,0,0.85)';
+    modal.style.zIndex = '9999';
+    modal.style.display = 'none';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.innerHTML = `
+      <div style="background:#181c24;padding:2rem;border-radius:1.2rem;box-shadow:0 8px 32px #000;width:min(48rem, calc(100vw - 2rem));max-width:95vw;max-height:85vh;text-align:left;color:#fff;position:relative;overflow:hidden;">
+        <h2 style="margin:0 0 1rem 0;font-size:1.8rem;">Casino Leaderboard</h2>
+        <div style="display:flex; gap:0.55rem; flex-wrap:wrap; margin-bottom:0.8rem;">
+          <button id="casino-leaderboard-balance-tab" type="button" onclick="setCasinoLeaderboardView('balance')" style="padding:0.5rem 0.9rem; border-radius:999px; border:1px solid rgba(104,138,179,0.35); background:#223041; color:#fff; font-weight:700; cursor:pointer;">Top Balance</button>
+          <button id="casino-leaderboard-drops-tab" type="button" onclick="setCasinoLeaderboardView('drops')" style="padding:0.5rem 0.9rem; border-radius:999px; border:1px solid rgba(104,138,179,0.35); background:#121a24; color:#9fb0c2; font-weight:700; cursor:pointer;">Most Expensive Drops Of All Time</button>
+          <button id="casino-leaderboard-inventory-tab" type="button" onclick="setCasinoLeaderboardView('inventory')" style="padding:0.5rem 0.9rem; border-radius:999px; border:1px solid rgba(104,138,179,0.35); background:#121a24; color:#9fb0c2; font-weight:700; cursor:pointer;">Most Expensive Inventory</button>
+        </div>
+        <div id="casino-leaderboard-subtitle" style="color:#8ea0bc;font-size:0.9rem;margin-bottom:1rem;">Top balance across everyone.</div>
+        <div id="casino-leaderboard-list" style="overflow:auto;max-height:55vh;padding-right:0.15rem;"></div>
+        <button onclick="closeCasinoLeaderboardModal()" style="position:absolute;top:1rem;right:1rem;background:#222;border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:1.2rem;">×</button>
+      </div>
+    `;
+    modal.addEventListener('click', function(event) {
+      if (event.target === modal) closeCasinoLeaderboardModal();
+    });
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  syncCasinoModalOverflow();
+  updateCasinoLeaderboardViewButtons();
+  loadCasinoLeaderboard();
+}
+
+function closeCasinoLeaderboardModal() {
+  const modal = document.getElementById('casino-leaderboard-modal');
+  if (modal) modal.style.display = 'none';
+  syncCasinoModalOverflow();
+}
+
+function setCasinoLeaderboardView(view) {
+  const nextView = String(view || '').trim().toLowerCase();
+  casinoLeaderboardView = nextView === 'drops' || nextView === 'inventory' ? nextView : 'balance';
+  updateCasinoLeaderboardViewButtons();
+  loadCasinoLeaderboard();
+}
+
+function updateCasinoLeaderboardViewButtons() {
+  const balanceTab = document.getElementById('casino-leaderboard-balance-tab');
+  const dropsTab = document.getElementById('casino-leaderboard-drops-tab');
+  const inventoryTab = document.getElementById('casino-leaderboard-inventory-tab');
+  const subtitle = document.getElementById('casino-leaderboard-subtitle');
+  const activeButtonStyle = { background: '#223041', color: '#fff', borderColor: 'rgba(104,138,179,0.5)' };
+  const inactiveButtonStyle = { background: '#121a24', color: '#9fb0c2', borderColor: 'rgba(104,138,179,0.35)' };
+  if (balanceTab) {
+    const style = casinoLeaderboardView === 'balance' ? activeButtonStyle : inactiveButtonStyle;
+    balanceTab.style.background = style.background;
+    balanceTab.style.color = style.color;
+    balanceTab.style.borderColor = style.borderColor;
+  }
+  if (dropsTab) {
+    const style = casinoLeaderboardView === 'drops' ? activeButtonStyle : inactiveButtonStyle;
+    dropsTab.style.background = style.background;
+    dropsTab.style.color = style.color;
+    dropsTab.style.borderColor = style.borderColor;
+  }
+  if (inventoryTab) {
+    const style = casinoLeaderboardView === 'inventory' ? activeButtonStyle : inactiveButtonStyle;
+    inventoryTab.style.background = style.background;
+    inventoryTab.style.color = style.color;
+    inventoryTab.style.borderColor = style.borderColor;
+  }
+  if (subtitle) {
+    subtitle.textContent = casinoLeaderboardView === 'drops'
+      ? 'Each player is ranked by the highest-value case drop they have ever pulled.'
+      : casinoLeaderboardView === 'inventory'
+        ? 'Each player is ranked by the total value of their current shop items, case drops, and cases.'
+        : 'Top balance across everyone.';
+  }
+}
+
+function getCasinoLeaderboardMedal(rank) {
+  return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+}
+
+function getCasinoLeaderboardBannerStyle(username) {
+  const profile = getCachedProfile(username);
+  return `background:${getProfileBannerBackground(profile.bannerData)};${isProfileBannerMedia(profile.bannerData) ? 'background-size:100% 100%;background-position:center;background-repeat:no-repeat;' : ''}`;
+}
+
+function renderCasinoLeaderboardEntry({ username, displayName, rank, levelMarkup, levelStyle = '', pointsLabel }) {
+  const ownerTag = getOwnerTagHtml(username);
+  const customTag = getUserTagHtml(username);
+  const profileTarget = encodeURIComponent(username);
+  const bannerStyle = getCasinoLeaderboardBannerStyle(username);
+  const levelStyleAttribute = levelStyle ? ` style="${escapeHtml(levelStyle)}"` : '';
+  return `<div class="leaderboard-entry">
+  <div class="leaderboard-entry-banner" style="${escapeHtml(bannerStyle)}"></div>
+  <div class="leaderboard-rank">${getCasinoLeaderboardMedal(rank)}</div>
+  <div class="leaderboard-username" onclick="openUserProfileFromChat('${profileTarget}', event)"><span class="leaderboard-identity">${getStatusDotHtml(username)}${renderInlineProfileAvatarHtml(username, 'leaderboard-avatar')}<span class="leaderboard-name-copy">${escapeHtml(displayName)}${ownerTag}${customTag}</span></span></div>
+  <div class="leaderboard-level"${levelStyleAttribute}>${levelMarkup}</div>
+  <div class="leaderboard-points">${escapeHtml(pointsLabel)}</div>
+</div>`;
+}
+
+async function loadCasinoLeaderboard() {
+  const list = document.getElementById('casino-leaderboard-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:#8ea0bc;">Loading leaderboard...</div>';
+  try {
+    const adminDb = getAdminDb();
+    const [balancesSnapshot, approvedAccountsSnapshot, profilesSnapshot] = await Promise.all([
+      getCasinoBalanceCollection().get(),
+      adminDb.collection(LOGIN_REQUESTS_COLLECTION).where('status', '==', 'approved').get(),
+      adminDb.collection(USER_PROFILES_COLLECTION).get()
+    ]);
+    const balanceMap = {};
+    balancesSnapshot.forEach((doc) => {
+      const data = doc.data() || {};
+      const key = normalizeUsername(data.username || doc.id);
+      if (!key) return;
+      balanceMap[key] = {
+        balance: Math.max(0, Number(data.balance || 0)),
+        displayName: sanitizeNullableText(data.displayName || key, key),
+        stats: normalizeCasinoProfileStatsData(key, data)
+      };
+    });
+    const knownUsers = new Set();
+    Object.keys(balanceMap).forEach((username) => knownUsers.add(normalizeUsername(username)));
+    approvedAccountsSnapshot.forEach((doc) => {
+      const key = normalizeUsername(doc.id || ((doc.data() || {}).username));
+      if (key) knownUsers.add(key);
+    });
+    profilesSnapshot.forEach((doc) => {
+      const key = normalizeUsername(doc.id);
+      if (!key) return;
+      userProfileCache[key] = buildProfileCacheEntry(key, doc.data() || {});
+      knownUsers.add(key);
+    });
+    Object.keys(roleCache || {}).forEach((username) => knownUsers.add(normalizeUsername(username)));
+    const currentUserKey = normalizeUsername(currentChatUser || (typeof getUserName === 'function' ? getUserName() : '') || '');
+    if (currentUserKey) knownUsers.add(currentUserKey);
+    const leaderboardData = Array.from(knownUsers)
+      .filter(Boolean)
+      .map((username) => {
+        const balanceEntry = balanceMap[username] || null;
+        return {
+          username,
+          displayName: balanceEntry ? balanceEntry.displayName : username,
+          balance: balanceEntry ? balanceEntry.balance : 1000
+        };
+      })
+      .sort((a, b) => {
+        if (b.balance !== a.balance) return b.balance - a.balance;
+        return a.username.localeCompare(b.username);
+      });
+    applyDynamicLeaderboardTagState({
+      mostMoney: leaderboardData[0] ? leaderboardData[0].username : '',
+      mostActive: dynamicLeaderboardTagState.mostActive,
+      leastMoney: leaderboardData.length ? leaderboardData[leaderboardData.length - 1].username : '',
+      leastActive: dynamicLeaderboardTagState.leastActive,
+      hotHandUsers: dynamicLeaderboardTagState.hotHandUsers,
+      coldTableUsers: dynamicLeaderboardTagState.coldTableUsers
+    }, false);
+    if (casinoLeaderboardView === 'drops') {
+      const dropLeaderboardData = Array.from(knownUsers)
+        .filter(Boolean)
+        .map((username) => {
+          const balanceEntry = balanceMap[username] || null;
+          const stats = balanceEntry ? balanceEntry.stats : getDefaultCasinoProfileStats(username);
+          return {
+            username,
+            displayName: balanceEntry ? balanceEntry.displayName : username,
+            topDropEntry: getAllTimeBestGeneralShopDropRecord(stats)
+          };
+        })
+        .filter((entry) => entry.topDropEntry && entry.topDropEntry.title && Math.max(0, Number(entry.topDropEntry.value || 0)) > 0)
+        .sort((a, b) => {
+          const saleDelta = Math.max(0, Number(b.topDropEntry.value || 0)) - Math.max(0, Number(a.topDropEntry.value || 0));
+          if (saleDelta !== 0) return saleDelta;
+          const rarityDelta = getGeneralShopRaritySortValue(b.topDropEntry.rarity) - getGeneralShopRaritySortValue(a.topDropEntry.rarity);
+          if (rarityDelta !== 0) return rarityDelta;
+          return a.username.localeCompare(b.username);
+        });
+      if (!dropLeaderboardData.length) {
+        list.innerHTML = '<div style="color:#8ea0bc;">No all-time case drop records yet.</div>';
+        return;
+      }
+      list.innerHTML = dropLeaderboardData.map((entry, index) => {
+        const rank = index + 1;
+        const rarity = getGeneralShopRarityConfig(entry.topDropEntry.rarity);
+        return renderCasinoLeaderboardEntry({
+          username: entry.username,
+          displayName: entry.displayName,
+          rank,
+          levelMarkup: escapeHtml(entry.topDropEntry.title),
+          levelStyle: `color:${rarity.color};`,
+          pointsLabel: `$${Math.max(0, Number(entry.topDropEntry.value || 0)).toLocaleString()}`
+        });
+      }).join('');
+      return;
+    }
+    if (casinoLeaderboardView === 'inventory') {
+      const inventoryLeaderboardData = Array.from(knownUsers)
+        .filter(Boolean)
+        .map((username) => {
+          const balanceEntry = balanceMap[username] || null;
+          const stats = balanceEntry ? balanceEntry.stats : getDefaultCasinoProfileStats(username);
+          return {
+            username,
+            displayName: balanceEntry ? balanceEntry.displayName : username,
+            inventory: getTotalOwnedGeneralShopInventoryValue(stats),
+            topAsset: getMostValuableGeneralShopInventoryAsset(stats)
+          };
+        })
+        .filter((entry) => Math.max(0, Number(entry.inventory.totalValue || 0)) > 0)
+        .sort((a, b) => {
+          const valueDelta = Math.max(0, Number(b.inventory.totalValue || 0)) - Math.max(0, Number(a.inventory.totalValue || 0));
+          if (valueDelta !== 0) return valueDelta;
+          return a.username.localeCompare(b.username);
+        });
+      if (!inventoryLeaderboardData.length) {
+        list.innerHTML = '<div style="color:#8ea0bc;">No one has any inventory value yet.</div>';
+        return;
+      }
+      list.innerHTML = inventoryLeaderboardData.map((entry, index) => {
+        const rank = index + 1;
+        const itemCountLabel = `${entry.inventory.itemCount} item${entry.inventory.itemCount === 1 ? '' : 's'}`;
+        const caseCountLabel = `${entry.inventory.caseCount} case${entry.inventory.caseCount === 1 ? '' : 's'}`;
+        const topAsset = entry.topAsset;
+        const topAssetLabel = topAsset
+          ? `${topAsset.typeLabel}: ${topAsset.title} • $${Math.max(0, Number(topAsset.value || 0)).toLocaleString()}`
+          : 'Top item: none';
+        const topAssetColor = topAsset ? getGeneralShopRarityConfig(topAsset.rarity).color : '#9fb0c2';
+        return renderCasinoLeaderboardEntry({
+          username: entry.username,
+          displayName: entry.displayName,
+          rank,
+          levelMarkup: `${escapeHtml(`${itemCountLabel} • ${caseCountLabel}`)}<div style="font-size:0.72rem; color:${escapeHtml(topAssetColor)}; margin-top:0.18rem;">${escapeHtml(topAssetLabel)}</div>`,
+          pointsLabel: `$${Math.max(0, Number(entry.inventory.totalValue || 0)).toLocaleString()}`
+        });
+      }).join('');
+      return;
+    }
+    if (!leaderboardData.length) {
+      list.innerHTML = '<div style="color:#8ea0bc;">No casino players yet.</div>';
+      return;
+    }
+    list.innerHTML = leaderboardData.map((entry, index) => {
+      const rank = index + 1;
+      return renderCasinoLeaderboardEntry({
+        username: entry.username,
+        displayName: entry.displayName,
+        rank,
+        levelMarkup: escapeHtml('Top Balance'),
+        pointsLabel: `$${entry.balance.toLocaleString()}`
+      });
+    }).join('');
+  } catch (err) {
+    list.innerHTML = '<div style="color:#ff8a80;">Could not load the casino leaderboard.</div>';
+  }
+}
+
+// --- Firestore Casino Balance ---
+async function loadCasinoBalance() {
+  const balanceNode = document.getElementById('casino-balance');
+  if (!getCasinoPlayerKey()) {
+    if (balanceNode) balanceNode.textContent = 'Sign in to use the casino.';
+    renderCasinoRecoveryAction(getDefaultCasinoProfileStats(''));
+    renderCasinoSidebar(getDefaultCasinoProfileStats(''));
+    return 0;
+  }
+  const record = await ensureCasinoBalanceRecord();
+  listenForGeneralShopTrades(getCasinoPlayerKey());
+  const balance = record.balance;
+  if (balanceNode) balanceNode.textContent = `Balance: $${balance.toLocaleString()}`;
+  renderCasinoRecoveryAction(record);
+  renderCasinoSidebar(record);
+  return balance;
+}
+
+async function transferCasinoMoney() {
+  const sender = getCasinoPlayerKey();
+  if (!sender) {
+    setCasinoStatus('You must be logged in to send casino money.', 'error');
+    return;
+  }
+  const usernameInput = document.getElementById('casino-transfer-username');
+  const amountInput = document.getElementById('casino-transfer-amount');
+  const recipient = normalizeUsername(usernameInput ? usernameInput.value : '');
+  const rawAmount = Number(amountInput ? amountInput.value : NaN);
+  const amount = Math.max(0, Math.trunc(rawAmount));
+  if (!recipient) {
+    setCasinoStatus('Enter a username to send money to.', 'error');
+    return;
+  }
+  if (recipient === sender) {
+    setCasinoStatus('You cannot send casino money to yourself.', 'error');
+    return;
+  }
+  if (!Number.isFinite(rawAmount) || amount <= 0) {
+    setCasinoStatus('Enter a valid transfer amount.', 'error');
+    return;
+  }
+  try {
+    const [recipientBalanceDoc, approvedRecipientDoc] = await Promise.all([
+      getCasinoBalanceCollection().doc(recipient).get().catch(() => null),
+      getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(recipient).get().catch(() => null)
+    ]);
+    const recipientApproved = !!(approvedRecipientDoc && approvedRecipientDoc.exists && normalizeReviewStatus((approvedRecipientDoc.data() || {}).status) === 'approved');
+    if (!recipientApproved && !(recipientBalanceDoc && recipientBalanceDoc.exists)) {
+      throw new Error('That player was not found.');
+    }
+    const senderRef = getCasinoBalanceCollection().doc(sender);
+    const recipientRef = getCasinoBalanceCollection().doc(recipient);
+    const senderDisplayName = getCasinoPlayerDisplayName();
+    const recipientExistingData = recipientBalanceDoc && recipientBalanceDoc.exists ? (recipientBalanceDoc.data() || {}) : {};
+    const recipientDisplayName = sanitizeNullableText(recipientExistingData.displayName, '') || recipient;
+    let senderStats = getDefaultCasinoProfileStats(sender);
+    let recipientStats = getDefaultCasinoProfileStats(recipient);
+    await getCasinoDb().runTransaction(async (tx) => {
+      const [senderSnap, recipientSnap] = await Promise.all([
+        tx.get(senderRef),
+        tx.get(recipientRef)
+      ]);
+      const currentSenderStats = normalizeCasinoProfileStatsData(sender, senderSnap.exists ? (senderSnap.data() || {}) : {});
+      const currentRecipientStats = normalizeCasinoProfileStatsData(recipient, recipientSnap.exists ? (recipientSnap.data() || {}) : {});
+      if (currentSenderStats.balance < amount) {
+        throw new Error('You do not have enough casino money for that transfer.');
+      }
+      senderStats = {
+        ...currentSenderStats,
+        balance: currentSenderStats.balance - amount
+      };
+      recipientStats = {
+        ...currentRecipientStats,
+        balance: currentRecipientStats.balance + amount,
+        biggestBalance: Math.max(currentRecipientStats.biggestBalance, currentRecipientStats.balance + amount)
+      };
+      senderStats.achievementIds = getCasinoUnlockedAchievementIds(senderStats);
+      recipientStats.achievementIds = getCasinoUnlockedAchievementIds(recipientStats);
+      tx.set(senderRef, {
+        username: sender,
+        displayName: sanitizeNullableText((senderSnap.exists ? (senderSnap.data() || {}).displayName : '') || senderDisplayName, sender),
+        ...senderStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(recipientRef, {
+        username: recipient,
+        displayName: sanitizeNullableText((recipientSnap.exists ? (recipientSnap.data() || {}).displayName : '') || recipientDisplayName, recipient),
+        ...recipientStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[sender] = senderStats;
+    casinoProfileStatsCache[recipient] = recipientStats;
+    await publishCasinoActivity({
+      type: 'transfer',
+      title: `${senderDisplayName} sent casino cash`,
+      body: `$${amount.toLocaleString()} sent to ${recipientDisplayName}.`,
+      by: sender
+    });
+    if (usernameInput) usernameInput.value = '';
+    if (amountInput) amountInput.value = '100';
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(sender);
+    await refreshCasinoProfileUiForUser(recipient);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus(`Sent $${amount.toLocaleString()} to ${recipientDisplayName}.`, 'success');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not send casino money.', 'error');
+  }
+}
+
+function getCasinoBailoutRemainingMs(stats) {
+  const lastClaimAtMs = Math.max(0, Number(stats && stats.lastReliefClaimAtMs || 0));
+  if (!lastClaimAtMs) return 0;
+  return Math.max(0, CASINO_BAILOUT_COOLDOWN_MS - (Date.now() - lastClaimAtMs));
+}
+
+function setCasinoStatus(message = '', tone = 'neutral') {
+  const statusNode = document.getElementById('casino-game-status');
+  if (!statusNode) return;
+  statusNode.textContent = message || '';
+  statusNode.style.color = tone === 'error'
+    ? '#ffb4a8'
+    : tone === 'success'
+      ? '#9fe3a5'
+      : '#9fb0c2';
+}
+
+async function refreshCasinoProfileUiForUser(username) {
+  const key = normalizeUsername(username);
+  if (!key) return;
+  if (currentProfileViewUser && normalizeUsername(currentProfileViewUser) === key) {
+    await loadProfileDetails(key);
+    renderProfileModal(key);
+  }
+}
+
+function renderCasinoRecoveryAction(stats) {
+  const actionNode = document.getElementById('casino-recovery-action');
+  if (!actionNode) return;
+  const resolvedStats = typeof stats === 'object' && stats ? stats : getDefaultCasinoProfileStats(getCasinoPlayerKey());
+  if (resolvedStats.balance !== 0) {
+    actionNode.innerHTML = '';
+    return;
+  }
+  const remainingMs = getCasinoBailoutRemainingMs(resolvedStats);
+  if (remainingMs > 0) {
+    actionNode.innerHTML = `
+      <div style="margin-top:0.85rem; display:grid; gap:0.45rem; justify-items:center;">
+        <div style="font-size:0.82rem; color:#ffcc80;">You are bankrupt. Bailout unlocks in ${escapeHtml(formatRemainingDuration(remainingMs))}.</div>
+        <button disabled style="padding:0.55rem 1rem; border-radius:0.6rem; background:#37474f; color:#b0bec5; border:none; font-weight:700; cursor:not-allowed;">Claim $1,000</button>
+      </div>
+    `;
+    return;
+  }
+  actionNode.innerHTML = `
+    <div style="margin-top:0.85rem; display:grid; gap:0.45rem; justify-items:center;">
+      <div style="font-size:0.82rem; color:#ffcc80;">You are bankrupt. Claim a fresh $1,000 to keep playing.</div>
+      <button onclick="claimCasinoRelief()" style="padding:0.55rem 1rem; border-radius:0.6rem; background:#2e7d32; color:#fff; border:none; font-weight:700;">Claim $1,000</button>
+    </div>
+  `;
+}
+
+async function claimCasinoRelief() {
+  const user = getCasinoPlayerKey();
+  if (!user) {
+    setCasinoStatus('You must be logged in to claim relief.', 'error');
+    return;
+  }
+  try {
+    const db = getCasinoDb();
+    const ref = getCasinoBalanceCollection().doc(user);
+    const displayName = getCasinoPlayerDisplayName();
+    let nextStats = getDefaultCasinoProfileStats(user);
+    let previousStats = getDefaultCasinoProfileStats(user);
+    let unlockedAchievements = [];
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const currentStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+      previousStats = currentStats;
+      const currentBalance = currentStats.balance;
+      const remainingMs = getCasinoBailoutRemainingMs(currentStats);
+      if (currentBalance !== 0) {
+        throw new Error('Relief is only available when your balance is 0.');
+      }
+      if (remainingMs > 0) {
+        throw new Error(`Bailout is on cooldown for ${formatRemainingDuration(remainingMs)}.`);
+      }
+      nextStats = {
+        ...currentStats,
+        balance: 1000,
+        reliefClaims: currentStats.reliefClaims + 1,
+        lastReliefClaimAtMs: Date.now(),
+        biggestBalance: Math.max(currentStats.biggestBalance, 1000)
+      };
+      nextStats.achievementIds = getCasinoUnlockedAchievementIds(nextStats);
+      unlockedAchievements = getCasinoUnlockedAchievements(nextStats).filter((item) => !currentStats.achievementIds.includes(item.id));
+      tx.set(ref, {
+        username: user,
+        displayName,
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[user] = nextStats;
+    await publishCasinoActivity([
+      {
+        type: 'bailout',
+        title: `${displayName} claimed a bailout`,
+        body: `Fresh $1,000 after ${previousStats.bankruptcies.toLocaleString()} bankruptcies.`,
+        by: user
+      },
+      ...unlockedAchievements.map((item) => ({
+        type: 'achievement',
+        title: `${displayName} unlocked ${item.label}`,
+        body: item.description,
+        by: user
+      }))
+    ]);
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(user);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus('You claimed $1,000 relief.', 'success');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not claim relief.', 'error');
+  }
+}
+
+function buildNextCasinoProfileStats(currentStats, delta, options = {}) {
+  const wager = Math.max(0, Number(options.wager || 0));
+  const outcome = String(options.outcome || 'push');
+  const nowMs = Math.max(0, Number(options.nowMs || Date.now()));
+  const nextBalance = Math.max(0, currentStats.balance + delta);
+  const nextBankruptcies = nextBalance === 0 && currentStats.balance > 0 ? currentStats.bankruptcies + 1 : currentStats.bankruptcies;
+  const nextWinStreak = outcome === 'win' ? currentStats.currentWinStreak + 1 : 0;
+  const nextLossStreak = outcome === 'loss' ? currentStats.currentLossStreak + 1 : 0;
+  const nextStats = {
+    ...currentStats,
+    balance: nextBalance,
+    bankruptcies: nextBankruptcies,
+    gamesPlayed: currentStats.gamesPlayed + 1,
+    wins: currentStats.wins + (outcome === 'win' ? 1 : 0),
+    losses: currentStats.losses + (outcome === 'loss' ? 1 : 0),
+    pushes: currentStats.pushes + (outcome === 'push' ? 1 : 0),
+    totalWagered: currentStats.totalWagered + wager,
+    biggestWin: Math.max(currentStats.biggestWin, Math.max(0, delta)),
+    biggestBalance: Math.max(currentStats.biggestBalance, nextBalance),
+    currentWinStreak: nextWinStreak,
+    currentLossStreak: nextLossStreak,
+    bestWinStreak: Math.max(currentStats.bestWinStreak, nextWinStreak),
+    worstLossStreak: Math.max(currentStats.worstLossStreak, nextLossStreak),
+    hotHandUntilMs: outcome === 'win' && nextWinStreak >= CASINO_HOT_HAND_STREAK
+      ? nowMs + CASINO_HOT_HAND_DURATION_MS
+      : (outcome === 'loss' ? 0 : currentStats.hotHandUntilMs),
+    coldTableUntilMs: outcome === 'loss' && nextLossStreak >= CASINO_COLD_TABLE_STREAK
+      ? nowMs + CASINO_COLD_TABLE_DURATION_MS
+      : (outcome === 'win' ? 0 : currentStats.coldTableUntilMs),
+    lastGameAtMs: nowMs
+  };
+  nextStats.achievementIds = getCasinoUnlockedAchievementIds(nextStats);
+  const unlockedAchievements = getCasinoUnlockedAchievements(nextStats).filter((item) => !currentStats.achievementIds.includes(item.id));
+  return { nextStats, unlockedAchievements };
+}
+
+async function updateCasinoBalance(delta, options = {}) {
+  const user = getCasinoPlayerKey();
+  if (!user) throw new Error('You must be logged in to play the casino.');
+  const db = getCasinoDb();
+  const ref = getCasinoBalanceCollection().doc(user);
+  const displayName = getCasinoPlayerDisplayName();
+  const wager = Math.max(0, Number(options.wager || 0));
+  const outcome = String(options.outcome || 'push');
+  const game = String(options.game || 'casino');
+  const nowMs = Date.now();
+  let nextStats = getDefaultCasinoProfileStats(user);
+  let previousStats = getDefaultCasinoProfileStats(user);
+  let unlockedAchievements = [];
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const currentStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+    previousStats = currentStats;
+    const computed = buildNextCasinoProfileStats(currentStats, delta, { wager, outcome, nowMs });
+    nextStats = computed.nextStats;
+    unlockedAchievements = computed.unlockedAchievements;
+    tx.set(ref, {
+      username: user,
+      displayName,
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await publishCasinoActivity([
+    ...(outcome === 'win' && delta > 0 ? [{
+      type: 'win',
+      title: `${displayName} won $${delta.toLocaleString()} in ${getCasinoGameLabel(game)}`,
+      body: `Bet $${wager.toLocaleString()} and climbed to $${nextStats.balance.toLocaleString()}.`,
+      by: user
+    }] : []),
+    ...(nextStats.bankruptcies > previousStats.bankruptcies ? [{
+      type: 'bankruptcy',
+      title: `${displayName} hit bankruptcy`,
+      body: `${getCasinoGameLabel(game)} dropped them to $0.`,
+      by: user
+    }] : []),
+    ...(nextStats.currentWinStreak >= CASINO_HOT_HAND_STREAK && nextStats.currentWinStreak > previousStats.currentWinStreak ? [{
+      type: 'hot_hand',
+      title: `${displayName} is on a hot hand`,
+      body: `${nextStats.currentWinStreak} straight wins and counting.`,
+      by: user
+    }] : []),
+    ...(nextStats.currentLossStreak >= CASINO_COLD_TABLE_STREAK && nextStats.currentLossStreak > previousStats.currentLossStreak ? [{
+      type: 'cold_table',
+      title: `${displayName} is stuck at a cold table`,
+      body: `${nextStats.currentLossStreak} straight losses in ${getCasinoGameLabel(game)}.`,
+      by: user
+    }] : []),
+    ...unlockedAchievements.map((item) => ({
+      type: 'achievement',
+      title: `${displayName} unlocked ${item.label}`,
+      body: item.description,
+      by: user
+    }))
+  ]);
+  await loadCasinoBalance();
+  await refreshCasinoProfileUiForUser(user);
+  scheduleDynamicLeaderboardTagRefresh();
+  return { stats: nextStats, unlockedAchievements };
+}
+
+function getPokerRoomsCollection() {
+  return getCasinoDb().collection(POKER_ROOMS_COLLECTION);
+}
+
+function sanitizePokerCard(card) {
+  if (!card || typeof card !== 'object') return null;
+  const suit = sanitizeNullableText(card.suit, '').slice(0, 1);
+  const rawRank = card.rank;
+  const rank = typeof rawRank === 'number' ? rawRank : sanitizeNullableText(rawRank, '');
+  const validSuit = ['♠', '♥', '♦', '♣'].includes(suit);
+  const validRank = typeof rank === 'number'
+    ? Number.isInteger(rank) && rank >= 2 && rank <= 10
+    : ['J', 'Q', 'K', 'A'].includes(rank);
+  if (!validSuit || !validRank) return null;
+  return { suit, rank };
+}
+
+function sanitizePokerCardList(cards, limit = 5) {
+  return (Array.isArray(cards) ? cards : [])
+    .map((card) => sanitizePokerCard(card))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function normalizePokerGameParticipant(data = {}) {
+  const username = normalizeUsername(data.username || data.user || '');
+  return {
+    username,
+    displayName: sanitizeNullableText(data.displayName, username || 'player').slice(0, 32),
+    hand: sanitizePokerCardList(data.hand, 2),
+    folded: !!data.folded,
+    outcome: ['win', 'loss', 'push'].includes(String(data.outcome || '')) ? String(data.outcome) : '',
+    payout: Math.max(0, Math.floor(Number(data.payout || 0))),
+    evaluationLabel: sanitizeNullableText(data.evaluationLabel, '').slice(0, 40),
+    summaryText: sanitizeNullableText(data.summaryText, '').slice(0, 220)
+  };
+}
+
+function normalizePokerGameState(data = {}, room = {}) {
+  const phase = ['preflop', 'flop', 'turn', 'river', 'showdown'].includes(String(data.phase || '')) ? String(data.phase) : '';
+  if (!phase) return null;
+  const seenPlayers = new Set();
+  const players = (Array.isArray(data.players) ? data.players : [])
+    .map((entry) => normalizePokerGameParticipant(entry))
+    .filter((entry) => {
+      if (!entry.username || seenPlayers.has(entry.username)) return false;
+      seenPlayers.add(entry.username);
+      return true;
+    });
+  const communityCards = sanitizePokerCardList(data.communityCards, 5);
+  const aiEnabled = room.roomType !== 'human';
+  return {
+    roomId: sanitizeNullableText(room.id || data.roomId, ''),
+    phase,
+    stake: Math.max(25, Math.min(10000, Math.floor(Number(data.stake || room.stake || 100)))) ,
+    players,
+    aiName: aiEnabled ? sanitizeNullableText(data.aiName || room.aiName, room.aiName || 'Dealer Bot').slice(0, 32) : '',
+    aiHand: aiEnabled ? sanitizePokerCardList(data.aiHand, 2) : [],
+    aiEvaluationLabel: aiEnabled ? sanitizeNullableText(data.aiEvaluationLabel, '').slice(0, 40) : '',
+    aiWon: aiEnabled ? !!data.aiWon : false,
+    communityCards,
+    revealedCommunityCount: Math.max(0, Math.min(communityCards.length, Math.floor(Number(data.revealedCommunityCount || 0)))) ,
+    pot: Math.max(0, Math.floor(Number(data.pot || 0))),
+    winnerUsernames: Array.from(new Set((Array.isArray(data.winnerUsernames) ? data.winnerUsernames : []).map((value) => normalizeUsername(value)).filter(Boolean))),
+    resultSummary: sanitizeNullableText(data.resultSummary, '').slice(0, 220),
+    startedAtMs: Math.max(0, Number(data.startedAtMs || 0)),
+    settledAtMs: Math.max(0, Number(data.settledAtMs || 0)),
+    updatedAtMs: Math.max(0, Number(data.updatedAtMs || data.startedAtMs || 0))
+  };
+}
+
+function normalizePokerRoomData(id, data = {}) {
+  const roomId = sanitizeNullableText(id || data.id, '');
+  const owner = normalizeUsername(data.owner);
+  const roomType = sanitizeNullableText(data.roomType, 'ai') === 'human' ? 'human' : 'ai';
+  const members = Array.from(new Set((Array.isArray(data.members) ? data.members : [owner])
+    .map((value) => normalizeUsername(value))
+    .filter(Boolean)));
+  if (owner && !members.includes(owner)) members.unshift(owner);
+  const normalizedRoom = {
+    id: roomId,
+    name: sanitizeNullableText(data.name, 'AI Table').slice(0, 32) || 'AI Table',
+    description: sanitizeNullableText(data.description, '').slice(0, 120),
+    owner,
+    ownerDisplayName: sanitizeNullableText(data.ownerDisplayName, owner || 'host').slice(0, 32),
+    roomType,
+    members,
+    aiName: roomType === 'human' ? '' : (sanitizeNullableText(data.aiName, 'Dealer Bot').slice(0, 32) || 'Dealer Bot'),
+    stake: Math.max(25, Math.min(10000, Math.floor(Number(data.stake || 100)))),
+    status: sanitizeNullableText(data.status, 'open') || 'open',
+    createdAtMs: Math.max(0, Number(data.createdAtMs || 0)),
+    updatedAtMs: Math.max(0, Number(data.updatedAtMs || data.createdAtMs || 0)),
+    lastPlayedBy: normalizeUsername(data.lastPlayedBy),
+    lastPlayedByDisplayName: sanitizeNullableText(data.lastPlayedByDisplayName, '').slice(0, 32)
+  };
+  normalizedRoom.gameState = normalizePokerGameState(data.gameState, normalizedRoom);
+  return normalizedRoom;
+}
+
+function getSelectedPokerRoom() {
+  return pokerRoomCache.find((room) => room.id === currentPokerRoomId) || null;
+}
+
+function getPokerRoomTypeLabel(roomType) {
+  return roomType === 'human' ? 'Humans Only' : 'AI Table';
+}
+
+function renderPokerGuideCards(cards) {
+  return (Array.isArray(cards) ? cards : []).map((label) => {
+    const isRed = String(label || '').includes('♥') || String(label || '').includes('♦');
+    return `<span style="display:inline-flex; align-items:center; justify-content:center; min-width:3.05rem; padding:0.55rem 0.45rem; border-radius:0.6rem; background:#fff; color:${isRed ? '#b71c1c' : '#111'}; font-weight:700; border:2px solid #d7dee8;">${escapeHtml(label)}</span>`;
+  }).join('');
+}
+
+function getPokerPhaseSummary() {
+  if (!pokerState) return 'No hand in progress.';
+  const currentParticipant = getPokerCurrentParticipant(pokerState);
+  if (pokerState.phase === 'showdown') return pokerState.resultSummary || 'Showdown complete.';
+  if (currentParticipant && currentParticipant.folded) return 'You folded. Waiting for the rest of the table.';
+  if (pokerState.phase === 'preflop') {
+    return currentParticipant
+      ? `Pre-flop. Hole cards: ${getPokerHoleCardSummary(currentParticipant.hand)}.`
+      : `Pre-flop is live with ${Math.max(0, (pokerState.players || []).length)} players.`;
+  }
+  if (pokerState.phase === 'flop') return 'Flop dealt. Three community cards are on the board.';
+  if (pokerState.phase === 'turn') return 'Turn dealt. Four community cards are showing.';
+  if (pokerState.phase === 'river') return 'River dealt. The next step is showdown.';
+  return 'Texas Hold\'em hand in progress.';
+}
+
+function getPokerPhaseLabel(phase) {
+  if (phase === 'preflop') return 'Pre-Flop';
+  if (phase === 'flop') return 'Flop';
+  if (phase === 'turn') return 'Turn';
+  if (phase === 'river') return 'River';
+  if (phase === 'showdown') return 'Showdown';
+  return 'Waiting';
+}
+
+function getVisiblePokerCommunityCards(state = pokerState) {
+  const communityCards = Array.isArray(state && state.communityCards) ? state.communityCards : [];
+  const revealedCount = Math.max(0, Math.min(communityCards.length, Math.floor(Number(state && state.revealedCommunityCount) || 0)));
+  return communityCards.slice(0, revealedCount);
+}
+
+function getPokerParticipantByUsername(username, state = pokerState) {
+  const key = normalizeUsername(username);
+  return (state && Array.isArray(state.players) ? state.players : []).find((participant) => participant.username === key) || null;
+}
+
+function getPokerCurrentParticipant(state = pokerState) {
+  return getPokerParticipantByUsername(getCasinoPlayerKey(), state);
+}
+
+function getPokerParticipantEvaluation(participant, state = pokerState, forceFullBoard = false) {
+  if (!participant || participant.folded) return null;
+  const communityCards = forceFullBoard || (state && state.phase === 'showdown')
+    ? (Array.isArray(state && state.communityCards) ? state.communityCards : [])
+    : getVisiblePokerCommunityCards(state);
+  const combined = [...(Array.isArray(participant.hand) ? participant.hand : []), ...communityCards];
+  if (combined.length < 5) return null;
+  return getBestPokerEvaluation(combined);
+}
+
+function getPokerAiEvaluation(state = pokerState, forceFullBoard = false) {
+  if (!state || !Array.isArray(state.aiHand) || !state.aiHand.length) return null;
+  const communityCards = forceFullBoard || state.phase === 'showdown'
+    ? (Array.isArray(state.communityCards) ? state.communityCards : [])
+    : getVisiblePokerCommunityCards(state);
+  const combined = [...state.aiHand, ...communityCards];
+  if (combined.length < 5) return null;
+  return getBestPokerEvaluation(combined);
+}
+
+function renderPokerCommunityCards(cards, revealedCount) {
+  const communityCards = Array.isArray(cards) ? cards : [];
+  const visibleCount = Math.max(0, Math.min(communityCards.length, Math.floor(Number(revealedCount) || 0)));
+  return communityCards.map((card, index) => renderCasinoPlayingCard(card, { hidden: index >= visibleCount })).join('');
+}
+
+function getPokerHoleCardSummary(cards) {
+  const hand = Array.isArray(cards) ? cards.slice(0, 2) : [];
+  if (hand.length < 2) return 'waiting for cards';
+  const values = hand.map((card) => getPokerCardRankValue(card)).sort((left, right) => right - left);
+  const labels = values.map((value) => getPokerRankLabel(value));
+  if (values[0] === values[1]) return `Pocket ${labels[0]}s`;
+  return `${labels[0]}-${labels[1]}${hand[0].suit === hand[1].suit ? ' suited' : ' offsuit'}`;
+}
+
+function formatPokerCardsInline(cards) {
+  return (Array.isArray(cards) ? cards : []).map((card) => getCasinoCardLabel(card)).join(' ');
+}
+
+function getPokerCurrentPlayerEvaluation(state = pokerState) {
+  const participant = getPokerCurrentParticipant(state);
+  return getPokerParticipantEvaluation(participant, state, false);
+}
+
+function getPokerCurrentPlayerHandText(state = pokerState) {
+  const participant = getPokerCurrentParticipant(state);
+  if (!participant) return 'Watching';
+  if (participant.folded) return 'Folded';
+  const showdownLabel = state && state.phase === 'showdown' ? sanitizeNullableText(participant.evaluationLabel, '') : '';
+  if (showdownLabel) return showdownLabel;
+  const evaluation = getPokerCurrentPlayerEvaluation(state);
+  if (evaluation) return evaluation.label;
+  return getPokerHoleCardSummary(participant.hand);
+}
+
+function getPokerNextActionLabel(state = pokerState) {
+  if (!state) return 'Deal Hand';
+  if (state.phase === 'preflop') return 'Deal Flop';
+  if (state.phase === 'flop') return 'Deal Turn';
+  if (state.phase === 'turn') return 'Deal River';
+  if (state.phase === 'river') return 'Showdown';
+  return 'Deal New Hand';
+}
+
+function updatePokerRoomFormForType() {
+  const roomTypeSelect = document.getElementById('poker-room-type');
+  const aiWrap = document.getElementById('poker-room-ai-wrap');
+  const createButton = document.getElementById('poker-room-create-btn');
+  const helper = document.getElementById('poker-room-create-note');
+  const roomType = roomTypeSelect && roomTypeSelect.value === 'human' ? 'human' : 'ai';
+  if (aiWrap) aiWrap.style.display = roomType === 'human' ? 'none' : 'grid';
+  if (createButton) createButton.textContent = roomType === 'human' ? 'Create Human Room' : 'Create AI Room';
+  if (helper) {
+    helper.textContent = roomType === 'human'
+      ? 'Human rooms are shared Texas Hold\'em tables with no AI seat, so everyone at the table plays each other.'
+      : 'AI rooms are shared in Firestore so everyone seated plays Texas Hold\'em together with the room bot included in the hand.';
+  }
+}
+
+async function syncPokerRoomMembership(roomId, join = true) {
+  const roomKey = sanitizeNullableText(roomId, '');
+  const user = getCasinoPlayerKey();
+  if (!roomKey || !user) return;
+  try {
+    await getPokerRoomsCollection().doc(roomKey).set({
+      members: join
+        ? firebase.firestore.FieldValue.arrayUnion(user)
+        : firebase.firestore.FieldValue.arrayRemove(user),
+      updatedAtMs: Date.now(),
+      lastPlayedBy: user,
+      lastPlayedByDisplayName: getCasinoPlayerDisplayName()
+    }, { merge: true });
+  } catch (_) {}
+}
+
+function stopListeningForPokerRooms() {
+  if (pokerRoomUnsub) {
+    pokerRoomUnsub();
+    pokerRoomUnsub = null;
+  }
+}
+
+function listenForPokerRooms() {
+  if (pokerRoomUnsub) return;
+  try {
+    pokerRoomUnsub = getPokerRoomsCollection()
+      .orderBy('updatedAtMs', 'desc')
+      .limit(30)
+      .onSnapshot((snapshot) => {
+        pokerRoomCache = snapshot.docs
+          .map((doc) => normalizePokerRoomData(doc.id, doc.data() || {}))
+          .filter((room) => room.status !== 'closed');
+        if (currentPokerRoomId && !getSelectedPokerRoom()) {
+          currentPokerRoomId = '';
+          pokerState = null;
+        } else if (currentPokerRoomId) {
+          const selectedRoom = getSelectedPokerRoom();
+          pokerState = selectedRoom ? selectedRoom.gameState : null;
+        }
+        if (activeCasinoGame === 'poker') {
+          renderActiveCasinoGamePanel();
+        }
+      }, () => {
+        if (activeCasinoGame === 'poker') {
+          renderActiveCasinoGamePanel();
+        }
+      });
+  } catch (_) {}
+}
+
+async function touchPokerRoom(room) {
+  if (!room || !room.id) return;
+  try {
+    await getPokerRoomsCollection().doc(room.id).set({
+      updatedAtMs: Date.now(),
+      lastPlayedBy: getCasinoPlayerKey() || '',
+      lastPlayedByDisplayName: getCasinoPlayerDisplayName()
+    }, { merge: true });
+  } catch (_) {}
+}
+
+function setLocalPokerRoomGameState(roomId, gameState) {
+  const roomKey = sanitizeNullableText(roomId, '');
+  pokerRoomCache = pokerRoomCache.map((room) => room.id === roomKey ? { ...room, gameState } : room);
+  const selectedRoom = getSelectedPokerRoom();
+  pokerState = selectedRoom ? selectedRoom.gameState : null;
+}
+
+function splitPokerPot(pot, winnerUsernames) {
+  const winners = Array.from(new Set((Array.isArray(winnerUsernames) ? winnerUsernames : []).map((value) => normalizeUsername(value)).filter(Boolean)));
+  const payoutMap = {};
+  if (!winners.length) return payoutMap;
+  const safePot = Math.max(0, Math.floor(Number(pot) || 0));
+  const basePayout = Math.floor(safePot / winners.length);
+  let remainder = safePot % winners.length;
+  winners.forEach((username) => {
+    payoutMap[username] = basePayout + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+  });
+  return payoutMap;
+}
+
+function buildPokerSettlementState(room, state, options = {}) {
+  const keepBoardHidden = !!options.keepBoardHidden;
+  const players = (Array.isArray(state && state.players) ? state.players : []).map((participant) => ({
+    ...normalizePokerGameParticipant(participant),
+    outcome: '',
+    payout: 0,
+    evaluationLabel: '',
+    summaryText: ''
+  }));
+  const activePlayers = players.filter((participant) => !participant.folded);
+  const communityCards = Array.isArray(state && state.communityCards) ? state.communityCards : [];
+  const currentVisibleCount = Math.max(0, Math.min(communityCards.length, Math.floor(Number(state && state.revealedCommunityCount) || 0)));
+  const fullReveal = !keepBoardHidden;
+  let winnerUsernames = [];
+  let aiWon = false;
+  let aiEvaluationLabel = '';
+  let resultSummary = 'Poker hand complete.';
+  let payoutMap = {};
+
+  if (options.reason === 'fold' && room.roomType === 'human' && activePlayers.length === 1) {
+    winnerUsernames = [activePlayers[0].username];
+    payoutMap = splitPokerPot(state.pot, winnerUsernames);
+    resultSummary = `${activePlayers[0].displayName} wins the pot after everyone else folded.`;
+  } else if (options.reason === 'fold' && room.roomType !== 'human' && activePlayers.length === 0) {
+    aiWon = true;
+    resultSummary = `${room.aiName} wins after every human folded.`;
+  } else {
+    const playerEvaluations = activePlayers.map((participant) => ({
+      participant,
+      evaluation: getBestPokerEvaluation([...(participant.hand || []), ...communityCards])
+    })).filter((entry) => entry.evaluation);
+    const aiEvaluation = room.roomType === 'human' || !Array.isArray(state && state.aiHand) || state.aiHand.length < 2
+      ? null
+      : getBestPokerEvaluation([...(state.aiHand || []), ...communityCards]);
+    aiEvaluationLabel = aiEvaluation ? aiEvaluation.label : '';
+    let bestEvaluation = null;
+    playerEvaluations.forEach((entry) => {
+      if (!bestEvaluation || comparePokerEvaluations(entry.evaluation, bestEvaluation) > 0) {
+        bestEvaluation = entry.evaluation;
+      }
+    });
+    if (aiEvaluation && (!bestEvaluation || comparePokerEvaluations(aiEvaluation, bestEvaluation) > 0)) {
+      bestEvaluation = aiEvaluation;
+    }
+    winnerUsernames = playerEvaluations
+      .filter((entry) => bestEvaluation && comparePokerEvaluations(entry.evaluation, bestEvaluation) === 0)
+      .map((entry) => entry.participant.username);
+    const aiBest = !!(aiEvaluation && bestEvaluation && comparePokerEvaluations(aiEvaluation, bestEvaluation) === 0);
+    if (aiBest && !winnerUsernames.length) {
+      aiWon = true;
+      resultSummary = `${room.aiName} wins the pot with ${aiEvaluation.label}.`;
+    } else if (aiBest && winnerUsernames.length) {
+      winnerUsernames.forEach((username) => {
+        payoutMap[username] = room.stake;
+      });
+      const winnerEntries = playerEvaluations.filter((entry) => winnerUsernames.includes(entry.participant.username));
+      const winnerNames = winnerEntries.map((entry) => entry.participant.displayName).join(', ');
+      const label = winnerEntries[0]?.evaluation?.label || aiEvaluation.label;
+      resultSummary = `${winnerNames} pushed with ${room.aiName} on ${label}.`;
+    } else if (winnerUsernames.length) {
+      payoutMap = splitPokerPot(state.pot, winnerUsernames);
+      const winnerEntries = playerEvaluations.filter((entry) => winnerUsernames.includes(entry.participant.username));
+      const winnerNames = winnerEntries.map((entry) => entry.participant.displayName).join(', ');
+      const label = winnerEntries[0]?.evaluation?.label || 'High Card';
+      resultSummary = `${winnerNames} ${winnerUsernames.length > 1 ? 'split the pot' : 'won the pot'} with ${label}.`;
+    }
+  }
+
+  const settledPlayers = players.map((participant) => {
+    const evaluation = !participant.folded && fullReveal
+      ? getBestPokerEvaluation([...(participant.hand || []), ...communityCards])
+      : null;
+    const payout = Math.max(0, Math.floor(Number(payoutMap[participant.username] || 0)));
+    const outcome = participant.folded ? 'loss' : payout > room.stake ? 'win' : payout === room.stake ? 'push' : 'loss';
+    let summaryText = '';
+    if (participant.folded) {
+      summaryText = 'Folded';
+    } else if (outcome === 'win') {
+      summaryText = `You won $${(payout - room.stake).toLocaleString()}.`;
+    } else if (outcome === 'push') {
+      summaryText = 'Push. You got your stake back.';
+    } else {
+      summaryText = `You lost $${room.stake.toLocaleString()}.`;
+    }
+    return {
+      ...participant,
+      outcome,
+      payout,
+      evaluationLabel: evaluation ? evaluation.label : '',
+      summaryText
+    };
+  });
+
+  return {
+    ...state,
+    phase: 'showdown',
+    players: settledPlayers,
+    aiEvaluationLabel,
+    aiWon,
+    winnerUsernames,
+    revealedCommunityCount: fullReveal ? communityCards.length : currentVisibleCount,
+    resultSummary,
+    settledAtMs: 0,
+    updatedAtMs: Date.now()
+  };
+}
+
+async function settlePokerRoomState(room, options = {}) {
+  if (!room || !room.id) return null;
+  const roomRef = getPokerRoomsCollection().doc(room.id);
+  const nowMs = Date.now();
+  let finalState = null;
+  let appliedSettlement = false;
+  const updatedParticipants = [];
+  await getCasinoDb().runTransaction(async (tx) => {
+    const roomSnap = await tx.get(roomRef);
+    const latestRoom = normalizePokerRoomData(room.id, roomSnap.exists ? (roomSnap.data() || {}) : room);
+    const latestState = latestRoom.gameState;
+    if (!latestState) {
+      finalState = latestState;
+      return;
+    }
+    if (latestState.phase === 'showdown' && latestState.settledAtMs > 0) {
+      finalState = latestState;
+      return;
+    }
+    finalState = latestState.phase === 'showdown'
+      ? {
+        ...latestState,
+        settledAtMs: nowMs,
+        updatedAtMs: nowMs
+      }
+      : {
+        ...buildPokerSettlementState(latestRoom, latestState, options),
+        settledAtMs: nowMs,
+        updatedAtMs: nowMs
+      };
+    appliedSettlement = true;
+    const balanceRefs = finalState.players.map((participant) => getCasinoBalanceCollection().doc(participant.username));
+    const balanceSnaps = await Promise.all(balanceRefs.map((ref) => tx.get(ref)));
+    finalState.players.forEach((participant, index) => {
+      const rawData = balanceSnaps[index].exists ? (balanceSnaps[index].data() || {}) : {};
+      const currentStats = normalizeCasinoProfileStatsData(participant.username, rawData);
+      const computed = buildNextCasinoProfileStats(currentStats, participant.payout - latestRoom.stake, {
+        wager: latestRoom.stake,
+        outcome: participant.outcome,
+        nowMs
+      });
+      updatedParticipants.push({
+        username: participant.username,
+        displayName: sanitizeNullableText(rawData.displayName, participant.displayName) || participant.username,
+        stats: computed.nextStats
+      });
+      tx.set(balanceRefs[index], {
+        username: participant.username,
+        displayName: sanitizeNullableText(rawData.displayName, participant.displayName) || participant.username,
+        ...computed.nextStats,
+        updatedAtMs: nowMs
+      }, { merge: true });
+    });
+    tx.set(roomRef, {
+      gameState: finalState,
+      updatedAtMs: nowMs,
+      lastPlayedBy: getCasinoPlayerKey() || '',
+      lastPlayedByDisplayName: getCasinoPlayerDisplayName()
+    }, { merge: true });
+  });
+  if (!finalState) return null;
+  if (!appliedSettlement) {
+    setLocalPokerRoomGameState(room.id, finalState);
+    return finalState;
+  }
+  updatedParticipants.forEach((entry) => {
+    casinoProfileStatsCache[entry.username] = entry.stats;
+  });
+  setLocalPokerRoomGameState(room.id, finalState);
+  await Promise.all(updatedParticipants.map((entry) => refreshCasinoProfileUiForUser(entry.username).catch(() => {})));
+  await loadCasinoBalance().catch(() => {});
+  scheduleDynamicLeaderboardTagRefresh();
+  await publishCasinoActivity({
+    type: 'poker',
+    title: `${room.name} finished a hand`,
+    body: finalState.resultSummary || 'Poker hand complete.',
+    by: getCasinoPlayerKey() || 'guest'
+  });
+  return finalState;
+}
+
+async function foldPokerHand() {
+  const room = getSelectedPokerRoom();
+  const user = getCasinoPlayerKey();
+  if (!room || !room.id || !user) return;
+  const roomRef = getPokerRoomsCollection().doc(room.id);
+  let nextState = null;
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const roomSnap = await tx.get(roomRef);
+      const latestRoom = normalizePokerRoomData(room.id, roomSnap.exists ? (roomSnap.data() || {}) : room);
+      const latestState = latestRoom.gameState;
+      if (!latestState || latestState.phase === 'showdown') {
+        throw new Error('No active poker hand to fold.');
+      }
+      const players = (latestState.players || []).map((participant) => ({ ...participant }));
+      const playerIndex = players.findIndex((participant) => participant.username === user);
+      if (playerIndex < 0) {
+        throw new Error('You are watching this hand, not seated in it.');
+      }
+      if (players[playerIndex].folded) {
+        throw new Error('You already folded this hand.');
+      }
+      players[playerIndex] = {
+        ...players[playerIndex],
+        folded: true,
+        outcome: '',
+        payout: 0,
+        evaluationLabel: '',
+        summaryText: 'Folded'
+      };
+      const activeHumans = players.filter((participant) => !participant.folded);
+      if (latestRoom.roomType === 'human' && activeHumans.length <= 1) {
+        nextState = buildPokerSettlementState(latestRoom, { ...latestState, players }, { reason: 'fold', keepBoardHidden: true });
+      } else if (latestRoom.roomType !== 'human' && activeHumans.length === 0) {
+        nextState = buildPokerSettlementState(latestRoom, { ...latestState, players }, { reason: 'fold', keepBoardHidden: true });
+      } else {
+        nextState = {
+          ...latestState,
+          players,
+          updatedAtMs: Date.now()
+        };
+      }
+      tx.set(roomRef, {
+        gameState: nextState,
+        updatedAtMs: Date.now(),
+        lastPlayedBy: user,
+        lastPlayedByDisplayName: getCasinoPlayerDisplayName()
+      }, { merge: true });
+    });
+    setLocalPokerRoomGameState(room.id, nextState);
+    if (nextState && nextState.phase === 'showdown') {
+      const settledState = await settlePokerRoomState(room, { reason: 'fold', keepBoardHidden: true });
+      const currentParticipant = getPokerCurrentParticipant(settledState);
+      const resultMessage = currentParticipant ? currentParticipant.summaryText : (settledState && settledState.resultSummary) || 'Poker hand complete.';
+      setCasinoStatus(resultMessage, currentParticipant && currentParticipant.outcome === 'win' ? 'success' : currentParticipant && currentParticipant.outcome === 'loss' ? 'error' : 'neutral');
+    } else {
+      setCasinoStatus('You folded. Watching the rest of the hand.', 'neutral');
+      renderPokerCurrentTable();
+    }
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not fold this hand.', 'error');
+  }
+}
+
+function togglePokerTutorial() {
+  pokerTutorialExpanded = !pokerTutorialExpanded;
+  renderActiveCasinoGamePanel();
+}
+
+function getPokerTutorialVideoSrcdoc() {
+  return `<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Segoe UI, Arial, sans-serif;
+    background: #09110b;
+    color: #f4f8fb;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  .frame {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 12px;
+    padding: 14px;
+    background: radial-gradient(circle at top, rgba(38,90,58,0.44) 0%, rgba(9,17,11,0.98) 70%);
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: #c7d4e2;
+  }
+  .badge {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    font-weight: 700;
+  }
+  .table {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid rgba(92, 132, 101, 0.42);
+    background: radial-gradient(circle at center, rgba(26,95,58,0.9) 0%, rgba(11,32,18,0.96) 78%);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  .scene {
+    position: absolute;
+    inset: 0;
+    padding: 18px;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 14px;
+    opacity: 0;
+    animation: sceneCycle 20s infinite;
+    will-change: opacity;
+  }
+  .scene-2 { animation-delay: 4s; }
+  .scene-3 { animation-delay: 8s; }
+  .scene-4 { animation-delay: 12s; }
+  .scene-5 { animation-delay: 16s; }
+  .caption {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+  }
+  .subcaption {
+    font-size: 12px;
+    color: #d9e5ef;
+    text-align: center;
+    max-width: 420px;
+    line-height: 1.45;
+  }
+  .row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+  }
+  .label {
+    font-size: 11px;
+    color: #b9c8d6;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .card {
+    min-width: 52px;
+    min-height: 70px;
+    padding: 8px 7px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #edf3fb 100%);
+    color: #101820;
+    border: 2px solid #d7dee8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    box-shadow: 0 12px 22px rgba(0,0,0,0.18);
+  }
+  .card.red { color: #b71c1c; }
+  .card.back {
+    background: linear-gradient(180deg, #1b2a3b 0%, #0c141d 100%);
+    border-color: #2a425a;
+    color: #dbe7f3;
+  }
+  .board {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(7, 14, 22, 0.34);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+  }
+  .footer {
+    display: grid;
+    gap: 8px;
+  }
+  .progress {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .progress::after {
+    content: "";
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #90caf9 0%, #f6d365 100%);
+    transform-origin: left center;
+    animation: progressFill 20s linear infinite;
+  }
+  .hint {
+    font-size: 12px;
+    color: #c7d4e2;
+    text-align: center;
+  }
+  @keyframes sceneCycle {
+    0% { opacity: 0; }
+    5% { opacity: 1; }
+    20% { opacity: 1; }
+    25% { opacity: 0; }
+    100% { opacity: 0; }
+  }
+  @keyframes progressFill {
+    0% { transform: scaleX(0); }
+    100% { transform: scaleX(1); }
+  }
+</style>
+<div class="frame">
+    <div class="topbar">
+      <div class="badge">Texas Hold'em Tutorial Video</div>
+      <div>Looping demo</div>
+    </div>
+    <div class="table">
+      <div class="scene scene-1">
+        <div class="caption">1. Pre-Flop</div>
+        <div class="subcaption">Each player gets two private hole cards. You start by reading your starting hand.</div>
+        <div class="board">
+          <div class="label">Your hole cards</div>
+          <div class="row">
+            <div class="card red">A♥</div>
+            <div class="card">K♠</div>
+          </div>
+        </div>
+      </div>
+      <div class="scene scene-2">
+        <div class="caption">2. Flop</div>
+        <div class="subcaption">Three community cards land on the board. Combine them with your hole cards to see your best hand.</div>
+        <div class="board">
+          <div class="label">Board</div>
+          <div class="row">
+            <div class="card red">Q♦</div>
+            <div class="card">J♣</div>
+            <div class="card">10♠</div>
+          </div>
+        </div>
+      </div>
+      <div class="scene scene-3">
+        <div class="caption">3. Turn</div>
+        <div class="subcaption">A fourth community card is added. Your hand strength can jump fast here.</div>
+        <div class="board">
+          <div class="label">Board</div>
+          <div class="row">
+            <div class="card red">Q♦</div>
+            <div class="card">J♣</div>
+            <div class="card">10♠</div>
+            <div class="card red">2♥</div>
+          </div>
+        </div>
+      </div>
+      <div class="scene scene-4">
+        <div class="caption">4. River</div>
+        <div class="subcaption">The fifth and final board card appears. Now both players know the full board.</div>
+        <div class="board">
+          <div class="label">Board</div>
+          <div class="row">
+            <div class="card red">Q♦</div>
+            <div class="card">J♣</div>
+            <div class="card">10♠</div>
+            <div class="card red">2♥</div>
+            <div class="card">3♣</div>
+          </div>
+        </div>
+      </div>
+      <div class="scene scene-5">
+        <div class="caption">5. Showdown</div>
+        <div class="subcaption">Use any 5 of the 7 available cards. Here the winning combo is Broadway: A-K-Q-J-10 straight.</div>
+        <div class="board">
+          <div class="label">Example winning combo</div>
+          <div class="row">
+            <div class="card red">A♥</div>
+            <div class="card">K♠</div>
+            <div class="card red">Q♦</div>
+            <div class="card">J♣</div>
+            <div class="card">10♠</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <div class="progress"></div>
+      <div class="hint">This loops through pre-flop, flop, turn, river, and showdown.</div>
+    </div>
+  </div>`;
+}
+
+function getPokerTutorialHtml() {
+  return `
+    <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.85rem; display:grid; gap:0.6rem;">
+      <div style="font-weight:700; color:#fff;">Poker Tutorial</div>
+      <div style="display:grid; gap:0.45rem;">
+        <div style="font-size:0.84rem; font-weight:700; color:#fff;">Tutorial Video</div>
+        <div style="font-size:0.8rem; color:#9fb0c2;">This loops through the Texas Hold'em hand flow like a built-in video.</div>
+        <iframe title="Texas Hold'em tutorial video" loading="lazy" referrerpolicy="no-referrer" style="display:block; width:100%; min-height:22rem; border:none; border-radius:0.9rem; background:#09110b;" srcdoc="${escapeHtml(getPokerTutorialVideoSrcdoc())}"></iframe>
+      </div>
+      <div style="font-size:0.84rem; color:#c5d2e1;">Poker rooms are shared live, so everyone seated in the room joins the same Texas Hold'em hand, with the AI seat only in AI rooms.</div>
+      <div style="font-size:0.82rem; color:#9fb0c2;">1. Create or join a room with a fixed stake.</div>
+      <div style="font-size:0.82rem; color:#9fb0c2;">2. Each player gets 2 private hole cards.</div>
+      <div style="font-size:0.82rem; color:#9fb0c2;">3. Reveal the flop, turn, and river to build the shared board.</div>
+      <div style="font-size:0.82rem; color:#9fb0c2;">4. Your best 5-card hand is made from any mix of your 2 hole cards and the 5 community cards.</div>
+      <div style="font-size:0.82rem; color:#9fb0c2;">5. Win the showdown to gain the room stake. Lose and the same amount comes off your balance.</div>
+      <div style="font-size:0.82rem; color:#dce6f2;">Hand order: High Card, Pair, Two Pair, Trips, Straight, Flush, Full House, Quads, Straight Flush, Royal Flush.</div>
+      <div style="display:grid; gap:0.55rem; margin-top:0.35rem;">
+        <div style="font-size:0.84rem; font-weight:700; color:#fff;">What each made hand can look like</div>
+        ${POKER_HAND_GUIDE.map((entry) => `<div style="padding:0.7rem; background:#0d141d; border:1px solid #263140; border-radius:0.75rem; display:grid; gap:0.45rem;"><div style="display:flex; justify-content:space-between; gap:0.6rem; flex-wrap:wrap;"><div style="font-weight:700; color:#fff;">${escapeHtml(entry.label)}</div><div style="font-size:0.76rem; color:#9fb0c2;">${escapeHtml(entry.note)}</div></div><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${renderPokerGuideCards(entry.cards)}</div></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function getPokerCardRankValue(card) {
+  if (!card) return 0;
+  if (typeof card.rank === 'number') return card.rank;
+  if (card.rank === 'A') return 14;
+  if (card.rank === 'K') return 13;
+  if (card.rank === 'Q') return 12;
+  if (card.rank === 'J') return 11;
+  return Number(card.rank || 0) || 0;
+}
+
+function getPokerRankLabel(value) {
+  if (value === 14) return 'A';
+  if (value === 13) return 'K';
+  if (value === 12) return 'Q';
+  if (value === 11) return 'J';
+  return String(value || '');
+}
+
+function getPokerStraightHighValue(values) {
+  const unique = Array.from(new Set(values)).sort((a, b) => b - a);
+  if (unique.length !== 5) return 0;
+  if (unique.every((value, index) => index === 0 || unique[index - 1] - value === 1)) {
+    return unique[0];
+  }
+  if (unique.join(',') === '14,5,4,3,2') {
+    return 5;
+  }
+  return 0;
+}
+
+function evaluatePokerHand(cards) {
+  const values = cards.map((card) => getPokerCardRankValue(card)).sort((a, b) => b - a);
+  const suits = cards.map((card) => card.suit);
+  const counts = {};
+  values.forEach((value) => {
+    counts[value] = (counts[value] || 0) + 1;
+  });
+  const groups = Object.entries(counts)
+    .map(([value, count]) => ({ value: Number(value), count }))
+    .sort((a, b) => b.count - a.count || b.value - a.value);
+  const flush = suits.every((suit) => suit === suits[0]);
+  const straightHigh = getPokerStraightHighValue(values);
+  if (flush && straightHigh === 14) {
+    return { category: 9, tiebreak: [14], label: 'Royal Flush' };
+  }
+  if (flush && straightHigh) {
+    return { category: 8, tiebreak: [straightHigh], label: 'Straight Flush' };
+  }
+  if (groups[0].count === 4) {
+    return { category: 7, tiebreak: [groups[0].value, groups[1].value], label: 'Four of a Kind' };
+  }
+  if (groups[0].count === 3 && groups[1] && groups[1].count === 2) {
+    return { category: 6, tiebreak: [groups[0].value, groups[1].value], label: 'Full House' };
+  }
+  if (flush) {
+    return { category: 5, tiebreak: values, label: 'Flush' };
+  }
+  if (straightHigh) {
+    return { category: 4, tiebreak: [straightHigh], label: 'Straight' };
+  }
+  if (groups[0].count === 3) {
+    const kickers = groups.filter((group) => group.count === 1).map((group) => group.value).sort((a, b) => b - a);
+    return { category: 3, tiebreak: [groups[0].value, ...kickers], label: 'Three of a Kind' };
+  }
+  if (groups[0].count === 2 && groups[1] && groups[1].count === 2) {
+    const pairValues = groups.filter((group) => group.count === 2).map((group) => group.value).sort((a, b) => b - a);
+    const kicker = groups.find((group) => group.count === 1)?.value || 0;
+    return { category: 2, tiebreak: [...pairValues, kicker], label: 'Two Pair' };
+  }
+  if (groups[0].count === 2) {
+    const kickers = groups.filter((group) => group.count === 1).map((group) => group.value).sort((a, b) => b - a);
+    return { category: 1, tiebreak: [groups[0].value, ...kickers], label: 'Pair' };
+  }
+  return { category: 0, tiebreak: values, label: 'High Card' };
+}
+
+function comparePokerEvaluations(left, right) {
+  if (left.category !== right.category) return left.category - right.category;
+  const length = Math.max(left.tiebreak.length, right.tiebreak.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftValue = left.tiebreak[index] || 0;
+    const rightValue = right.tiebreak[index] || 0;
+    if (leftValue !== rightValue) return leftValue - rightValue;
+  }
+  return 0;
+}
+
+function getPokerFiveCardCombinations(cards) {
+  const source = Array.isArray(cards) ? cards.filter(Boolean) : [];
+  if (source.length <= 5) return source.length === 5 ? [source.slice()] : [];
+  const combinations = [];
+  const current = [];
+  function build(startIndex) {
+    if (current.length === 5) {
+      combinations.push(current.slice());
+      return;
+    }
+    for (let index = startIndex; index <= source.length - (5 - current.length); index += 1) {
+      current.push(source[index]);
+      build(index + 1);
+      current.pop();
+    }
+  }
+  build(0);
+  return combinations;
+}
+
+function getBestPokerEvaluation(cards) {
+  const combinations = getPokerFiveCardCombinations(cards);
+  if (!combinations.length) return null;
+  let best = null;
+  combinations.forEach((combo) => {
+    const evaluation = evaluatePokerHand(combo);
+    if (!best || comparePokerEvaluations(evaluation, best) > 0) {
+      best = { ...evaluation, cards: combo.slice() };
+    }
+  });
+  return best;
+}
+
+function chooseAiPokerDiscardIndexes(hand) {
+  const evaluation = evaluatePokerHand(hand);
+  if (evaluation.category >= 4) return [];
+  const rankCounts = {};
+  hand.forEach((card) => {
+    const value = getPokerCardRankValue(card);
+    rankCounts[value] = (rankCounts[value] || 0) + 1;
+  });
+  const keepRanks = Object.keys(rankCounts)
+    .filter((value) => rankCounts[value] >= 2)
+    .map((value) => Number(value));
+  if (keepRanks.length) {
+    return hand.map((card, index) => keepRanks.includes(getPokerCardRankValue(card)) ? -1 : index).filter((index) => index >= 0).slice(0, 3);
+  }
+  const suitCounts = {};
+  hand.forEach((card) => {
+    suitCounts[card.suit] = (suitCounts[card.suit] || 0) + 1;
+  });
+  const flushSuit = Object.keys(suitCounts).find((suit) => suitCounts[suit] >= 4);
+  if (flushSuit) {
+    return hand.map((card, index) => card.suit === flushSuit ? -1 : index).filter((index) => index >= 0).slice(0, 3);
+  }
+  return hand
+    .map((card, index) => ({ index, value: getPokerCardRankValue(card) }))
+    .sort((a, b) => a.value - b.value)
+    .slice(0, 3)
+    .map((item) => item.index);
+}
+
+async function validateCasinoBetAmount(rawBet) {
+  const bet = Math.floor(Number(rawBet) || 0);
+  setCasinoStatus('');
+  if (!Number.isFinite(bet) || bet < 1) {
+    throw new Error('Enter a valid bet amount.');
+  }
+  const record = await ensureCasinoBalanceRecord();
+  if (!record.user) {
+    throw new Error('You must be logged in to play.');
+  }
+  if (bet > record.balance) {
+    throw new Error('That bet is bigger than your current balance.');
+  }
+  return { bet, record };
+}
+
+function renderPokerRoomList() {
+  const list = document.getElementById('poker-room-list');
+  if (!list) return;
+  if (!pokerRoomCache.length) {
+    list.innerHTML = '<div class="activity-feed-empty">No poker rooms yet. Create the first table.</div>';
+    return;
+  }
+  list.innerHTML = pokerRoomCache.map((room) => {
+    const isSelected = currentPokerRoomId === room.id;
+    const canDelete = room.owner && (room.owner === getCasinoPlayerKey() || canUseAdminPermission('manageCasino'));
+    const roomMembers = room.members && room.members.length ? room.members.map((member) => `@${member}`).join(', ') : 'No one seated yet';
+    return `<div style="padding:0.7rem; border:1px solid ${isSelected ? '#5b8cff' : '#2b3442'}; background:${isSelected ? '#162338' : '#10151d'}; border-radius:0.75rem; display:grid; gap:0.4rem;">
+      <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+        <div style="font-weight:700; color:#fff;">${escapeHtml(room.name)}</div>
+        <div style="font-size:0.75rem; color:#9fb0c2;">${escapeHtml(getPokerRoomTypeLabel(room.roomType))} • $${room.stake.toLocaleString()} table</div>
+      </div>
+      <div style="font-size:0.78rem; color:#9fb0c2;">Host: ${escapeHtml(room.ownerDisplayName)}${room.roomType === 'human' ? '' : ` • AI: ${escapeHtml(room.aiName)}`}</div>
+      <div style="font-size:0.78rem; color:#c5d2e1;">${escapeHtml(room.description || 'Texas Hold\'em against the house AI.')}</div>
+      <div style="font-size:0.76rem; color:#90a4ae;">Seats: ${escapeHtml(roomMembers)}</div>
+      <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+        <button onclick="joinPokerRoom('${room.id}')" style="padding:0.45rem 0.75rem; border:none; border-radius:0.5rem; background:#1f4f89; color:#fff; font-weight:700;">${isSelected ? 'At Table' : (room.roomType === 'human' ? 'Join Room' : 'Join Table')}</button>
+        ${canDelete ? `<button onclick="deletePokerRoom('${room.id}')" style="padding:0.45rem 0.75rem; border:none; border-radius:0.5rem; background:#6b202a; color:#fff; font-weight:700;">Delete</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderPokerCards(hand, options = {}) {
+  return hand.map((card, index) => {
+    const hidden = !!options.hidden;
+    const selectable = !!options.selectable;
+    const selected = Array.isArray(options.selectedIndexes) && options.selectedIndexes.includes(index);
+    return renderCasinoPlayingCard(card, {
+      hidden,
+      selectable,
+      selected,
+      index
+    });
+  }).join('');
+}
+
+function renderPokerParticipantSeat(participant, state = pokerState) {
+  const isCurrentUser = participant && participant.username === getCasinoPlayerKey();
+  const showdownLabel = state && state.phase === 'showdown'
+    ? sanitizeNullableText(participant && participant.evaluationLabel, '')
+    : '';
+  const liveLabel = isCurrentUser ? getPokerCurrentPlayerHandText(state) : '';
+  const handText = participant && participant.folded
+    ? 'Folded'
+    : showdownLabel
+      ? showdownLabel
+      : liveLabel || 'Cards stay hidden until showdown.';
+  const cardsHidden = !!(participant && participant.folded) || (!isCurrentUser && (!state || state.phase !== 'showdown'));
+  return `<div style="padding:0.85rem; border:1px solid #2b3442; border-radius:0.85rem; background:rgba(8, 15, 23, 0.78); display:grid; gap:0.55rem;">
+    <div style="font-size:0.82rem; color:#9fb0c2;">${escapeHtml((participant && participant.displayName) || (participant && participant.username) || 'Player')}${isCurrentUser ? ' (You)' : ''}</div>
+    <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:center;">${renderPokerCards((participant && participant.hand) || [], { hidden: cardsHidden })}</div>
+    <div style="font-size:${isCurrentUser ? '1.1rem' : '0.84rem'}; color:${participant && participant.folded ? '#ffcc80' : '#dce6f2'}; text-align:center; font-weight:${isCurrentUser ? '800' : '700'}; letter-spacing:${isCurrentUser ? '0.03em' : '0'};">${escapeHtml(handText)}</div>
+  </div>`;
+}
+
+function renderPokerAiSeat(state = pokerState, room = getSelectedPokerRoom()) {
+  const aiName = escapeHtml((state && state.aiName) || (room && room.aiName) || 'Dealer Bot');
+  const aiLabel = state && state.phase === 'showdown'
+    ? escapeHtml(sanitizeNullableText(state.aiEvaluationLabel, 'Showdown'))
+    : 'Cards stay hidden until showdown.';
+  return `<div style="padding:0.85rem; border:1px solid #2b3442; border-radius:0.85rem; background:rgba(8, 15, 23, 0.78); display:grid; gap:0.55rem;">
+    <div style="font-size:0.82rem; color:#9fb0c2;">${aiName}</div>
+    <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:center;">${renderPokerCards((state && state.aiHand) || [], { hidden: !state || state.phase !== 'showdown' })}</div>
+    <div style="font-size:0.84rem; color:#dce6f2; text-align:center; font-weight:700;">${aiLabel}</div>
+  </div>`;
+}
+
+function renderPokerCurrentTable() {
+  const container = document.getElementById('poker-room-active');
+  if (!container) return;
+  const room = getSelectedPokerRoom();
+  if (!room) {
+    container.innerHTML = '<div class="activity-feed-empty">Pick a poker room to sit down for Texas Hold\'em.</div>';
+    return;
+  }
+  pokerState = room.gameState || null;
+  if (!pokerState) {
+    const memberCount = Math.max(0, (room.members || []).length);
+    container.innerHTML = `
+      <div style="display:grid; gap:0.6rem;">
+        <div style="font-size:0.95rem; font-weight:700; color:#fff;">${escapeHtml(room.name)}</div>
+        <div style="font-size:0.82rem; color:#9fb0c2;">${escapeHtml(getPokerRoomTypeLabel(room.roomType))}${room.roomType === 'human' ? '' : ` • AI seat: ${escapeHtml(room.aiName)}`} • Stake: $${room.stake.toLocaleString()}</div>
+        <div style="font-size:0.82rem; color:#c5d2e1;">${escapeHtml(room.description || (room.roomType === 'human' ? 'Shared human-only Texas Hold\'em table.' : 'Shared Texas Hold\'em table with the room AI included in every hand.'))}</div>
+        <div style="font-size:0.78rem; color:#90a4ae;">People in room: ${escapeHtml((room.members || []).map((member) => `@${member}`).join(', ') || 'No one seated yet')}</div>
+        <div style="padding:0.95rem; border-radius:1rem; background:radial-gradient(circle at top, rgba(38,90,58,0.4) 0%, rgba(10,20,13,0.95) 72%); border:1px solid #26452f; display:grid; gap:0.7rem; justify-items:center;">
+          <div style="font-size:0.8rem; color:#c7d4e2;">Table preview</div>
+          <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:center;">${renderPokerGuideCards(['🂠', '🂠'])}</div>
+          <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:center;">${renderPokerGuideCards(['🂠', '🂠', '🂠', '🂠', '🂠'])}</div>
+          <div style="font-size:0.8rem; color:#9fb0c2; text-align:center;">${room.roomType === 'human' ? 'Need at least 2 people seated with enough casino cash to start a hand.' : 'Every seated player with enough casino cash joins the hand, plus the AI seat.'}</div>
+          <div style="font-size:0.78rem; color:#c7d4e2; text-align:center;">${memberCount} player${memberCount === 1 ? '' : 's'} currently seated.</div>
+        </div>
+        <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+          <button onclick="startPokerHand()" style="padding:0.5rem 0.9rem; border:none; border-radius:0.55rem; background:#2e7d32; color:#fff; font-weight:700;">Deal Hand ($${room.stake.toLocaleString()})</button>
+          <button onclick="leavePokerRoom()" style="padding:0.5rem 0.9rem; border:none; border-radius:0.55rem; background:#37474f; color:#fff; font-weight:700;">Leave Room</button>
+        </div>
+      </div>`;
+    return;
+  }
+  const visibleCommunityCards = getVisiblePokerCommunityCards(pokerState);
+  const currentParticipant = getPokerCurrentParticipant(pokerState);
+  const watchingMembers = (room.members || []).filter((member) => !(pokerState.players || []).some((participant) => participant.username === member));
+  const resultTone = currentParticipant && currentParticipant.outcome === 'win'
+    ? '#173524'
+    : currentParticipant && currentParticipant.outcome === 'loss'
+      ? '#3a1717'
+      : '#263140';
+  container.innerHTML = `
+    <div style="display:grid; gap:0.8rem;">
+      <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+        <div>
+          <div style="font-size:0.98rem; font-weight:700; color:#fff;">${escapeHtml(room.name)}</div>
+          <div style="font-size:0.8rem; color:#9fb0c2;">${escapeHtml(getPokerRoomTypeLabel(room.roomType))}${room.roomType === 'human' ? '' : ` • AI: ${escapeHtml(room.aiName)}`} • Stake: $${room.stake.toLocaleString()}</div>
+        </div>
+        <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+          <button onclick="togglePokerTutorial()" style="padding:0.45rem 0.8rem; border:none; border-radius:0.5rem; background:#263140; color:#fff; font-weight:700;">${pokerTutorialExpanded ? 'Hide Tutorial' : 'Poker Tutorial'}</button>
+          <button onclick="leavePokerRoom()" style="padding:0.45rem 0.8rem; border:none; border-radius:0.5rem; background:#37474f; color:#fff; font-weight:700;">Leave Room</button>
+        </div>
+      </div>
+      <div style="padding:0.95rem; border:1px solid #26452f; border-radius:1rem; background:radial-gradient(circle at top, rgba(38,90,58,0.45) 0%, rgba(10,20,13,0.97) 72%); display:grid; gap:0.8rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap; font-size:0.78rem; color:#c7d4e2;">
+          <span>Texas Hold'em table</span>
+          <span>${escapeHtml(getPokerPhaseSummary())}</span>
+        </div>
+        ${room.roomType === 'human' ? '' : renderPokerAiSeat(pokerState, room)}
+        <div style="display:grid; grid-template-columns:auto auto auto; justify-content:center; gap:0.45rem; align-items:center; font-size:0.76rem; color:#9fb0c2;">
+          <span style="padding:0.4rem 0.7rem; border-radius:999px; background:#162338; border:1px solid #29415f;">Stake: $${room.stake.toLocaleString()}</span>
+          <span style="padding:0.4rem 0.7rem; border-radius:999px; background:#13231c; border:1px solid #2d5a46;">${getPokerPhaseLabel(pokerState.phase)}</span>
+          <span style="padding:0.4rem 0.7rem; border-radius:999px; background:#2a1d12; border:1px solid #614125;">Board: ${visibleCommunityCards.length}/5 • Pot: $${Math.max(0, Number(pokerState.pot || 0)).toLocaleString()}</span>
+        </div>
+        <div style="padding:0.85rem; border:1px solid #2b3442; border-radius:0.85rem; background:rgba(8, 15, 23, 0.78); display:grid; gap:0.55rem;">
+          <div style="font-size:0.82rem; color:#9fb0c2;">Board</div>
+          <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:center;">${renderPokerCommunityCards(pokerState.communityCards, pokerState.revealedCommunityCount)}</div>
+          <div style="font-size:0.8rem; color:#dce6f2; text-align:center;">${visibleCommunityCards.length ? `${visibleCommunityCards.length} community cards revealed.` : 'No community cards revealed yet.'}</div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(14rem, 1fr)); gap:0.7rem;">${(pokerState.players || []).map((participant) => renderPokerParticipantSeat(participant, pokerState)).join('')}</div>
+        ${watchingMembers.length ? `<div style="font-size:0.78rem; color:#90a4ae; text-align:center;">Watching this hand: ${escapeHtml(watchingMembers.map((member) => `@${member}`).join(', '))}</div>` : ''}
+      </div>
+      ${pokerState.phase === 'showdown' ? `<div style="padding:0.75rem; border-radius:0.75rem; background:${resultTone}; color:#fff; font-weight:700;">${escapeHtml((currentParticipant && currentParticipant.summaryText) || pokerState.resultSummary || 'Poker hand complete.')}</div>` : ''}
+      <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+        ${pokerState.phase !== 'showdown' ? `<button onclick="advancePokerStreet()" style="padding:0.5rem 0.9rem; border:none; border-radius:0.55rem; background:#2e7d32; color:#fff; font-weight:700;">${getPokerNextActionLabel(pokerState)}</button>` : `<button onclick="startPokerHand()" style="padding:0.5rem 0.9rem; border:none; border-radius:0.55rem; background:#2e7d32; color:#fff; font-weight:700;">Deal New Hand</button>`}
+        ${pokerState.phase !== 'showdown' && currentParticipant && !currentParticipant.folded ? `<button onclick="foldPokerHand()" style="padding:0.5rem 0.9rem; border:none; border-radius:0.55rem; background:#8e0000; color:#fff; font-weight:700;">Fold</button>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderPokerPanel() {
+  const panel = document.getElementById('casino-game-panel');
+  if (!panel) return;
+  listenForPokerRooms();
+  panel.innerHTML = `
+    <div style="display:grid; gap:0.85rem;">
+      <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+        <div style="font-size:0.88rem; color:#dce6f2;">Create shared poker rooms, join a table, and play Texas Hold'em with people in the room, with or without the AI.</div>
+        <button onclick="togglePokerTutorial()" style="padding:0.45rem 0.8rem; border:none; border-radius:0.5rem; background:#263140; color:#fff; font-weight:700;">${pokerTutorialExpanded ? 'Hide Tutorial' : 'Poker Tutorial'}</button>
+      </div>
+      ${pokerTutorialExpanded ? getPokerTutorialHtml() : ''}
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(18rem, 1fr)); gap:0.85rem; align-items:start;">
+        <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.85rem; display:grid; gap:0.7rem;">
+          <div style="font-weight:700; color:#fff;">Current Table</div>
+          <div id="poker-room-active"></div>
+        </div>
+        <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.85rem; display:grid; gap:0.6rem;">
+          <div style="font-weight:700; color:#fff;">Create Poker Room</div>
+          <label for="poker-room-type" style="font-size:0.76rem; color:#9fb0c2;">Room type</label>
+          <select id="poker-room-type" onchange="updatePokerRoomFormForType()" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;">
+            <option value="ai">AI table</option>
+            <option value="human">Humans only</option>
+          </select>
+          <label for="poker-room-name" style="font-size:0.76rem; color:#9fb0c2;">Room name</label>
+          <input id="poker-room-name" type="text" maxlength="32" placeholder="Room name" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;" />
+          <label for="poker-room-stake" style="font-size:0.76rem; color:#9fb0c2;">Table stake</label>
+          <input id="poker-room-stake" type="number" min="25" max="10000" value="150" placeholder="Stake amount" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;" />
+          <div id="poker-room-ai-wrap" style="display:grid; gap:0.35rem;">
+            <label for="poker-room-ai-name" style="font-size:0.76rem; color:#9fb0c2;">AI dealer name</label>
+            <input id="poker-room-ai-name" type="text" maxlength="32" placeholder="AI dealer name" value="Dealer Bot" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;" />
+          </div>
+          <label for="poker-room-description" style="font-size:0.76rem; color:#9fb0c2;">Room description</label>
+          <input id="poker-room-description" type="text" maxlength="120" placeholder="Room description" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;" />
+          <button id="poker-room-create-btn" onclick="createPokerRoom()" style="padding:0.55rem 0.9rem; border:none; border-radius:0.55rem; background:#1f4f89; color:#fff; font-weight:700;">Create AI Room</button>
+          <div id="poker-room-create-note" style="font-size:0.76rem; color:#9fb0c2;">AI rooms are shared in Firestore so everyone seated at the table joins the same hand with the room bot. Human rooms run the same shared table without an AI seat.</div>
+        </div>
+      </div>
+      <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.85rem; display:grid; gap:0.7rem;">
+        <div style="font-weight:700; color:#fff;">Open Tables</div>
+        <div id="poker-room-list" style="display:grid; gap:0.65rem;"></div>
+      </div>
+    </div>`;
+  updatePokerRoomFormForType();
+  renderPokerCurrentTable();
+  renderPokerRoomList();
+}
+
+async function createPokerRoom() {
+  const user = getCasinoPlayerKey();
+  if (!user) {
+    setCasinoStatus('You must be logged in to create a poker room.', 'error');
+    return;
+  }
+  const nameInput = document.getElementById('poker-room-name');
+  const stakeInput = document.getElementById('poker-room-stake');
+  const roomTypeSelect = document.getElementById('poker-room-type');
+  const aiNameInput = document.getElementById('poker-room-ai-name');
+  const descriptionInput = document.getElementById('poker-room-description');
+  const roomType = roomTypeSelect && roomTypeSelect.value === 'human' ? 'human' : 'ai';
+  const name = sanitizeNullableText(nameInput ? nameInput.value : '', roomType === 'human' ? 'Human Table' : 'AI Table').slice(0, 32) || (roomType === 'human' ? 'Human Table' : 'AI Table');
+  const description = sanitizeNullableText(descriptionInput ? descriptionInput.value : '', '').slice(0, 120);
+  const aiName = roomType === 'human' ? '' : (sanitizeNullableText(aiNameInput ? aiNameInput.value : '', 'Dealer Bot').slice(0, 32) || 'Dealer Bot');
+  const stake = Math.max(25, Math.min(10000, Math.floor(Number(stakeInput ? stakeInput.value : 0) || 0)));
+  if (!Number.isFinite(stake) || stake < 25) {
+    setCasinoStatus('Poker room stake must be at least $25.', 'error');
+    return;
+  }
+  try {
+    const ref = getPokerRoomsCollection().doc();
+    const payload = {
+      name,
+      description,
+      roomType,
+      aiName,
+      stake,
+      owner: user,
+      ownerDisplayName: getCasinoPlayerDisplayName(),
+      members: [user],
+      status: 'open',
+      createdAtMs: Date.now(),
+      updatedAtMs: Date.now(),
+      lastPlayedBy: '',
+      lastPlayedByDisplayName: ''
+    };
+    await ref.set(payload, { merge: true });
+    currentPokerRoomId = ref.id;
+    pokerState = null;
+    pokerRoomCache = [normalizePokerRoomData(ref.id, payload), ...pokerRoomCache.filter((room) => room.id !== ref.id)].slice(0, 30);
+    if (nameInput) nameInput.value = '';
+    if (descriptionInput) descriptionInput.value = '';
+    if (aiNameInput) aiNameInput.value = 'Dealer Bot';
+    if (stakeInput) stakeInput.value = '150';
+    if (roomTypeSelect) roomTypeSelect.value = 'ai';
+    updatePokerRoomFormForType();
+    await publishCasinoActivity({
+      type: 'poker_room',
+      title: `${getCasinoPlayerDisplayName()} opened a poker room`,
+      body: roomType === 'human'
+        ? `${name} is live as a humans-only poker room at a $${stake.toLocaleString()} table.`
+        : `${name} is live with ${aiName} at a $${stake.toLocaleString()} table.`,
+      by: user
+    });
+    setCasinoStatus(`Poker room ${name} is live.`, 'success');
+    renderActiveCasinoGamePanel();
+  } catch (err) {
+    setCasinoStatus('Could not create the poker room.', 'error');
+  }
+}
+
+async function joinPokerRoom(roomId) {
+  const previousRoomId = currentPokerRoomId;
+  currentPokerRoomId = sanitizeNullableText(roomId, '');
+  pokerState = null;
+  if (previousRoomId && previousRoomId !== currentPokerRoomId) {
+    await syncPokerRoomMembership(previousRoomId, false);
+  }
+  if (currentPokerRoomId) {
+    await syncPokerRoomMembership(currentPokerRoomId, true);
+  }
+  renderActiveCasinoGamePanel();
+  const room = getSelectedPokerRoom();
+  if (room) {
+    setCasinoStatus(`Joined ${room.name}.`, 'success');
+  }
+}
+
+async function leavePokerRoom() {
+  const previousRoomId = currentPokerRoomId;
+  currentPokerRoomId = '';
+  pokerState = null;
+  if (previousRoomId) {
+    await syncPokerRoomMembership(previousRoomId, false);
+  }
+  renderActiveCasinoGamePanel();
+  setCasinoStatus('Left the poker room.', 'neutral');
+}
+
+async function deletePokerRoom(roomId) {
+  const room = pokerRoomCache.find((entry) => entry.id === roomId);
+  if (!room) return;
+  if (room.owner !== getCasinoPlayerKey() && !canUseAdminPermission('manageCasino')) {
+    setCasinoStatus('Only the room owner can delete that poker room.', 'error');
+    return;
+  }
+  try {
+    await getPokerRoomsCollection().doc(roomId).delete();
+    if (currentPokerRoomId === roomId) {
+      currentPokerRoomId = '';
+      pokerState = null;
+    }
+    pokerRoomCache = pokerRoomCache.filter((entry) => entry.id !== roomId);
+    await publishCasinoActivity({
+      type: 'poker_room_closed',
+      title: `${getCasinoPlayerDisplayName()} closed a poker room`,
+      body: `${room.name} was removed from the poker list.`,
+      by: getCasinoPlayerKey()
+    });
+    setCasinoStatus(`Deleted ${room.name}.`, 'success');
+    renderActiveCasinoGamePanel();
+  } catch (err) {
+    setCasinoStatus('Could not delete the poker room.', 'error');
+  }
+}
+
+async function startPokerHand() {
+  const room = getSelectedPokerRoom();
+  if (!room) {
+    setCasinoStatus('Join a poker room first.', 'error');
+    return;
+  }
+  const user = getCasinoPlayerKey();
+  if (!user) {
+    setCasinoStatus('You must be logged in to play poker.', 'error');
+    return;
+  }
+  const roomRef = getPokerRoomsCollection().doc(room.id);
+  let nextState = null;
+  let skippedPlayers = [];
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const roomSnap = await tx.get(roomRef);
+      const latestRoom = normalizePokerRoomData(room.id, roomSnap.exists ? (roomSnap.data() || {}) : room);
+      const latestState = latestRoom.gameState;
+      if (!latestRoom.members.includes(user)) {
+        throw new Error('Join the poker room before dealing a hand.');
+      }
+      if (latestState && latestState.phase !== 'showdown') {
+        throw new Error('Finish the current poker hand first.');
+      }
+      if (latestState && latestState.phase === 'showdown' && !latestState.settledAtMs) {
+        throw new Error('The last hand is still settling. Try again in a moment.');
+      }
+      const seatedUsers = Array.from(new Set((latestRoom.members || []).map((member) => normalizeUsername(member)).filter(Boolean)));
+      const balanceRefs = seatedUsers.map((username) => getCasinoBalanceCollection().doc(username));
+      const balanceSnaps = await Promise.all(balanceRefs.map((ref) => tx.get(ref)));
+      const eligiblePlayers = [];
+      skippedPlayers = [];
+      balanceSnaps.forEach((snap, index) => {
+        const username = seatedUsers[index];
+        const rawData = snap.exists ? (snap.data() || {}) : {};
+        const currentStats = normalizeCasinoProfileStatsData(username, rawData);
+        const displayName = sanitizeNullableText(rawData.displayName, username) || username;
+        if (currentStats.balance >= latestRoom.stake) {
+          eligiblePlayers.push({ username, displayName });
+        } else {
+          skippedPlayers.push(displayName);
+        }
+      });
+      if (!eligiblePlayers.some((participant) => participant.username === user)) {
+        throw new Error(`You need at least $${latestRoom.stake.toLocaleString()} to join this hand.`);
+      }
+      if (latestRoom.roomType === 'human' && eligiblePlayers.length < 2) {
+        throw new Error('Need at least 2 seated players with enough casino cash for a human-only hand.');
+      }
+      if (latestRoom.roomType !== 'human' && eligiblePlayers.length < 1) {
+        throw new Error('Need at least 1 seated player with enough casino cash to start this hand.');
+      }
+      const deck = shuffleDeck();
+      const players = eligiblePlayers.map((participant) => ({
+        username: participant.username,
+        displayName: participant.displayName,
+        hand: [deck.pop(), deck.pop()],
+        folded: false,
+        outcome: '',
+        payout: 0,
+        evaluationLabel: '',
+        summaryText: ''
+      }));
+      const communityCards = [deck.pop(), deck.pop(), deck.pop(), deck.pop(), deck.pop()];
+      const aiHand = latestRoom.roomType === 'human' ? [] : [deck.pop(), deck.pop()];
+      const nowMs = Date.now();
+      nextState = normalizePokerGameState({
+        roomId: latestRoom.id,
+        phase: 'preflop',
+        stake: latestRoom.stake,
+        players,
+        aiName: latestRoom.aiName,
+        aiHand,
+        aiEvaluationLabel: '',
+        aiWon: false,
+        communityCards,
+        revealedCommunityCount: 0,
+        pot: latestRoom.stake * (players.length + (latestRoom.roomType === 'human' ? 0 : 1)),
+        winnerUsernames: [],
+        resultSummary: '',
+        startedAtMs: nowMs,
+        settledAtMs: 0,
+        updatedAtMs: nowMs
+      }, latestRoom);
+      tx.set(roomRef, {
+        gameState: nextState,
+        updatedAtMs: nowMs,
+        lastPlayedBy: user,
+        lastPlayedByDisplayName: getCasinoPlayerDisplayName()
+      }, { merge: true });
+    });
+    setLocalPokerRoomGameState(room.id, nextState);
+    renderActiveCasinoGamePanel();
+    const seatedCount = nextState && Array.isArray(nextState.players) ? nextState.players.length : 0;
+    const skippedMessage = skippedPlayers.length
+      ? ` ${skippedPlayers.join(', ')} ${skippedPlayers.length === 1 ? 'was' : 'were'} left out for not having enough cash.`
+      : '';
+    setCasinoStatus(`Texas Hold'em hand dealt at ${room.name}. ${seatedCount} player${seatedCount === 1 ? '' : 's'} in the hand.${room.roomType === 'human' ? '' : ` ${room.aiName} is seated too.`}${skippedMessage}`, 'neutral');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not start poker.', 'error');
+  }
+}
+
+function togglePokerDiscard() {
+  return;
+}
+
+async function advancePokerStreet() {
+  const room = getSelectedPokerRoom();
+  const state = (room && room.gameState) || pokerState;
+  if (!room || !state || state.phase === 'showdown') return;
+  try {
+    const activePlayers = (state.players || []).filter((participant) => !participant.folded);
+    if ((room.roomType === 'human' && activePlayers.length <= 1) || (room.roomType !== 'human' && activePlayers.length === 0) || state.phase === 'river') {
+      const finalState = await settlePokerRoomState(room, state.phase === 'river' ? {} : { reason: 'fold', keepBoardHidden: true });
+      if (!finalState) return;
+      renderActiveCasinoGamePanel();
+      const currentParticipant = getPokerCurrentParticipant(finalState);
+      const resultMessage = currentParticipant ? currentParticipant.summaryText : finalState.resultSummary || 'Poker hand complete.';
+      setCasinoStatus(resultMessage, currentParticipant && currentParticipant.outcome === 'win' ? 'success' : currentParticipant && currentParticipant.outcome === 'loss' ? 'error' : 'neutral');
+      return;
+    }
+    const roomRef = getPokerRoomsCollection().doc(room.id);
+    let nextState = null;
+    let shouldSettleAfterRefresh = false;
+    await getCasinoDb().runTransaction(async (tx) => {
+      const roomSnap = await tx.get(roomRef);
+      const latestRoom = normalizePokerRoomData(room.id, roomSnap.exists ? (roomSnap.data() || {}) : room);
+      const latestState = latestRoom.gameState;
+      if (!latestState || latestState.phase === 'showdown') {
+        nextState = latestState;
+        return;
+      }
+      const latestActivePlayers = (latestState.players || []).filter((participant) => !participant.folded);
+      if ((latestRoom.roomType === 'human' && latestActivePlayers.length <= 1) || (latestRoom.roomType !== 'human' && latestActivePlayers.length === 0)) {
+        shouldSettleAfterRefresh = true;
+        return;
+      }
+      const nextPhase = latestState.phase === 'preflop'
+        ? 'flop'
+        : latestState.phase === 'flop'
+          ? 'turn'
+          : 'river';
+      const revealedCommunityCount = nextPhase === 'flop' ? 3 : nextPhase === 'turn' ? 4 : 5;
+      const nowMs = Date.now();
+      nextState = {
+        ...latestState,
+        phase: nextPhase,
+        revealedCommunityCount,
+        updatedAtMs: nowMs
+      };
+      tx.set(roomRef, {
+        gameState: nextState,
+        updatedAtMs: nowMs,
+        lastPlayedBy: getCasinoPlayerKey() || '',
+        lastPlayedByDisplayName: getCasinoPlayerDisplayName()
+      }, { merge: true });
+    });
+    if (shouldSettleAfterRefresh) {
+      const finalState = await settlePokerRoomState(room, { reason: 'fold', keepBoardHidden: true });
+      if (!finalState) return;
+      renderActiveCasinoGamePanel();
+      const currentParticipant = getPokerCurrentParticipant(finalState);
+      const resultMessage = currentParticipant ? currentParticipant.summaryText : finalState.resultSummary || 'Poker hand complete.';
+      setCasinoStatus(resultMessage, currentParticipant && currentParticipant.outcome === 'win' ? 'success' : currentParticipant && currentParticipant.outcome === 'loss' ? 'error' : 'neutral');
+      return;
+    }
+    if (!nextState) return;
+    setLocalPokerRoomGameState(room.id, nextState);
+    renderActiveCasinoGamePanel();
+    setCasinoStatus(`${getPokerPhaseLabel(nextState.phase)} dealt at ${room.name}. ${getPokerCurrentPlayerHandText(nextState)}`, 'neutral');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not finish the poker hand.', 'error');
+  }
+}
+
+async function drawPokerCardsForShowdown() {
+  await advancePokerStreet();
+}
+
+let activeCasinoGame = 'blackjack';
+let blackjackState = null;
+
+function setActiveCasinoGame(gameKey) {
+  activeCasinoGame = ['blackjack', 'coinflip', 'roulette', 'slots', 'poker'].includes(gameKey) ? gameKey : 'blackjack';
+  blackjackState = null;
+  rouletteVisualState = { selectedChoice: '', winningValue: null, activeValue: null, ballAngleDeg: -90, spinning: false };
+  if (activeCasinoGame === 'coinflip' && !coinFlipVisualState.matchId) {
+    coinFlipVisualState = createDefaultCasinoCoinFlipVisualState();
+  }
+  if (activeCasinoGame !== 'poker' && typeof stopListeningForPokerRooms === 'function') stopListeningForPokerRooms();
+  renderCasinoGame();
+  loadCasinoBalance().catch(() => {});
+}
+
+function renderCasinoTabButton(gameKey, label) {
+  const isActive = activeCasinoGame === gameKey;
+  return `<button onclick="setActiveCasinoGame('${gameKey}')" style="padding:0.55rem 0.85rem;border-radius:0.7rem;border:none;font-weight:700;background:${isActive ? 'linear-gradient(180deg, #4f83ff 0%, #3268f0 100%)' : '#242b38'};color:#fff;">${escapeHtml(label)}</button>`;
+}
+
+function renderCoinFlipChallengeCard(match, currentUser) {
+  const isOpen = match.status === 'open';
+  const isCreator = currentUser && match.challenger === currentUser;
+  const isEligibleOpponent = !!currentUser && !isCreator && (!match.opponentTarget || match.opponentTarget === currentUser);
+  const targetLabel = match.openToAny
+    ? 'Open to anyone'
+    : `Only @${match.opponentTargetDisplayName || match.opponentTarget}`;
+  const flipLabel = getCoinFlipChoiceLabel(match.flipResult);
+  const winnerSide = match.flipResult === match.challengerSide ? match.challengerSide : match.acceptorSide;
+  const winnerSideLabel = getCoinFlipChoiceLabel(winnerSide);
+  const pillStyle = 'display:inline-flex; padding:0.26rem 0.55rem; border-radius:999px; font-size:0.7rem; font-weight:700; letter-spacing:0.04em; border:1px solid rgba(255,255,255,0.08);';
+  let footerHtml = `<div style="font-size:0.74rem; color:#8fa1b5;">${escapeHtml(formatRelativeTime(match.updatedAtMs || match.createdAtMs || 0))}</div>`;
+  if (isOpen && isCreator) {
+    footerHtml += `<button onclick="cancelCasinoCoinFlipChallenge('${escapeHtml(match.id)}')" style="padding:0.45rem 0.8rem; border:none; border-radius:0.55rem; background:#5d4037; color:#fff; font-weight:700;">Cancel</button>`;
+  } else if (isOpen && isEligibleOpponent) {
+    footerHtml += `<button onclick="acceptCasinoCoinFlipChallenge('${escapeHtml(match.id)}')" style="padding:0.45rem 0.8rem; border:none; border-radius:0.55rem; background:#1565c0; color:#fff; font-weight:700;">Take ${escapeHtml(getCoinFlipChoiceLabel(match.acceptorSide))}</button>`;
+  }
+  if (!isOpen) {
+    const resultLabel = match.status === 'cancelled'
+      ? `Challenge cancelled by @${match.cancelledBy || match.challenger}`
+      : `${match.winnerDisplayName || match.winner || 'Winner'} won on ${flipLabel} as ${winnerSideLabel}`;
+    footerHtml += `<div style="font-size:0.78rem; color:${match.status === 'cancelled' ? '#ffcc80' : '#9fe3a5'}; font-weight:700;">${escapeHtml(resultLabel)}</div>`;
+  }
+  return `
+    <div style="padding:0.8rem; border-radius:0.85rem; background:${isOpen ? '#10151d' : '#131b24'}; border:1px solid ${isOpen ? '#263140' : '#2b3c52'}; display:grid; gap:0.55rem;">
+      <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+        <div style="display:grid; gap:0.22rem; min-width:0;">
+          <div style="font-weight:700; color:#fff;">${escapeHtml(match.challengerDisplayName || match.challenger || 'Player')} posted a coin flip</div>
+          <div style="font-size:0.78rem; color:#9fb0c2;">Stake $${Math.max(0, Number(match.bet || 0)).toLocaleString()} • ${escapeHtml(targetLabel)}</div>
+        </div>
+        <div style="display:flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+          <span style="${pillStyle} background:${isOpen ? '#14253d' : '#1f2d3d'}; color:${isOpen ? '#90caf9' : '#b0bec5'};">${escapeHtml(isOpen ? 'OPEN' : match.status.toUpperCase())}</span>
+          <span style="${pillStyle} background:#182231; color:#fff;">${escapeHtml(match.challengerDisplayName || match.challenger || 'Player')}: ${escapeHtml(getCoinFlipChoiceLabel(match.challengerSide))}</span>
+        </div>
+      </div>
+      ${match.acceptor ? `<div style="font-size:0.78rem; color:#dce6f2;">Opponent: ${escapeHtml(match.acceptorDisplayName || match.acceptor)} (${escapeHtml(getCoinFlipChoiceLabel(match.acceptorSide))})</div>` : ''}
+      <div style="display:flex; justify-content:space-between; gap:0.55rem; align-items:center; flex-wrap:wrap;">${footerHtml}</div>
+    </div>`;
+}
+
+function renderCasinoCoinFlipPanel() {
+  const panel = document.getElementById('casino-game-panel');
+  if (!panel) return;
+  const currentUser = getCasinoPlayerKey();
+  const transferUsers = getCachedCasinoTransferUsers();
+  if (!casinoTransferUsersLoaded && !casinoTransferUsersLoadPromise) {
+    loadCasinoTransferUsers().catch(() => {});
+  }
+  const existingBetValue = document.getElementById('coinflip-bet')?.value || '100';
+  const existingSideValue = normalizeCoinFlipChoice(document.getElementById('coinflip-side')?.value || 'heads');
+  const existingTargetValue = normalizeUsername(document.getElementById('coinflip-target-user')?.value || '');
+  const targetOptions = [
+    '<option value="">Open challenge (any player)</option>',
+    ...transferUsers.map((username) => `<option value="${escapeHtml(username)}"${username === existingTargetValue ? ' selected' : ''}>${escapeHtml(username)}</option>`)
+  ].join('');
+  const openMatches = casinoCoinFlipCache.filter((match) => match.status === 'open');
+  const yourMatches = openMatches.filter((match) => match.challenger === currentUser || match.opponentTarget === currentUser);
+  const availableMatches = openMatches.filter((match) => match.challenger !== currentUser && (!match.opponentTarget || match.opponentTarget === currentUser));
+  const recentMatches = casinoCoinFlipCache.filter((match) => match.status !== 'open').slice(0, 8);
+  panel.innerHTML = `
+    <div style="display:grid; gap:0.9rem;">
+      <div style="padding:0.9rem; border-radius:0.95rem; background:radial-gradient(circle at top, rgba(34,87,122,0.34) 0%, rgba(10,16,24,0.96) 76%); border:1px solid #28425a; display:grid; gap:0.75rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;">
+          <div style="display:grid; gap:0.25rem; min-width:0;">
+            <div style="font-size:0.95rem; font-weight:700; color:#fff;">Coin Flip</div>
+            <div style="font-size:0.82rem; color:#c9d6e3; max-width:38rem;">PvP only. One player posts a challenge, another player takes the opposite side, and the winner gets the full pot. No dealer, no AI, no house side.</div>
+          </div>
+          <button type="button" onclick="loadCasinoTransferUsers(true).then(() => renderActiveCasinoGamePanel()).catch(() => {})" style="padding:0.48rem 0.78rem; border:none; border-radius:0.55rem; background:#223041; color:#fff; font-weight:700;">Refresh Players</button>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap:0.6rem; align-items:end;">
+          <div style="display:grid; gap:0.3rem;">
+            <label for="coinflip-bet" style="font-size:0.74rem; color:#9fb0c2; font-weight:700;">Stake</label>
+            <input id="coinflip-bet" type="number" min="1" max="1000000" value="${escapeHtml(existingBetValue)}" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;" />
+          </div>
+          <div style="display:grid; gap:0.3rem;">
+            <label for="coinflip-side" style="font-size:0.74rem; color:#9fb0c2; font-weight:700;">Your side</label>
+            <select id="coinflip-side" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;">
+              <option value="heads"${existingSideValue === 'heads' ? ' selected' : ''}>Heads</option>
+              <option value="tails"${existingSideValue === 'tails' ? ' selected' : ''}>Tails</option>
+            </select>
+          </div>
+          <div style="display:grid; gap:0.3rem;">
+            <label for="coinflip-target-user" style="font-size:0.74rem; color:#9fb0c2; font-weight:700;">Challenge</label>
+            <select id="coinflip-target-user" style="padding:0.5rem 0.7rem; border-radius:0.55rem; border:1px solid #31425f; background:#182231; color:#fff;">${targetOptions}</select>
+          </div>
+          <button type="button" onclick="createCasinoCoinFlipChallenge()" style="padding:0.58rem 0.9rem; border:none; border-radius:0.6rem; background:#1565c0; color:#fff; font-weight:700;">Post Challenge</button>
+        </div>
+      </div>
+      <div id="coinflip-visual"></div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap:0.85rem; align-items:start;">
+        <div style="display:grid; gap:0.6rem; min-width:0;">
+          <div style="font-size:0.86rem; font-weight:700; color:#fff;">Your Open Challenges</div>
+          ${yourMatches.length ? yourMatches.map((match) => renderCoinFlipChallengeCard(match, currentUser)).join('') : '<div class="activity-feed-empty">You do not have any open coin flip challenges.</div>'}
+        </div>
+        <div style="display:grid; gap:0.6rem; min-width:0;">
+          <div style="font-size:0.86rem; font-weight:700; color:#fff;">Available Challenges</div>
+          ${availableMatches.length ? availableMatches.map((match) => renderCoinFlipChallengeCard(match, currentUser)).join('') : '<div class="activity-feed-empty">No open PvP coin flips right now.</div>'}
+        </div>
+      </div>
+      <div style="display:grid; gap:0.6rem; min-width:0;">
+        <div style="font-size:0.86rem; font-weight:700; color:#fff;">Recent Results</div>
+        ${recentMatches.length ? recentMatches.map((match) => renderCoinFlipChallengeCard(match, currentUser)).join('') : '<div class="activity-feed-empty">Resolved coin flips will show here.</div>'}
+      </div>
+    </div>`;
+  if (!coinFlipVisualState.matchId) {
+    const latestResolved = recentMatches.find((match) => match.status === 'resolved');
+    if (latestResolved) {
+      setCasinoCoinFlipVisualStateFromMatch(latestResolved);
+    }
+  }
+  renderCasinoCoinFlipVisualization();
+}
+
+function renderCasinoGame() {
+  const area = document.getElementById('casino-game-area');
+  if (!area) return;
+  area.innerHTML = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap:1rem; align-items:start;">
+      <div style="display:grid; gap:0.9rem; min-width:0;">
+        <div style="display:grid; gap:0.7rem;">
+          <div style="font-size:0.95rem; color:#dce6f2;">Choose a casino game.</div>
+          <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-start;">${renderCasinoTabButton('blackjack', 'Blackjack')}${renderCasinoTabButton('coinflip', 'Coin Flip')}${renderCasinoTabButton('roulette', 'Roulette')}${renderCasinoTabButton('slots', 'Slots')}${renderCasinoTabButton('poker', 'Poker')}</div>
+        </div>
+        <div id="casino-game-status" style="margin-top:0.2rem;color:#9fb0c2;min-height:1.2rem;"></div>
+        <div id="casino-recovery-action"></div>
+        <div id="casino-game-panel" style="margin-top:0.2rem;"></div>
+      </div>
+      <div style="display:grid; gap:0.85rem; min-width:0;">
+        <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.9rem;">
+          <div style="font-size:0.88rem; font-weight:700; color:#fff; margin-bottom:0.65rem;">Casino Stats</div>
+          <div id="casino-sidebar-stats"></div>
+        </div>
+        <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.9rem;">
+          <div style="font-size:0.88rem; font-weight:700; color:#fff; margin-bottom:0.65rem;">Transfer Cash</div>
+          <div id="casino-transfer-panel"></div>
+        </div>
+        <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.9rem;">
+          <div style="font-size:0.88rem; font-weight:700; color:#fff; margin-bottom:0.65rem;">Casino Achievements</div>
+          <div id="casino-achievement-list" class="achievement-list" style="max-height:15rem; overflow:auto;"></div>
+        </div>
+        <div style="padding:0.85rem; background:#10151d; border:1px solid #263140; border-radius:0.9rem;">
+          <div style="font-size:0.88rem; font-weight:700; color:#fff; margin-bottom:0.65rem;">Casino Feed</div>
+          <div id="casino-activity-feed" class="activity-feed-list" style="max-height:15rem; overflow:auto;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  renderActiveCasinoGamePanel();
+  renderCasinoSidebar(getCachedCasinoProfileStats(getCasinoPlayerKey()));
+  renderCasinoActivityFeed();
+}
+
+function renderActiveCasinoGamePanel() {
+  const panel = document.getElementById('casino-game-panel');
+  if (!panel) return;
+  const gameSettings = getCachedCasinoGameSettings();
+  if (activeCasinoGame === 'poker') {
+    renderPokerPanel();
+    return;
+  }
+  if (activeCasinoGame === 'coinflip') {
+    renderCasinoCoinFlipPanel();
+    return;
+  }
+  if (activeCasinoGame === 'roulette') {
+    panel.innerHTML = `
+      <div style="display:grid; gap:0.75rem; justify-items:center;">
+        <div style="font-size:0.88rem; color:#dce6f2; text-align:center; max-width:34rem;">Bet on red, black, green, or a straight number. Red/black pays +$bet. Green pays +$24 x bet. Straight number pays +$24 x bet.</div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; align-items:center;">
+          <input id="roulette-bet" type="number" min="1" max="10000" value="100" style="padding:0.4rem 0.7rem;border-radius:0.5rem;border:1px solid #333;background:#222;color:#fff;width:90px;">
+          <button onclick="spinRoulette('red')" style="padding:0.5rem 1rem;border-radius:0.6rem;background:#b71c1c;color:#fff;border:none;font-weight:700;">Red</button>
+          <button onclick="spinRoulette('black')" style="padding:0.5rem 1rem;border-radius:0.6rem;background:#111;color:#fff;border:1px solid #444;font-weight:700;">Black</button>
+          <button onclick="spinRoulette('green')" style="padding:0.5rem 1rem;border-radius:0.6rem;background:#2e7d32;color:#fff;border:none;font-weight:700;">Green</button>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; align-items:center; width:min(28rem, 100%);">
+          <input id="roulette-number-choice" type="number" min="0" max="24" value="12" style="padding:0.4rem 0.7rem; border-radius:0.5rem; border:1px solid #333; background:#222; color:#fff; width:96px;" />
+          <button onclick="spinRouletteNumber()" style="padding:0.5rem 1rem; border-radius:0.6rem; background:#1565c0; color:#fff; border:none; font-weight:700;">Bet Number</button>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:0.35rem; width:min(28rem, 100%);">${renderRouletteNumberBetButtons()}</div>
+        <div id="roulette-visual" style="width:min(34rem, 100%);"></div>
+        <div id="roulette-area" style="margin-top:0.6rem;color:#fff;"></div>
+      </div>
+    `;
+    renderRouletteVisualization();
+    return;
+  }
+  if (activeCasinoGame === 'slots') {
+    panel.innerHTML = `
+      <div style="display:grid; gap:0.75rem; justify-items:center;">
+        <div style="font-size:0.88rem; color:#dce6f2;">Spin the reels. The board below shows the winning combinations, the emoji symbols, and how many times your bet they pay.</div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; align-items:center;">
+          <input id="slots-bet" type="number" min="1" max="10000" value="100" style="padding:0.4rem 0.7rem;border-radius:0.5rem;border:1px solid #333;background:#222;color:#fff;width:90px;">
+          <button id="slots-spin-button" onclick="spinSlots()" style="padding:0.5rem 1rem;border-radius:0.6rem;background:#8e24aa;color:#fff;border:none;font-weight:700;">Spin</button>
+        </div>
+        <div id="slots-reel-visual" style="display:flex; gap:0.55rem; flex-wrap:wrap; justify-content:center; margin-top:0.2rem;"></div>
+        <div id="slots-odds-visual" style="width:min(24rem, 100%); display:grid; gap:0.4rem;"></div>
+        <div id="slots-area" style="margin-top:0.6rem;color:#fff;"></div>
+      </div>
+    `;
+    renderSlotsVisualization();
+    return;
+  }
+  panel.innerHTML = `
+    <div style="display:grid; gap:0.75rem; justify-items:center;">
+      <div style="font-size:0.88rem; color:#dce6f2;">Play Blackjack. Beat the dealer without going over 21. Dealer stands on ${gameSettings.blackjackDealerStandValue}.</div>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:center; align-items:center;">
+        <input id="casino-bet" type="number" min="1" max="10000" value="100" style="padding:0.4rem 0.7rem;border-radius:0.5rem;border:1px solid #333;background:#222;color:#fff;width:90px;">
+        <button onclick="startBlackjack()" style="padding:0.5rem 1.2rem;border-radius:0.6rem;background:#4f83ff;color:#fff;border:none;font-weight:700;">Bet & Deal</button>
+      </div>
+      <div id="blackjack-area" style="margin-top:0.6rem;color:#fff;"></div>
+    </div>
+  `;
+}
+
+async function validateCasinoBet(inputId) {
+  const input = document.getElementById(inputId);
+  return validateCasinoBetAmount(input ? input.value : 0);
+}
+
+function shuffleDeck() {
+  const suits = ['♠', '♥', '♦', '♣'];
+  const ranks = [2,3,4,5,6,7,8,9,10,'J','Q','K','A'];
+  let deck = [];
+  for (const suit of suits) for (const rank of ranks) deck.push({ suit, rank });
+  for (let i = deck.length - 1; i > 0; i--) {
+    const swapIndex = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[swapIndex]] = [deck[swapIndex], deck[i]];
+  }
+  return deck;
+}
+
+function drawCard(hand) {
+  hand.push(blackjackState.deck.pop());
+}
+
+function handValue(hand) {
+  let value = 0;
+  let aces = 0;
+  for (const card of hand) {
+    if (typeof card.rank === 'number') value += card.rank;
+    else if (card.rank === 'A') {
+      value += 11;
+      aces += 1;
+    } else {
+      value += 10;
+    }
+  }
+  while (value > 21 && aces) {
+    value -= 10;
+    aces -= 1;
+  }
+  return value;
+}
+
+async function startBlackjack() {
+  try {
+    await loadCasinoGameSettings();
+    const { bet } = await validateCasinoBet('casino-bet');
+    blackjackState = { bet, player: [], dealer: [], deck: shuffleDeck(), done: false };
+    drawCard(blackjackState.player);
+    drawCard(blackjackState.dealer);
+    drawCard(blackjackState.player);
+    drawCard(blackjackState.dealer);
+    renderBlackjack();
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not start blackjack.', 'error');
+  }
+}
+
+function cardHtml(hand, hideSecond) {
+  return hand.map((card, index) => hideSecond && index === 1 ? '🂠' : `${card.rank}${card.suit}`).join(' ');
+}
+
+function renderBlackjack() {
+  const area = document.getElementById('blackjack-area');
+  if (!area || !blackjackState) return;
+  const { player, dealer, done } = blackjackState;
+  const playerVal = handValue(player);
+  const dealerVal = handValue(dealer);
+  let html = `
+    <div style="display:grid; gap:0.85rem; width:min(34rem, 100%); padding:1rem; border-radius:1rem; background:radial-gradient(circle at top, rgba(38,90,58,0.42) 0%, rgba(9,18,12,0.96) 74%); border:1px solid #26452f; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04);">
+      <div style="display:flex; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; font-size:0.8rem; color:#c7d4e2;">
+        <span>Blackjack table</span>
+        <span>Bet: $${blackjackState.bet.toLocaleString()}</span>
+      </div>
+      <div style="padding:0.85rem; border-radius:0.85rem; background:rgba(8, 15, 23, 0.8); border:1px solid #2b3442; display:grid; gap:0.5rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <div style="font-size:0.84rem; color:#9fb0c2;">Dealer</div>
+          <div style="font-size:0.82rem; color:#dce6f2;">${done ? `${dealerVal} points` : 'One card hidden'}</div>
+        </div>
+        <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:center;">${renderCasinoCardRow(dealer, { hiddenSecond: !done })}</div>
+      </div>
+      <div style="padding:0.85rem; border-radius:0.85rem; background:rgba(8, 15, 23, 0.8); border:1px solid #2b3442; display:grid; gap:0.5rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <div style="font-size:0.84rem; color:#9fb0c2;">You</div>
+          <div style="font-size:0.82rem; color:#dce6f2;">${playerVal} points</div>
+        </div>
+        <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:center;">${renderCasinoCardRow(player)}</div>
+      </div>`;
+  if (!done) {
+    html += `<div style="display:flex; justify-content:center; gap:0.55rem; flex-wrap:wrap;"><button onclick="blackjackHit()" style="padding:0.55rem 1.15rem;border-radius:0.6rem;background:#3c68ea;color:#fff;border:none;font-weight:700;">Hit</button><button onclick="blackjackStand()" style="padding:0.55rem 1.15rem;border-radius:0.6rem;background:#222;color:#fff;border:none;font-weight:700;">Stand</button></div>`;
+  } else {
+    html += `<div style="padding:0.8rem; border-radius:0.8rem; background:${playerVal > 21 || (dealerVal <= 21 && playerVal < dealerVal) ? '#3a1717' : playerVal === dealerVal ? '#263140' : '#173524'}; color:#fff; font-weight:700; text-align:center;">${blackjackResult()}</div>`;
+    html += `<div style="display:flex; justify-content:center;"><button onclick="renderActiveCasinoGamePanel()" style="padding:0.55rem 1.15rem;border-radius:0.6rem;background:#4f83ff;color:#fff;border:none;font-weight:700;">Play Again</button></div>`;
+  }
+  html += `</div>`;
+  area.innerHTML = html;
+}
+
+function blackjackResult() {
+  const playerVal = handValue(blackjackState.player);
+  const dealerVal = handValue(blackjackState.dealer);
+  if (playerVal > 21) return `You busted! -$${blackjackState.bet}`;
+  if (dealerVal > 21) return `Dealer busted! +$${blackjackState.bet}`;
+  if (playerVal > dealerVal) return `You win! +$${blackjackState.bet}`;
+  if (playerVal === dealerVal) return 'Push! Bet returned.';
+  return `You lose! -$${blackjackState.bet}`;
+}
+
+async function finishBlackjack() {
+  const playerVal = handValue(blackjackState.player);
+  const dealerVal = handValue(blackjackState.dealer);
+  let delta = 0;
+  let outcome = 'push';
+  if (playerVal > 21) {
+    delta = -blackjackState.bet;
+    outcome = 'loss';
+  } else if (dealerVal > 21 || playerVal > dealerVal) {
+    delta = blackjackState.bet;
+    outcome = 'win';
+  } else if (playerVal < dealerVal) {
+    delta = -blackjackState.bet;
+    outcome = 'loss';
+  }
+  await updateCasinoBalance(delta, { wager: blackjackState.bet, outcome, game: 'blackjack' });
+  setCasinoStatus(blackjackResult(), outcome === 'loss' ? 'error' : (outcome === 'win' ? 'success' : 'neutral'));
+}
+
+async function blackjackHit() {
+  drawCard(blackjackState.player);
+  if (handValue(blackjackState.player) > 21) {
+    blackjackState.done = true;
+    await finishBlackjack();
+  }
+  renderBlackjack();
+}
+
+async function blackjackStand() {
+  const settings = await loadCasinoGameSettings();
+  while (handValue(blackjackState.dealer) < settings.blackjackDealerStandValue) drawCard(blackjackState.dealer);
+  blackjackState.done = true;
+  await finishBlackjack();
+  renderBlackjack();
+}
+
+function spinRouletteNumber(selectedNumber = null) {
+  const resolvedValue = selectedNumber == null ? Number(document.getElementById('roulette-number-choice')?.value) : Number(selectedNumber);
+  if (!Number.isInteger(resolvedValue) || resolvedValue < 0 || resolvedValue > 24) {
+    setCasinoStatus('Pick a roulette number from 0 to 24.', 'error');
+    return;
+  }
+  const input = document.getElementById('roulette-number-choice');
+  if (input) input.value = String(resolvedValue);
+  spinRoulette('number', resolvedValue);
+}
+
+async function spinRoulette(choice, selectedNumber = null) {
+  try {
+    if (rouletteVisualState.spinning) return;
+    const settings = await loadCasinoGameSettings();
+    const { bet } = await validateCasinoBet('roulette-bet');
+    const isNumberBet = choice === 'number';
+    const resolvedNumber = isNumberBet ? Number(selectedNumber) : null;
+    if (isNumberBet && (!Number.isInteger(resolvedNumber) || resolvedNumber < 0 || resolvedNumber > 24)) {
+      throw new Error('Pick a roulette number from 0 to 24.');
+    }
+    const boostPct = Number(settings.rouletteSelectedBoostPct) || 0;
+    const pockets = getRoulettePockets();
+    const isMatchingPocket = (pocket) => (isNumberBet ? pocket.value === resolvedNumber : pocket.color === choice);
+    const matchingPockets = pockets.filter(isMatchingPocket);
+    let winningPocket = pockets[0];
+    if (boostPct >= 100 && matchingPockets.length) {
+      winningPocket = matchingPockets[Math.floor(Math.random() * matchingPockets.length)];
+    } else {
+      const multiplier = Math.max(0.2, 1 + (boostPct / 100));
+      const weightedPockets = pockets.map((pocket) => ({
+        ...pocket,
+        weight: isMatchingPocket(pocket) ? multiplier : 1
+      }));
+      const totalWeight = weightedPockets.reduce((sum, pocket) => sum + pocket.weight, 0);
+      let remaining = Math.random() * totalWeight;
+      winningPocket = weightedPockets[0];
+      for (const pocket of weightedPockets) {
+        remaining -= pocket.weight;
+        if (remaining <= 0) {
+          winningPocket = pocket;
+          break;
+        }
+      }
+    }
+    const roll = winningPocket.value;
+    const resultColor = winningPocket.color;
+    const delta = isNumberBet
+      ? (roll === resolvedNumber ? bet * 24 : -bet)
+      : (choice === resultColor ? (choice === 'green' ? bet * 24 : bet) : -bet);
+    const outcome = delta > 0 ? 'win' : 'loss';
+    const betLabel = getRouletteBetLabel(choice, resolvedNumber);
+    await animateRouletteSpin(winningPocket, betLabel);
+    await updateCasinoBalance(delta, { wager: bet, outcome, game: 'roulette' });
+    const area = document.getElementById('roulette-area');
+    if (area) {
+      area.innerHTML = `
+        <div style="display:grid; gap:0.45rem; justify-items:center; text-align:center;">
+          <div style="font-size:0.92rem; color:#dce6f2;">Ball landed on <strong>${roll}</strong> (${escapeHtml(resultColor)}).</div>
+          <div style="font-size:0.82rem; color:#9fb0c2;">Your bet: ${escapeHtml(betLabel)}</div>
+          <div style="font-size:0.96rem; color:${delta > 0 ? '#9fe3a5' : '#ffb4a8'}; font-weight:700;">${delta > 0 ? `You won $${delta}.` : `You lost $${bet}.`}</div>
+        </div>`;
+    }
+    setCasinoStatus(`Roulette result: ${roll} ${resultColor.toUpperCase()}.`, outcome === 'win' ? 'success' : 'error');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not spin roulette.', 'error');
+  }
+}
+
+async function spinSlots() {
+  if (slotsSpinInProgress) return;
+  try {
+    slotsSpinInProgress = true;
+    setSlotsSpinButtonState(true);
+    const settings = await loadCasinoGameSettings();
+    const { bet } = await validateCasinoBet('slots-bet');
+    const noMatchChancePct = Math.max(0, Math.min(100, Number(settings.slotsNoMatchChancePct) || 0));
+    const reels = Math.random() < (noMatchChancePct / 100)
+      ? pickNoMatchSlotReels(settings)
+      : [pickWeightedSlotSymbol(settings), pickWeightedSlotSymbol(settings), pickWeightedSlotSymbol(settings)];
+    const area = document.getElementById('slots-area');
+    if (area) {
+      area.innerHTML = `<div style="font-size:0.92rem; color:#dce6f2;">Reels spinning...</div>`;
+    }
+    await animateSlotsSpin(reels, settings);
+    let delta = -bet;
+    if (reels[0] === reels[1] && reels[1] === reels[2]) {
+      delta = reels[0] === '7' ? bet * 8 : bet * 3;
+    } else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) {
+      delta = bet;
+    }
+    const outcome = delta > 0 ? 'win' : 'loss';
+    await updateCasinoBalance(delta, { wager: bet, outcome, game: 'slots' });
+    if (area) {
+      area.innerHTML = `
+        <div style="display:flex; justify-content:center; gap:0.55rem; flex-wrap:wrap;">${reels.map((symbol) => renderSlotFace(symbol)).join('')}</div>
+        <div style="margin-top:0.6rem; text-align:center; font-size:0.95rem; color:${delta > 0 ? '#9fe3a5' : '#ffb4a8'};">${delta > 0 ? `You won $${delta}.` : `You lost $${bet}.`}</div>`;
+    }
+    setCasinoStatus(delta > 0 ? 'Slots paid out.' : 'Slots missed this round.', outcome === 'win' ? 'success' : 'error');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not spin slots.', 'error');
+  } finally {
+    slotsSpinInProgress = false;
+    setSlotsSpinButtonState(false);
+  }
+}
+
+async function createCasinoCoinFlipChallenge() {
+  const challenger = getCasinoPlayerKey();
+  if (!challenger) {
+    setCasinoStatus('You must be logged in to post a coin flip.', 'error');
+    return;
+  }
+  try {
+    const { bet } = await validateCasinoBet('coinflip-bet');
+    const challengerDisplayName = getCasinoPlayerDisplayName();
+    const challengerSide = normalizeCoinFlipChoice(document.getElementById('coinflip-side')?.value || 'heads');
+    const opponentTarget = normalizeUsername(document.getElementById('coinflip-target-user')?.value || '');
+    if (opponentTarget && opponentTarget === challenger) {
+      throw new Error('You cannot challenge yourself.');
+    }
+    const db = getCasinoDb();
+    const challengerRef = getCasinoBalanceCollection().doc(challenger);
+    const challengeRef = getCasinoCoinFlipCollection().doc();
+    let nextStats = getDefaultCasinoProfileStats(challenger);
+    await db.runTransaction(async (tx) => {
+      const challengerSnap = await tx.get(challengerRef);
+      const currentStats = normalizeCasinoProfileStatsData(challenger, challengerSnap.exists ? (challengerSnap.data() || {}) : {});
+      if (currentStats.balance < bet) {
+        throw new Error('That bet is bigger than your current balance.');
+      }
+      nextStats = {
+        ...currentStats,
+        balance: currentStats.balance - bet
+      };
+      tx.set(challengerRef, {
+        username: challenger,
+        displayName: sanitizeNullableText((challengerSnap.exists ? (challengerSnap.data() || {}).displayName : '') || challengerDisplayName, challenger),
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(challengeRef, {
+        status: 'open',
+        bet,
+        challenger,
+        challengerDisplayName,
+        challengerSide,
+        opponentTarget,
+        opponentTargetDisplayName: opponentTarget,
+        acceptor: '',
+        acceptorDisplayName: '',
+        acceptorSide: challengerSide === 'heads' ? 'tails' : 'heads',
+        winner: '',
+        winnerDisplayName: '',
+        loser: '',
+        loserDisplayName: '',
+        flipResult: '',
+        cancelledBy: '',
+        createdAtMs: Date.now(),
+        updatedAtMs: Date.now(),
+        resolvedAtMs: 0,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[challenger] = nextStats;
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(challenger);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus(opponentTarget
+      ? `Challenge posted for @${opponentTarget}. You reserved $${bet.toLocaleString()}.`
+      : `Open coin flip posted. You reserved $${bet.toLocaleString()}.`, 'success');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not post a coin flip challenge.', 'error');
+  }
+}
+
+async function cancelCasinoCoinFlipChallenge(challengeId) {
+  const challenger = getCasinoPlayerKey();
+  if (!challenger) {
+    setCasinoStatus('You must be logged in to cancel a coin flip.', 'error');
+    return;
+  }
+  try {
+    const db = getCasinoDb();
+    const challengeRef = getCasinoCoinFlipCollection().doc(String(challengeId || '').trim());
+    const challengerRef = getCasinoBalanceCollection().doc(challenger);
+    let nextStats = getDefaultCasinoProfileStats(challenger);
+    let refundedBet = 0;
+    await db.runTransaction(async (tx) => {
+      const [challengeSnap, challengerSnap] = await Promise.all([
+        tx.get(challengeRef),
+        tx.get(challengerRef)
+      ]);
+      if (!challengeSnap.exists) {
+        throw new Error('That coin flip challenge no longer exists.');
+      }
+      const challenge = normalizeCasinoCoinFlipData(challengeSnap.id, challengeSnap.data() || {});
+      if (challenge.status !== 'open') {
+        throw new Error('Only open coin flip challenges can be cancelled.');
+      }
+      if (challenge.challenger !== challenger) {
+        throw new Error('Only the player who posted the challenge can cancel it.');
+      }
+      refundedBet = challenge.bet;
+      const currentStats = normalizeCasinoProfileStatsData(challenger, challengerSnap.exists ? (challengerSnap.data() || {}) : {});
+      nextStats = {
+        ...currentStats,
+        balance: currentStats.balance + refundedBet
+      };
+      tx.set(challengerRef, {
+        username: challenger,
+        displayName: sanitizeNullableText((challengerSnap.exists ? (challengerSnap.data() || {}).displayName : '') || getCasinoPlayerDisplayName(), challenger),
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(challengeRef, {
+        status: 'cancelled',
+        cancelledBy: challenger,
+        updatedAtMs: Date.now(),
+        resolvedAtMs: Date.now()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[challenger] = nextStats;
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(challenger);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus(`Cancelled coin flip and refunded $${refundedBet.toLocaleString()}.`, 'success');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not cancel the coin flip.', 'error');
+  }
+}
+
+async function acceptCasinoCoinFlipChallenge(challengeId) {
+  const acceptor = getCasinoPlayerKey();
+  const acceptorDisplayName = getCasinoPlayerDisplayName();
+  if (!acceptor) {
+    setCasinoStatus('You must be logged in to accept a coin flip.', 'error');
+    return;
+  }
+  try {
+    const db = getCasinoDb();
+    const challengeRef = getCasinoCoinFlipCollection().doc(String(challengeId || '').trim());
+    const acceptorRef = getCasinoBalanceCollection().doc(acceptor);
+    let challenger = '';
+    let challengerDisplayName = '';
+    let winner = '';
+    let winnerDisplayName = '';
+    let loser = '';
+    let loserDisplayName = '';
+    let bet = 0;
+    let flipResult = 'heads';
+    let challengerNextStats = getDefaultCasinoProfileStats('');
+    let acceptorNextStats = getDefaultCasinoProfileStats('');
+    let challengerUnlockedAchievements = [];
+    let acceptorUnlockedAchievements = [];
+    await db.runTransaction(async (tx) => {
+      const [challengeSnap, acceptorSnap] = await Promise.all([
+        tx.get(challengeRef),
+        tx.get(acceptorRef)
+      ]);
+      if (!challengeSnap.exists) {
+        throw new Error('That coin flip challenge no longer exists.');
+      }
+      const challenge = normalizeCasinoCoinFlipData(challengeSnap.id, challengeSnap.data() || {});
+      if (challenge.status !== 'open') {
+        throw new Error('That coin flip challenge is no longer open.');
+      }
+      if (challenge.challenger === acceptor) {
+        throw new Error('You cannot accept your own coin flip challenge.');
+      }
+      if (challenge.opponentTarget && challenge.opponentTarget !== acceptor) {
+        throw new Error('That coin flip was challenged to a different player.');
+      }
+      challenger = challenge.challenger;
+      challengerDisplayName = challenge.challengerDisplayName || challenger;
+      bet = challenge.bet;
+      flipResult = Math.random() < 0.5 ? 'heads' : 'tails';
+      const challengerRef = getCasinoBalanceCollection().doc(challenger);
+      const challengerSnap = await tx.get(challengerRef);
+      const challengerCurrentStored = normalizeCasinoProfileStatsData(challenger, challengerSnap.exists ? (challengerSnap.data() || {}) : {});
+      const acceptorCurrent = normalizeCasinoProfileStatsData(acceptor, acceptorSnap.exists ? (acceptorSnap.data() || {}) : {});
+      if (acceptorCurrent.balance < bet) {
+        throw new Error('You do not have enough casino money to take that flip.');
+      }
+      const challengerPreGameStats = {
+        ...challengerCurrentStored,
+        balance: challengerCurrentStored.balance + bet
+      };
+      const challengerWon = challenge.challengerSide === flipResult;
+      const challengerComputed = buildNextCasinoProfileStats(challengerPreGameStats, challengerWon ? bet : -bet, {
+        wager: bet,
+        outcome: challengerWon ? 'win' : 'loss',
+        nowMs: Date.now()
+      });
+      const acceptorComputed = buildNextCasinoProfileStats(acceptorCurrent, challengerWon ? -bet : bet, {
+        wager: bet,
+        outcome: challengerWon ? 'loss' : 'win',
+        nowMs: Date.now()
+      });
+      challengerNextStats = challengerComputed.nextStats;
+      acceptorNextStats = acceptorComputed.nextStats;
+      challengerUnlockedAchievements = challengerComputed.unlockedAchievements;
+      acceptorUnlockedAchievements = acceptorComputed.unlockedAchievements;
+      winner = challengerWon ? challenger : acceptor;
+      winnerDisplayName = challengerWon ? challengerDisplayName : acceptorDisplayName;
+      loser = challengerWon ? acceptor : challenger;
+      loserDisplayName = challengerWon ? acceptorDisplayName : challengerDisplayName;
+      tx.set(challengerRef, {
+        username: challenger,
+        displayName: sanitizeNullableText((challengerSnap.exists ? (challengerSnap.data() || {}).displayName : '') || challengerDisplayName, challenger),
+        ...challengerNextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(acceptorRef, {
+        username: acceptor,
+        displayName: sanitizeNullableText((acceptorSnap.exists ? (acceptorSnap.data() || {}).displayName : '') || acceptorDisplayName, acceptor),
+        ...acceptorNextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(challengeRef, {
+        status: 'resolved',
+        acceptor,
+        acceptorDisplayName,
+        acceptorSide: challenge.challengerSide === 'heads' ? 'tails' : 'heads',
+        winner,
+        winnerDisplayName,
+        loser,
+        loserDisplayName,
+        flipResult,
+        cancelledBy: '',
+        updatedAtMs: Date.now(),
+        resolvedAtMs: Date.now()
+      }, { merge: true });
+    });
+    casinoProfileStatsCache[challenger] = challengerNextStats;
+    casinoProfileStatsCache[acceptor] = acceptorNextStats;
+    const currentUser = getCasinoPlayerKey();
+    if (currentUser === challenger) {
+      applyCasinoStatsToCurrentUserUi(challengerNextStats);
+    } else if (currentUser === acceptor) {
+      applyCasinoStatsToCurrentUserUi(acceptorNextStats);
+    }
+    await publishCasinoActivity([
+      {
+        type: 'win',
+        title: `${winnerDisplayName} won $${bet.toLocaleString()} in Coin Flip`,
+        body: `${winnerDisplayName} beat ${loserDisplayName} on ${getCoinFlipChoiceLabel(flipResult)}. Pot: $${(bet * 2).toLocaleString()}.`,
+        by: winner
+      },
+      ...challengerUnlockedAchievements.map((item) => ({
+        type: 'achievement',
+        title: `${challengerDisplayName} unlocked ${item.label}`,
+        body: item.description,
+        by: challenger
+      })),
+      ...acceptorUnlockedAchievements.map((item) => ({
+        type: 'achievement',
+        title: `${acceptorDisplayName} unlocked ${item.label}`,
+        body: item.description,
+        by: acceptor
+      }))
+    ]);
+    await loadCasinoBalance();
+    await refreshCasinoProfileUiForUser(challenger);
+    await refreshCasinoProfileUiForUser(acceptor);
+    scheduleDynamicLeaderboardTagRefresh();
+    setCasinoStatus(`${winnerDisplayName} won the coin flip on ${getCoinFlipChoiceLabel(flipResult)}.`, winner === acceptor ? 'success' : 'error');
+  } catch (err) {
+    setCasinoStatus(err && err.message ? err.message : 'Could not accept the coin flip.', 'error');
+  }
+}
+
+// --- In-Game Chat Overlay ---
+
+async function adminUnbanUser() {
+if (!canUseAdminPermission('ban')) return;
+const username = resolveAdminTargetUsername('admin-ban-username');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+statusDiv.textContent = 'Please enter a username.';
+return;
+}
+try {
+await setUserBanStatus(username, false, '', { bannedBy: currentChatUser || getUserName() || 'admin' });
+statusDiv.textContent = `User '${username}' has been unbanned.`;
+await writeAuditLog('unban', username, 'manual unban');
+document.getElementById('admin-ban-username').value = '';
+document.getElementById('admin-ban-reason').value = '';
+} catch (e) {
+statusDiv.textContent = 'Failed to unban user.';
+}
+}
+const ADMIN_USERS = ['kaiden', 'kaide', ''];
+const OWNER_USERS = ['kaiden', 'kaide'];
+const PROTECTED_USERNAMES = ['kaiden', 'kaide'];
+const USER_STATS_STORAGE_KEY = 'site_user_stats_v1';
+const USER_ARCHIVE_STATS_RECOVERY_KEY = 'site_user_archive_stats_recovery_v2';
+const USER_STATS_COLLECTION = 'user_stats';
+const UPDATE_NOTES_DOC_ID = 'update_notes';
+const MOD_SETTINGS_DOC_ID = 'mod_settings';
+const USER_ROLES_COLLECTION = 'user_roles';
+const USER_WARNINGS_COLLECTION = 'user_warnings';
+const USER_FLAGS_COLLECTION = 'user_flags';
+const USER_BANS_COLLECTION = 'user_bans';
+const LEGACY_BAN_API_URL = 'https://script.google.com/macros/s/AKfycbxn1Ql1ph2UA2LZraU8eK6gn-H1iwO6az5DIGYmQPzv8Zxgl17yYPg9_PJFLgz-y0_U/exec';
+const USER_BAN_MIGRATION_DOC_ID = 'user_ban_migration_v1';
+const TIMED_BANS_COLLECTION = 'timed_bans';
+const USER_STRIKES_COLLECTION = 'user_strikes';
+const AUDIT_LOG_COLLECTION = 'admin_audit_logs';
+const MESSAGE_REPORTS_COLLECTION = 'message_reports';
+const APPEALS_COLLECTION = 'ban_appeals';
+const DM_EDIT_WINDOW_MS = 60000;
+const MUTE_STATUS_REFRESH_MS = 1000;
+const OWNER_TAG_USERNAME = 'kaiden';
+const DEFAULT_SLOW_MODE_SECONDS = 3;
+const DEFAULT_ROLE_PERMISSIONS = {
+owner: {
+ban: true,
+mute: true,
+kick: true,
+warn: true,
+tempBan: true,
+manageSettings: true,
+assignRoles: true,
+deleteMessage: true,
+reviewSubmissions: true
+},
+admin: {
+ban: true,
+mute: true,
+kick: true,
+warn: true,
+tempBan: true,
+manageSettings: true,
+assignRoles: false,
+deleteMessage: true,
+reviewSubmissions: true
+},
+reviewer: {
+ban: false,
+mute: false,
+kick: false,
+warn: false,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: false,
+reviewSubmissions: true
+},
+moderator: {
+ban: false,
+mute: true,
+kick: true,
+warn: true,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: true,
+reviewSubmissions: false
+},
+mod: {
+ban: false,
+mute: true,
+kick: true,
+warn: true,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: true,
+reviewSubmissions: false
+},
+helper: {
+ban: false,
+mute: false,
+kick: false,
+warn: true,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: false,
+reviewSubmissions: false
+},
+cameronsbitch: {
+ban: false,
+mute: false,
+kick: false,
+warn: false,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: false,
+reviewSubmissions: false
+},
+chud: {
+ban: false,
+mute: false,
+kick: false,
+warn: false,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: false,
+reviewSubmissions: false
+},
+member: {
+ban: false,
+mute: false,
+kick: false,
+warn: false,
+tempBan: false,
+manageSettings: false,
+assignRoles: false,
+deleteMessage: false,
+reviewSubmissions: false
+}
+};
+const EXTRA_ROLE_PERMISSION_DEFAULTS = {
+owner: { viewReports: true, viewUserHistory: true, viewArchives: true, manageAccounts: true, manageCasino: true, manageProfileBackgrounds: true, manageGeneralShop: true, manageGameBios: true, manageLeaderboard: true, useOwnerTool: true, viewAppeals: true, viewAuditLog: true, viewAnalytics: true, manageRooms: true, manageLoginRequests: true, manageCustomTags: true },
+admin: { viewReports: true, viewUserHistory: true, viewArchives: true, manageAccounts: true, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: true, viewAuditLog: true, viewAnalytics: true, manageRooms: true, manageLoginRequests: false, manageCustomTags: false },
+reviewer: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+moderator: { viewReports: true, viewUserHistory: true, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+mod: { viewReports: true, viewUserHistory: true, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+helper: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+cameronsbitch: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+chud: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false },
+member: { viewReports: false, viewUserHistory: false, viewArchives: false, manageAccounts: false, manageCasino: false, manageProfileBackgrounds: false, manageGeneralShop: false, manageGameBios: false, manageLeaderboard: false, useOwnerTool: false, viewAppeals: false, viewAuditLog: false, viewAnalytics: false, manageRooms: false, manageLoginRequests: false, manageCustomTags: false }
+};
+Object.keys(DEFAULT_ROLE_PERMISSIONS).forEach((roleKey) => {
+Object.assign(DEFAULT_ROLE_PERMISSIONS[roleKey], EXTRA_ROLE_PERMISSION_DEFAULTS[roleKey] || {});
+});
+const PROFILE_TAGS = {
+'dont give admin': { label: 'Dont Give Admin', className: 'tag-dont-give-admin' },
+'femboy': { label: 'femboy', className: 'tag-femboy' },
+'contributor': { label: 'contributor', className: 'tag-contributor' },
+'gnb': { label: 'GNB', className: 'tag-gnb' },
+'bitch': { label: 'bitch', className: 'tag-bitch' }
+};
+const PROFILE_TAG_ALIASES = {
+'cool boy': 'contributor',
+'cool-boy': 'contributor',
+'cool_boy': 'contributor',
+'tag-cool-boy': 'contributor',
+'tag-contributor': 'contributor'
+};
+const DEFAULT_UPDATE_NOTES = [
+'The casino now includes blackjack, roulette, slots, and poker with balances saved in the separate casino database for each player.',
+'Slots were upgraded with emoji reel symbols, a visible spin animation, a clearer payout board, and labeled win or lose conditions so the results are easier to read.',
+'Casino controls were expanded for owners with labeled chance tuning for blackjack, roulette, and slot symbols instead of unlabeled number boxes.',
+'Poker now has room creation, AI or humans-only room types, a tutorial, and full hand examples so people can learn the game inside the site.',
+'Casino profiles, feed, achievements, bailout tracking, streaks, and leaderboard tags were expanded so player progress and activity are easier to see.'
+];
+const LEGACY_UPDATE_NOTES = [
+  [
+    'A persistent what\'s new panel and detailed notes view now make recent site changes easier to review.',
+    'Store browsing now includes density and accent preferences, a visible favorites-only toggle, personal ratings, and broken-game reporting.',
+    'Chat now supports docking, manual resize, formatting shortcuts, unread separators, and clearer jump-to-latest behavior.',
+    'Private rooms now support favorites, invite codes, room icons, searchable member selection, and richer moderation controls.',
+    'Profiles, review queues, and thumbnail polls were expanded with banners, compare tools, rejection reasons, bulk actions, and visible voter lists.'
+  ],
+  [
+    'The casino was expanded with a poker lounge, shared AI or humans-only rooms, a poker tutorial with full hand examples, owner-tunable chances for blackjack, roulette, and slots, and a clearer slots odds visualization.',
+    'The library and storefront were updated with more visible browsing controls, including UI density settings, a site accent picker, a favorites-only filter, personal game ratings, and a direct broken-game report flow for games that fail to load or behave correctly.',
+    'Chat was expanded with stronger day-to-day usability features: the panel can now dock left or right, resize more naturally, show clearer unread state, insert formatting shortcuts, and keep recent-room reading state so it is easier to return to active conversations.',
+    'Room management now exposes more structure for private spaces, including room icons, invite codes, room favorites, searchable member picks during setup, richer room summaries, and better moderation visibility for room-level roles and audit activity.',
+    'Profiles and achievements were upgraded with banner support, richer detail cards, self-visible moderation status, side-by-side compare tools, and near-complete achievement hints so users can see what they are close to unlocking.',
+    'Admin review tools were modernized with queue summary cards, per-item selection, bulk actions, rejection reasons for login requests, and modal-based confirmations instead of the older direct prompt or confirm flow.',
+    'Thumbnail poll screens now provide more context by showing richer candidate previews and visible voter lists, making it easier to understand which image is winning and who has already voted.'
+  ]
+];
+
+function normalizeUpdateNotesList(notes) {
+  return (Array.isArray(notes) ? notes : []).map((note) => String(note || '').trim()).filter(Boolean);
+}
+
+function shouldReplaceLegacyUpdateNotes(notes) {
+  const normalized = normalizeUpdateNotesList(notes);
+  if (!normalized.length) return true;
+  return LEGACY_UPDATE_NOTES.some((legacyNotes) => {
+    const normalizedLegacy = normalizeUpdateNotesList(legacyNotes);
+    return normalized.length === normalizedLegacy.length && normalized.every((note, index) => note === normalizedLegacy[index]);
+  });
+}
+let updateNotesCache = DEFAULT_UPDATE_NOTES.slice();
+const ACHIEVEMENTS = [
+{ id: 'first_message', label: 'First Word', description: 'Send your first chat message.', stat: 'messagesSent', goal: 1 },
+{ id: 'talkative', label: 'Talkative', description: 'Send 25 chat messages.', stat: 'messagesSent', goal: 25 },
+{ id: 'chatterbox', label: 'Unemployed', description: 'Send 75 chat messages.', stat: 'messagesSent', goal: 75 },
+{ id: 'daily_noise', label: 'Gooner', description: 'Send 150 chat messages.', stat: 'messagesSent', goal: 150 },
+{ id: 'keyboard_warrior', label: 'Master Gooner', description: 'Send 300 chat messages.', stat: 'messagesSent', goal: 300 },
+{ id: 'game_starter', label: 'Game Starter', description: 'Open 5 games.', stat: 'gamesOpened', goal: 5 },
+{ id: 'game_grinder', label: 'Gamer', description: 'Open 20 games.', stat: 'gamesOpened', goal: 20 },
+{ id: 'marathon_player', label: 'Chud', description: 'Open 50 games.', stat: 'gamesOpened', goal: 50 },
+{ id: 'arcade_legend', label: 'Super Chud', description: 'Open 100 games.', stat: 'gamesOpened', goal: 100 },
+{ id: 'media_drop', label: 'Media Post', description: 'Post an image or video in chat.', stat: 'mediaShared', goal: 1 },
+{ id: 'media_flow', label: 'Medias', description: 'Share 10 images or videos.', stat: 'mediaShared', goal: 10 },
+{ id: 'content_machine', label: 'Media Machine', description: 'Share 30 images or videos.', stat: 'mediaShared', goal: 30 },
+{ id: 'visual_spammer', label: 'Spammer', description: 'Share 75 images or videos.', stat: 'mediaShared', goal: 75 },
+{ id: 'reactor', label: 'Reactor', description: 'Use 10 reactions.', stat: 'reactionsUsed', goal: 10 },
+{ id: 'reaction_party', label: 'Couple of Reactions', description: 'Use 30 reactions.', stat: 'reactionsUsed', goal: 30 },
+{ id: 'hype_machine', label: 'Hype Man', description: 'Use 75 reactions.', stat: 'reactionsUsed', goal: 75 },
+{ id: 'emoji_overload', label: 'Boiiiiiii', description: 'Use 150 reactions.', stat: 'reactionsUsed', goal: 150 }
+];
+
+function sanitizeNullableText(value, fallback = '') {
+const text = value == null ? '' : String(value).trim();
+if (!text) return fallback;
+const lowered = text.toLowerCase();
+return lowered === 'null' || lowered === 'undefined' ? fallback : text;
+}
+
+function normalizeUsername(value) {
+return sanitizeNullableText(value, '').toLowerCase();
+}
+
+function normalizeProfileTagId(value) {
+return sanitizeNullableText(value, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 32);
+}
+
+function normalizeProfileTagColor(value, fallback) {
+const next = sanitizeNullableText(value, '');
+return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
+}
+
+function normalizeCustomProfileTagDefinitions(raw) {
+const list = Array.isArray(raw) ? raw : [];
+const seen = new Set();
+return list.map((entry) => {
+  const id = normalizeProfileTagId(entry && entry.id);
+  const label = sanitizeNullableText(entry && entry.label, '').slice(0, 24);
+  if (!id || !label || PROFILE_TAGS[id] || seen.has(id)) return null;
+  seen.add(id);
+  return {
+    id,
+    label,
+    background: normalizeProfileTagColor(entry && entry.background, '#21344f'),
+    color: normalizeProfileTagColor(entry && entry.color, '#f3f7ff'),
+    border: normalizeProfileTagColor(entry && entry.border, '#6e9fe6')
+  };
+}).filter(Boolean);
+}
+
+function getAllProfileTags() {
+const merged = { ...PROFILE_TAGS };
+const customTags = Array.isArray(moderationSettings.customProfileTags) ? moderationSettings.customProfileTags : [];
+customTags.forEach((entry) => {
+  if (!entry || !entry.id || !entry.label) return;
+  merged[entry.id] = {
+    label: entry.label,
+    className: '',
+    background: entry.background,
+    color: entry.color,
+    border: entry.border,
+    isCustom: true
+  };
+});
+return merged;
+}
+
+function sanitizeProfileTag(value) {
+const rawTag = String(value || '').trim().toLowerCase();
+const tag = PROFILE_TAG_ALIASES[rawTag] || rawTag;
+return getAllProfileTags()[tag] ? tag : '';
+}
+
+function getUserProfileTagKey(username) {
+const key = normalizeUsername(username);
+if (!key) return '';
+if (userTagCache[key]) return userTagCache[key];
+return '';
+}
+
+function getOwnerTagHtml(username) {
+const key = normalizeUsername(username);
+if (key !== OWNER_TAG_USERNAME) return '';
+return '<span class="owner-tag">OWNER</span>';
+}
+
+let dynamicLeaderboardTagState = {
+mostMoney: '',
+mostActive: '',
+leastMoney: '',
+leastActive: '',
+hotHandUsers: [],
+coldTableUsers: []
+};
+let dynamicLeaderboardTagRefreshTimer = null;
+let dynamicLeaderboardTagRefreshPromise = null;
+
+function getDynamicUserTagHtml(username) {
+const key = normalizeUsername(username);
+if (!key) return '';
+const tags = [];
+if (dynamicLeaderboardTagState.mostMoney === key) {
+tags.push({ className: 'tag-most-money', label: 'Most Money' });
+}
+if (dynamicLeaderboardTagState.mostActive === key) {
+tags.push({ className: 'tag-most-active', label: 'Most Active' });
+}
+if (dynamicLeaderboardTagState.leastActive === key) {
+tags.push({ className: 'tag-least-active', label: 'Least Active Chud' });
+}
+if (dynamicLeaderboardTagState.leastMoney === key) {
+tags.push({ className: 'tag-broke-chud', label: 'Broke Chud' });
+}
+if (Array.isArray(dynamicLeaderboardTagState.hotHandUsers) && dynamicLeaderboardTagState.hotHandUsers.includes(key)) {
+tags.push({ className: 'tag-hot-hand', label: 'Hot Hand' });
+}
+if (Array.isArray(dynamicLeaderboardTagState.coldTableUsers) && dynamicLeaderboardTagState.coldTableUsers.includes(key)) {
+tags.push({ className: 'tag-cold-table', label: 'Cold Table' });
+}
+return tags.map((tag) => `<span class="custom-tag ${tag.className}">${escapeHtml(tag.label)}</span>`).join('');
+}
+
+function getUserTagHtml(username) {
+const dynamicTagsHtml = getDynamicUserTagHtml(username);
+const tagKey = getUserProfileTagKey(username);
+const tags = getAllProfileTags();
+if (!tagKey || !tags[tagKey]) return dynamicTagsHtml;
+const tagData = tags[tagKey];
+const inlineStyle = tagData.isCustom
+? ` style="background:${escapeHtml(tagData.background)}; color:${escapeHtml(tagData.color)}; border-color:${escapeHtml(tagData.border)};"`
+: '';
+return `${dynamicTagsHtml}<span class="custom-tag ${tagData.className || ''}"${inlineStyle}>${escapeHtml(tagData.label)}</span>`;
+}
+
+function getProfileTagOptionsHtml(selectedTag = '') {
+const normalizedSelectedTag = sanitizeProfileTag(selectedTag);
+const options = ['<option value="">None</option>'];
+Object.entries(getAllProfileTags()).forEach(([value, data]) => {
+const selected = value === normalizedSelectedTag ? 'selected' : '';
+options.push(`<option value="${value}" ${selected}>${escapeHtml(data.label)}</option>`);
+});
+return options.join('');
+}
+
+function refreshTagDependentUi() {
+if (currentProfileViewUser && document.getElementById('profile-modal')?.style.display === 'flex') {
+renderProfileModal(currentProfileViewUser);
+if (canModerate(currentChatUser)) {
+renderProfileFlags(currentProfileViewUser);
+}
+}
+if (document.getElementById('leaderboard-modal')?.style.display === 'flex') {
+loadLeaderboard();
+}
+if (document.getElementById('chat-container')) {
+loadChatMessages();
+}
+}
+
+function applyDynamicLeaderboardTagState(nextState, refreshUi = true) {
+const normalizedState = {
+mostMoney: normalizeUsername(nextState && nextState.mostMoney),
+mostActive: normalizeUsername(nextState && nextState.mostActive),
+leastMoney: normalizeUsername(nextState && nextState.leastMoney),
+leastActive: normalizeUsername(nextState && nextState.leastActive),
+hotHandUsers: Array.from(new Set(((nextState && nextState.hotHandUsers) || []).map((username) => normalizeUsername(username)).filter(Boolean))).sort(),
+coldTableUsers: Array.from(new Set(((nextState && nextState.coldTableUsers) || []).map((username) => normalizeUsername(username)).filter(Boolean))).sort()
+};
+const changed = dynamicLeaderboardTagState.mostMoney !== normalizedState.mostMoney
+|| dynamicLeaderboardTagState.mostActive !== normalizedState.mostActive
+|| dynamicLeaderboardTagState.leastMoney !== normalizedState.leastMoney
+|| dynamicLeaderboardTagState.leastActive !== normalizedState.leastActive
+|| (dynamicLeaderboardTagState.hotHandUsers || []).join('|') !== normalizedState.hotHandUsers.join('|')
+|| (dynamicLeaderboardTagState.coldTableUsers || []).join('|') !== normalizedState.coldTableUsers.join('|');
+dynamicLeaderboardTagState = normalizedState;
+if (!changed || !refreshUi) return;
+refreshTagDependentUi();
+if (document.getElementById('casino-leaderboard-modal')?.style.display === 'flex') {
+loadCasinoLeaderboard();
+}
+}
+
+async function refreshDynamicLeaderboardTags(refreshUi = true) {
+if (dynamicLeaderboardTagRefreshPromise) return dynamicLeaderboardTagRefreshPromise;
+dynamicLeaderboardTagRefreshPromise = (async () => {
+  const db = getPrimaryDb();
+  const adminDb = getAdminDb();
+  const nowMs = Date.now();
+  const bannedUsers = await getBannedUsernames().catch(() => []);
+  const bannedSet = new Set((bannedUsers || []).map((username) => normalizeUsername(username)).filter(Boolean));
+  const [statsSnapshot, approvedAccountsSnapshot, profilesSnapshot, balancesSnapshot] = await Promise.all([
+    db.collection(USER_STATS_COLLECTION).get(),
+    adminDb.collection(LOGIN_REQUESTS_COLLECTION).where('status', '==', 'approved').get(),
+    adminDb.collection(USER_PROFILES_COLLECTION).get(),
+    getCasinoBalanceCollection().get()
+  ]);
+  const allStats = {};
+  statsSnapshot.forEach((doc) => {
+    allStats[normalizeUsername(doc.id)] = doc.data() || {};
+  });
+  const localStats = getStatsStore();
+  const knownUsers = new Set();
+  Object.keys(allStats).forEach((username) => knownUsers.add(normalizeUsername(username)));
+  Object.keys(localStats || {}).forEach((username) => knownUsers.add(normalizeUsername(username)));
+  approvedAccountsSnapshot.forEach((doc) => knownUsers.add(normalizeUsername(doc.id || ((doc.data() || {}).username))));
+  Object.keys(roleCache || {}).forEach((username) => knownUsers.add(normalizeUsername(username)));
+  Object.keys(userTagCache || {}).forEach((username) => knownUsers.add(normalizeUsername(username)));
+  const currentUserKey = normalizeUsername(currentChatUser || (typeof getUserName === 'function' ? getUserName() : '') || '');
+  if (currentUserKey) knownUsers.add(currentUserKey);
+  profilesSnapshot.forEach((doc) => {
+    const key = normalizeUsername(doc.id);
+    if (!key) return;
+    userProfileCache[key] = buildProfileCacheEntry(key, doc.data() || {});
+    knownUsers.add(key);
+  });
+  const balanceMap = {};
+  const hotHandUsers = [];
+  const coldTableUsers = [];
+  let nextHotHandExpiryMs = 0;
+  let nextColdTableExpiryMs = 0;
+  balancesSnapshot.forEach((doc) => {
+    const data = doc.data() || {};
+    const key = normalizeUsername(data.username || doc.id);
+    if (!key) return;
+    const casinoStats = normalizeCasinoProfileStatsData(key, data);
+    balanceMap[key] = casinoStats.balance;
+    if (casinoStats.hotHandUntilMs > nowMs && !bannedSet.has(key)) {
+      hotHandUsers.push(key);
+      nextHotHandExpiryMs = nextHotHandExpiryMs ? Math.min(nextHotHandExpiryMs, casinoStats.hotHandUntilMs) : casinoStats.hotHandUntilMs;
+    }
+    if (casinoStats.coldTableUntilMs > nowMs && !bannedSet.has(key)) {
+      coldTableUsers.push(key);
+      nextColdTableExpiryMs = nextColdTableExpiryMs ? Math.min(nextColdTableExpiryMs, casinoStats.coldTableUntilMs) : casinoStats.coldTableUntilMs;
+    }
+    knownUsers.add(key);
+  });
+  const filteredUsers = Array.from(knownUsers).filter(Boolean).filter((username) => !bannedSet.has(username));
+  const mostActiveData = filteredUsers
+    .map((username) => {
+      const stats = allStats[username] || localStats[username] || {
+        gamesOpened: 0,
+        messagesSent: 0,
+        mediaShared: 0,
+        reactionsUsed: 0
+      };
+      return {
+        username,
+        points: calculateUserLevel(stats, username).points
+      };
+    })
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return a.username.localeCompare(b.username);
+    });
+  const mostMoneyData = filteredUsers
+    .map((username) => ({
+      username,
+      balance: Object.prototype.hasOwnProperty.call(balanceMap, username) ? balanceMap[username] : 1000
+    }))
+    .sort((a, b) => {
+      if (b.balance !== a.balance) return b.balance - a.balance;
+      return a.username.localeCompare(b.username);
+    });
+  const leastActiveData = mostActiveData.slice().sort((a, b) => {
+    if (a.points !== b.points) return a.points - b.points;
+    return a.username.localeCompare(b.username);
+  });
+  const leastMoneyData = mostMoneyData.slice().sort((a, b) => {
+    if (a.balance !== b.balance) return a.balance - b.balance;
+    return a.username.localeCompare(b.username);
+  });
+  applyDynamicLeaderboardTagState({
+    mostMoney: mostMoneyData[0] ? mostMoneyData[0].username : '',
+    mostActive: mostActiveData[0] ? mostActiveData[0].username : '',
+    leastMoney: leastMoneyData[0] ? leastMoneyData[0].username : '',
+    leastActive: leastActiveData[0] ? leastActiveData[0].username : '',
+    hotHandUsers,
+    coldTableUsers
+  }, refreshUi);
+  const nextTagExpiryMs = [nextHotHandExpiryMs, nextColdTableExpiryMs].filter((value) => value > nowMs).sort((a, b) => a - b)[0] || 0;
+  if (nextTagExpiryMs > nowMs) {
+    scheduleDynamicLeaderboardTagRefresh(Math.max(1000, nextTagExpiryMs - nowMs + 250));
+  }
+})().finally(() => {
+  dynamicLeaderboardTagRefreshPromise = null;
+});
+return dynamicLeaderboardTagRefreshPromise;
+}
+
+function scheduleDynamicLeaderboardTagRefresh(delayMs = 450) {
+if (dynamicLeaderboardTagRefreshTimer) {
+clearTimeout(dynamicLeaderboardTagRefreshTimer);
+}
+dynamicLeaderboardTagRefreshTimer = setTimeout(() => {
+  dynamicLeaderboardTagRefreshTimer = null;
+  refreshDynamicLeaderboardTags().catch(() => {});
+}, delayMs);
+}
+
+function getRoleRank(role) {
+if (role === 'owner') return 4;
+if (role === 'admin') return 3;
+if (role === 'mod') return 2;
+if (role === 'moderator') return 2;
+if (role === 'reviewer') return 1;
+if (role === 'helper') return 1;
+return 0;
+}
+
+function getRoleDisplayName(role) {
+const normalizedRole = normalizeUsername(role);
+if (normalizedRole === 'mod') return 'Mod';
+if (normalizedRole === 'moderator') return 'Moderator';
+if (normalizedRole === 'admin') return 'Admin';
+if (normalizedRole === 'owner') return 'Owner';
+if (normalizedRole === 'reviewer') return 'Reviewer';
+if (normalizedRole === 'helper') return 'Helper';
+if (normalizedRole === 'member') return 'Member';
+if (normalizedRole === 'chud') return 'Chud';
+if (normalizedRole === 'cameronsbitch') return "Camerons's Bitch";
+return normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : 'Member';
+}
+
+function getDefaultRoleForUser(username) {
+const key = normalizeUsername(username);
+if (OWNER_USERS.includes(key)) return 'owner';
+if (ADMIN_USERS.includes(key)) return 'admin';
+return 'member';
+}
+
+function getUserRole(username) {
+const key = normalizeUsername(username);
+if (!key) return 'member';
+return roleCache[key] || getDefaultRoleForUser(key);
+}
+
+function getRolePermissionMap(role) {
+const normalizedRole = normalizeUsername(role);
+const perms = moderationSettings.rolePermissions || DEFAULT_ROLE_PERMISSIONS;
+if (normalizedRole === 'owner') return DEFAULT_ROLE_PERMISSIONS.owner;
+return perms[normalizedRole] || DEFAULT_ROLE_PERMISSIONS[normalizedRole] || DEFAULT_ROLE_PERMISSIONS.member;
+}
+
+function roleHasPermission(role, permissionKey) {
+if (normalizeUsername(role) === 'owner') return true;
+const permissionMap = getRolePermissionMap(role);
+return !!permissionMap[permissionKey];
+}
+
+function roleHasAnyPermission(role, permissionKeys = []) {
+if (normalizeUsername(role) === 'owner') return true;
+return permissionKeys.some((permissionKey) => roleHasPermission(role, permissionKey));
+}
+
+function canUseAdminPermission(permissionKey, username = currentChatUser) {
+return roleHasPermission(getUserRole(username), permissionKey);
+}
+
+function canOpenAdminMenuForUser(username = currentChatUser) {
+const role = getUserRole(username);
+if (normalizeUsername(role) === 'owner') return true;
+return Object.values(getRolePermissionMap(role)).some(Boolean);
+}
+
+function canAssignRoles(username = currentChatUser) {
+return canUseAdminPermission('assignRoles', username);
+}
+
+function canModerate(username = currentChatUser) {
+return roleHasAnyPermission(getUserRole(username), ['ban', 'mute', 'kick', 'warn', 'tempBan', 'deleteMessage', 'manageSettings']);
+}
+
+function canAdminSettings(username = currentChatUser) {
+return roleHasPermission(getUserRole(username), 'manageSettings');
+}
+
+function canReviewSubmissions(username = currentChatUser) {
+return hasRolePermission(username, 'reviewSubmissions');
+}
+
+function canManageRoles(username = currentChatUser) {
+return getUserRole(username) === 'owner';
+}
+
+function getSelectedAdminUser() {
+const userList = document.getElementById('admin-user-list');
+return normalizeUsername(userList ? userList.value : '');
+}
+
+function applySelectedAdminUser(username) {
+const selected = normalizeUsername(username);
+const targetIds = [
+'admin-ban-username',
+'admin-mute-username',
+'admin-kick-username',
+'admin-warn-username',
+'admin-tempban-username',
+'admin-role-username',
+'admin-history-username',
+'admin-casino-username'
+];
+targetIds.forEach((id) => {
+const el = document.getElementById(id);
+if (el) el.value = selected;
+});
+}
+
+function copySelectedUserToHistory() {
+const selected = getSelectedAdminUser();
+const input = document.getElementById('admin-history-username');
+if (input) input.value = selected;
+if (selected) loadAdminUserHistory(selected);
+}
+
+async function loadAdminUserList() {
+const userList = document.getElementById('admin-user-list');
+if (!userList) return;
+const previousSelection = normalizeUsername(userList.value || resolveAdminTargetUsername('admin-ban-username'));
+userList.innerHTML = '<option value="">Loading users...</option>';
+
+const knownUsers = new Set();
+const addUser = (value) => {
+const key = normalizeUsername(value);
+if (key) knownUsers.add(key);
+};
+
+addUser(currentChatUser || getUserName() || '');
+Object.keys(getStatsStore() || {}).forEach(addUser);
+Object.keys(roleCache || {}).forEach(addUser);
+Object.keys(userTagCache || {}).forEach(addUser);
+(loginRequestsCache || []).forEach((item) => {
+if (normalizeReviewStatus(item && item.status) === 'approved') addUser(item && item.username);
+});
+(adminAccountManagerCache || []).forEach((entry) => addUser(entry && entry.username));
+
+try {
+const adminDb = getAdminDb();
+const primaryDb = getPrimaryDb();
+const [loginSnapshot, statsSnapshot] = await Promise.all([
+adminDb.collection(LOGIN_REQUESTS_COLLECTION).where('status', '==', 'approved').limit(250).get(),
+primaryDb.collection(USER_STATS_COLLECTION).limit(350).get()
+]);
+loginSnapshot.forEach((doc) => addUser(doc.id));
+statsSnapshot.forEach((doc) => addUser(doc.id));
+} catch (_) {
+}
+
+const options = Array.from(knownUsers).filter(Boolean).sort((a, b) => a.localeCompare(b));
+if (!options.length) {
+userList.innerHTML = '<option value="">-- No users found --</option>';
+return;
+}
+
+userList.innerHTML = '<option value="">-- Select a user --</option>' + options.map((username) => `<option value="${escapeHtml(username)}">${escapeHtml(username)}</option>`).join('');
+
+if (previousSelection && knownUsers.has(previousSelection)) {
+userList.value = previousSelection;
+applySelectedAdminUser(previousSelection);
+}
+}
+
+function resolveAdminTargetUsername(primaryInputId) {
+const inputEl = document.getElementById(primaryInputId);
+const directValue = normalizeUsername(inputEl ? inputEl.value : '');
+return directValue || getSelectedAdminUser();
+}
+
+function isProtectedUsername(username) {
+return PROTECTED_USERNAMES.includes(normalizeUsername(username));
+}
+
+function getAdminSectionPreferenceKey(sectionId) {
+return `adminSectionCollapsed:${sectionId}`;
+}
+
+function getAdminSectionAutoId(label, index) {
+const slug = String(label || '')
+.toLowerCase()
+.replace(/[^a-z0-9]+/g, '-')
+.replace(/^-+|-+$/g, '');
+return slug || `admin-section-${index + 1}`;
+}
+
+function initializeAdminSectionCards() {
+const cards = Array.from(document.querySelectorAll('#admin-menu .admin-section-card'));
+cards.forEach((card, index) => {
+let heading = Array.from(card.children).find((child) => child.classList.contains('admin-section-heading')) || null;
+let body = Array.from(card.children).find((child) => child.classList.contains('admin-section-body')) || null;
+let title = heading
+? heading.querySelector('.admin-section-title')
+: Array.from(card.children).find((child) => child.classList.contains('admin-section-title'));
+if (!title) return;
+if (!card.dataset.adminSectionId) {
+card.dataset.adminSectionId = getAdminSectionAutoId(title.textContent, index);
+}
+const sectionId = card.dataset.adminSectionId;
+if (!heading) {
+heading = document.createElement('div');
+heading.className = 'admin-section-heading';
+card.insertBefore(heading, card.firstChild);
+}
+if (!heading.contains(title)) {
+heading.insertBefore(title, heading.firstChild);
+}
+let toggle = heading.querySelector('.admin-section-toggle');
+if (!toggle) {
+toggle = document.createElement('button');
+toggle.className = 'admin-section-toggle';
+toggle.type = 'button';
+heading.appendChild(toggle);
+}
+toggle.onclick = function() {
+toggleAdminSectionCard(sectionId);
+};
+if (!body) {
+body = document.createElement('div');
+body.className = 'admin-section-body';
+const looseNodes = Array.from(card.childNodes).filter((node) => node !== heading);
+looseNodes.forEach((node) => body.appendChild(node));
+card.appendChild(body);
+} else {
+const looseNodes = Array.from(card.childNodes).filter((node) => node !== heading && node !== body);
+looseNodes.forEach((node) => body.appendChild(node));
+}
+});
+}
+
+function applyAdminSectionCardState(sectionId) {
+const card = document.querySelector(`#admin-menu .admin-section-card[data-admin-section-id="${sectionId}"]`);
+if (!card) return;
+const button = card.querySelector('.admin-section-toggle');
+const storedPreference = localStorage.getItem(getAdminSectionPreferenceKey(sectionId));
+const collapsed = storedPreference === null ? true : storedPreference === '1';
+card.classList.toggle('is-collapsed', collapsed);
+if (button) button.textContent = collapsed ? 'Expand' : 'Minimize';
+}
+
+function toggleAdminSectionCard(sectionId) {
+const key = getAdminSectionPreferenceKey(sectionId);
+const isCollapsed = localStorage.getItem(key) === '1';
+localStorage.setItem(key, isCollapsed ? '0' : '1');
+applyAdminSectionCardState(sectionId);
+}
+
+function syncAdminSectionCardStates() {
+initializeAdminSectionCards();
+document.querySelectorAll('#admin-menu .admin-section-card[data-admin-section-id]').forEach((card) => {
+applyAdminSectionCardState(card.dataset.adminSectionId);
+});
+}
+
+function updateAdminOwnerToolState() {
+const button = document.getElementById('admin-blooket-tool-btn');
+const note = document.getElementById('admin-blooket-tool-note');
+const toolbarButton = document.getElementById('admin-blooket-toolbar-btn');
+if (!button) return;
+const canUseTool = canUseAdminPermission('useOwnerTool');
+button.disabled = !canUseTool;
+button.style.opacity = canUseTool ? '1' : '0.55';
+button.style.cursor = canUseTool ? 'pointer' : 'not-allowed';
+button.textContent = canUseTool ? 'Open Blooket Bot' : 'Open Blooket Bot (Permission Required)';
+if (toolbarButton) {
+toolbarButton.style.display = canUseTool ? 'inline-block' : 'none';
+toolbarButton.disabled = !canUseTool;
+toolbarButton.style.opacity = canUseTool ? '1' : '0.55';
+toolbarButton.style.cursor = canUseTool ? 'pointer' : 'not-allowed';
+toolbarButton.textContent = canUseTool ? 'Open Blooket Bot' : 'Permission Required';
+}
+if (note) {
+note.textContent = canUseTool
+? 'Open the iframe bot tool from the admin panel.'
+: 'Grant the Owner Tool permission to let a role open this iframe tool.';
+}
+}
+
+function openFakeModAdminPanel() {
+const panel = document.getElementById('fake-mod-admin-panel');
+const adminMenu = document.getElementById('admin-menu');
+const adminPanel = document.querySelector('#admin-menu .admin-menu-panel');
+if (!panel || !adminMenu || !adminPanel) return;
+adminMenu.style.display = 'flex';
+adminPanel.classList.add('is-fake-mod');
+panel.style.display = 'flex';
+}
+
+function closeFakeModAdminPanel() {
+const panel = document.getElementById('fake-mod-admin-panel');
+const adminMenu = document.getElementById('admin-menu');
+const adminPanel = document.querySelector('#admin-menu .admin-menu-panel');
+if (!panel || !adminMenu || !adminPanel) return;
+panel.style.display = 'none';
+adminPanel.classList.remove('is-fake-mod');
+adminMenu.style.display = 'none';
+}
+
+function openAdminMenu() {
+if (!canOpenAdminMenuForUser(currentChatUser)) return;
+if (getUserRole(currentChatUser) === 'mod') {
+openFakeModAdminPanel();
+return;
+}
+if (canModerate(currentChatUser)) {
+migrateLegacyUserBansToFirestore().catch((err) => console.error('Legacy ban migration failed:', err));
+}
+renderAdminProjectStatus();
+renderAdminRolePermissions();
+updateAdminSectionVisibility();
+updateAdminOwnerToolState();
+renderAdminCustomTagManager();
+syncAdminSectionCardStates();
+loadAdminUserList();
+loadActiveTempBans();
+loadMessageReports();
+loadAppealsQueue();
+loadAuditLogs();
+loadAdminChatArchives();
+loadAdminAnalytics();
+loadAdminRoomManager();
+loadAdminAccountManager();
+renderAdminGameBioManager();
+listenForGameSubmissions();
+listenForCaseSuggestions();
+listenForLoginRequests();
+loadGameSubmissionsOnce();
+loadCaseSuggestionsOnce();
+loadLoginRequestsOnce();
+renderSubmissionQueue();
+renderCaseSuggestionQueue();
+renderLoginRequestQueue();
+loadAdminCasinoManager();
+loadAdminCasinoGameSettings();
+document.getElementById('admin-menu').style.display = 'flex';
+}
+function closeAdminMenu() {
+document.getElementById('admin-menu').style.display = 'none';
+}
+
+function getArchiveTimestampLabel(value) {
+if (!value) return 'Unknown time';
+if (value instanceof Date) return value.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+if (value && typeof value.toDate === 'function') {
+  const nextDate = value.toDate();
+  return nextDate instanceof Date ? nextDate.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Unknown time';
+}
+return 'Unknown time';
+}
+
+function getArchiveMessageBodyText(data = {}) {
+const body = sanitizeNullableText(data.message, '');
+if (body) return body;
+if (data.imageData) return '[image]';
+if (data.videoData || data.videoUrl) return '[video]';
+if (data.mediaUrl || data.videoUrl || data.audioUrl) return '[media]';
+return '[empty message]';
+}
+
+function renderAdminArchiveSessions(sessions = []) {
+const container = document.getElementById('admin-chat-archives');
+if (!container) return;
+if (!canUseAdminPermission('viewArchives')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+if (!sessions.length) {
+  container.innerHTML = '<div class="activity-feed-empty">No archived chat sessions found yet.</div>';
+  return;
+}
+container.innerHTML = sessions.map((session) => {
+  const isExpanded = adminArchiveExpandedSessionId === session.id;
+  const archivedAt = getArchiveTimestampLabel(session.archivedAt);
+  const details = sanitizeNullableText(session.reason, 'Archive session');
+  return `<div style="padding:0.7rem; border:1px solid ${isExpanded ? '#5b8cff' : '#2b3442'}; background:${isExpanded ? '#162338' : '#10151d'}; border-radius:0.75rem; display:grid; gap:0.45rem; margin-bottom:0.55rem;">
+    <div style="display:flex; justify-content:space-between; gap:0.65rem; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:700; color:#fff;">${escapeHtml(session.id)}</div>
+        <div style="margin-top:0.18rem; font-size:0.78rem; color:#9fb0c2;">Archived by ${escapeHtml(sanitizeNullableText(session.archivedBy, 'admin'))} • ${escapeHtml(archivedAt)}</div>
+        <div style="margin-top:0.18rem; font-size:0.78rem; color:#c5d2e1;">${escapeHtml(details)}</div>
+      </div>
+      <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+        <button onclick="toggleAdminArchiveSession('${encodeURIComponent(session.id)}')" style="padding:0.35rem 0.7rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">${isExpanded ? 'Hide Messages' : 'View Messages'}</button>
+      </div>
+    </div>
+    ${isExpanded ? `<div id="admin-archive-session-${encodeURIComponent(session.id)}" class="admin-compact-list">${adminArchiveMessagesCache[session.id] || '<div class="activity-feed-empty">Loading archived messages...</div>'}</div>` : ''}
+  </div>`;
+}).join('');
+}
+
+async function loadAdminChatArchives() {
+const container = document.getElementById('admin-chat-archives');
+if (!container) return;
+if (!canUseAdminPermission('viewArchives')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+const archiveDb = getArchiveDb();
+if (!archiveDb) {
+  container.textContent = 'Archive project is not configured.';
+  return;
+}
+container.textContent = 'Loading archived chats...';
+try {
+  const snapshot = await archiveDb.collection('chat_archives').orderBy('archivedAt', 'desc').limit(40).get();
+  const sessions = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+  renderAdminArchiveSessions(sessions);
+} catch (err) {
+  console.error('Failed to load archived chats:', err);
+  container.textContent = 'Failed to load archived chats.';
+}
+}
+
+async function toggleAdminArchiveSession(encodedArchiveId) {
+if (!canUseAdminPermission('viewArchives')) return;
+const archiveId = decodeURIComponent(encodedArchiveId || '');
+if (!archiveId) return;
+if (adminArchiveExpandedSessionId === archiveId) {
+  adminArchiveExpandedSessionId = '';
+  await loadAdminChatArchives();
+  return;
+}
+adminArchiveExpandedSessionId = archiveId;
+await loadAdminChatArchives();
+if (adminArchiveMessagesCache[archiveId]) return;
+const container = document.getElementById(`admin-archive-session-${encodeURIComponent(archiveId)}`);
+if (container) {
+  container.innerHTML = '<div class="activity-feed-empty">Loading archived messages...</div>';
+}
+try {
+  const archiveDb = getArchiveDb();
+  if (!archiveDb) {
+    if (container) container.textContent = 'Archive project is not configured.';
+    return;
+  }
+  const snapshot = await archiveDb.collection('chat_archives').doc(archiveId).collection('messages').orderBy('timestamp', 'desc').limit(120).get();
+  const messages = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+  const html = messages.length ? messages.map((item) => {
+    const timeText = item.timestamp && typeof item.timestamp.toDate === 'function'
+      ? item.timestamp.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : getArchiveTimestampLabel(item.archivedAt);
+    const roomName = getChatRoomConfig(item.room || 'general').name;
+    const userText = sanitizeNullableText(item.user, '?');
+    const body = getArchiveMessageBodyText(item).slice(0, 220);
+    return `<div style="padding:0.45rem; background:#111720; border:1px solid #2b3442; border-radius:0.35rem; margin-bottom:0.35rem;">
+      <div style="font-size:0.74rem; color:#90a4ae;">${escapeHtml(timeText)} • ${escapeHtml(roomName)} • @${escapeHtml(userText)}</div>
+      <div style="margin-top:0.2rem; color:#e5eef8;">${escapeHtml(body)}</div>
+    </div>`;
+  }).join('') : '<div class="activity-feed-empty">No archived messages found in this session.</div>';
+  adminArchiveMessagesCache[archiveId] = html;
+  const refreshed = document.getElementById(`admin-archive-session-${encodeURIComponent(archiveId)}`);
+  if (refreshed) refreshed.innerHTML = html;
+} catch (err) {
+  console.error('Failed to load archive messages:', err);
+  const refreshed = document.getElementById(`admin-archive-session-${encodeURIComponent(archiveId)}`);
+  if (refreshed) refreshed.textContent = 'Failed to load archived messages.';
+}
+}
+
+async function adminBanUser() {
+if (!canUseAdminPermission('ban')) return;
+const username = resolveAdminTargetUsername('admin-ban-username');
+let reason = document.getElementById('admin-ban-reason').value;
+const customReasonInput = document.getElementById('admin-ban-custom-reason');
+if (reason === 'Other') {
+reason = customReasonInput.value.trim();
+}
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+statusDiv.textContent = 'Please enter a username.';
+return;
+}
+if (isProtectedUsername(username)) {
+const attemptedBy = normalizeUsername(currentChatUser || getUserName());
+if (attemptedBy && !isProtectedUsername(attemptedBy)) {
+try {
+await setUserBanStatus(attemptedBy, true, 'Tried to ban kaiden', { bannedBy: 'system' });
+await postSystemNotice(`${attemptedBy} got banned for trying to ban kaiden.`);
+} catch (e) {}
+}
+statusDiv.textContent = 'kaiden is unbannable and u are a chud for trying. you are now banned. refreshing in 5 seconds.';
+setTimeout(() => {
+location.reload();
+}, 5000);
+return;
+}
+if (reason === '' || (document.getElementById('admin-ban-reason').value === 'Other' && reason === '')) {
+statusDiv.textContent = 'Please enter a reason.';
+return;
+}
+try {
+await setUserBanStatus(username, true, reason, { bannedBy: currentChatUser || getUserName() || 'admin' });
+await postSystemNotice(`${username} was banned.`);
+statusDiv.textContent = `User '${username}' has been banned.`;
+await writeAuditLog('ban', username, reason || 'no reason');
+document.getElementById('admin-ban-username').value = '';
+document.getElementById('admin-ban-reason').value = '';
+customReasonInput.value = '';
+customReasonInput.style.display = 'none';
+} catch (e) {
+statusDiv.textContent = 'Failed to ban user.';
+}
+}
+
+async function adminClearChat() {
+if (!canUseAdminPermission('deleteMessage')) return;
+const statusDiv = document.getElementById('admin-ban-status');
+
+if (!confirm('Delete every chat message for everyone? This cannot be undone.')) {
+return;
+}
+
+try {
+if (typeof firebase === 'undefined') {
+statusDiv.textContent = 'Firebase is not available.';
+return;
+}
+
+if (!firebase.apps.length) {
+firebase.initializeApp(firebaseConfig);
+}
+
+const db = getPrimaryDb();
+const archiveDb = getArchiveDb();
+let deletedCount = 0;
+const archiveSessionId = `archive_${Date.now()}_${normalizeUsername(currentChatUser || 'admin')}`;
+
+if (archiveDb) {
+await archiveDb.collection('chat_archives').doc(archiveSessionId).set({
+archivedBy: currentChatUser || 'admin',
+archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
+sourceProjectId: firebaseConfig.projectId,
+reason: 'admin_clear_chat'
+});
+}
+
+while (true) {
+const snapshot = await db.collection('site_messages').limit(250).get();
+if (snapshot.empty) {
+break;
+}
+
+const batch = db.batch();
+const archiveBatch = archiveDb ? archiveDb.batch() : null;
+snapshot.forEach(doc => {
+if (archiveBatch) {
+archiveBatch.set(
+archiveDb.collection('chat_archives').doc(archiveSessionId).collection('messages').doc(doc.id),
+{
+originalId: doc.id,
+archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
+...doc.data()
+}
+);
+}
+batch.delete(doc.ref);
+deletedCount += 1;
+});
+if (archiveBatch) {
+await archiveBatch.commit();
+}
+await batch.commit();
+}
+
+statusDiv.textContent = deletedCount
+? `Archived and deleted ${deletedCount} chat messages${archiveDb ? '' : ' (archive project not configured, so no off-project backup was made)'}.`
+: 'Chat was already empty.';
+} catch (e) {
+console.error('Failed to clear chat:', e);
+statusDiv.textContent = 'Failed to clear chat.';
+}
+}
+
+async function adminRestartLeaderboard() {
+if (!canUseAdminPermission('manageLeaderboard')) {
+alert('You do not have permission to restart the leaderboard.');
+return;
+}
+
+const statusDiv = document.getElementById('admin-ban-status');
+if (!confirm('Reset the leaderboard for everyone? This clears all saved points and levels.')) {
+return;
+}
+
+try {
+const db = getPrimaryDb();
+let deletedCount = 0;
+
+while (true) {
+const snapshot = await db.collection(USER_STATS_COLLECTION).limit(250).get();
+if (!snapshot || snapshot.empty) break;
+
+const batch = db.batch();
+snapshot.forEach((doc) => {
+batch.delete(doc.ref);
+deletedCount += 1;
+});
+await batch.commit();
+}
+
+localStorage.removeItem(USER_STATS_STORAGE_KEY);
+await writeAuditLog('restart_leaderboard', '', `Deleted ${deletedCount} leaderboard stat documents`);
+
+if (document.getElementById('leaderboard-modal')?.style.display === 'flex') {
+await loadLeaderboard();
+}
+if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
+if (typeof loadAdminAccountManager === 'function') loadAdminAccountManager();
+if (typeof renderProfileModal === 'function') renderProfileModal(currentProfileViewUser || getStatsUserKey());
+
+if (statusDiv) {
+statusDiv.textContent = deletedCount
+? `Leaderboard restarted. Cleared ${deletedCount} stat records.`
+: 'Leaderboard restarted. No stat records were found.';
+}
+} catch (err) {
+console.error('Failed to restart leaderboard:', err);
+if (statusDiv) statusDiv.textContent = 'Failed to restart leaderboard.';
+}
+}
+
+async function getBannedUsernames() {
+try {
+const snapshot = await getAdminDb().collection(USER_BANS_COLLECTION).where('banned', '==', true).get();
+return snapshot.docs
+.map(doc => normalizeUsername(doc.id))
+.filter(username => username && !isProtectedUsername(username));
+} catch (e) {
+console.error('Ban fetch error:', e);
+return [];
+}
+}
+
+async function migrateLegacyUserBansToFirestore() {
+try {
+const db = getAdminDb();
+const migrationRef = db.collection('chat_meta').doc(USER_BAN_MIGRATION_DOC_ID);
+const migrationDoc = await migrationRef.get();
+if (migrationDoc.exists && migrationDoc.data() && migrationDoc.data().completedAt) {
+return;
+}
+const res = await fetch(LEGACY_BAN_API_URL, { cache: 'no-store' });
+const text = await res.text();
+const lines = text.split('\n').slice(1).filter((line) => line.trim() !== '');
+const entries = lines.map((line) => {
+const parts = line.split(',');
+return {
+username: normalizeUsername(parts[0] || ''),
+reason: sanitizeNullableText(parts[1], ''),
+banned: String(parts[2] || '').trim().toLowerCase() === 'yes'
+};
+}).filter((entry) => entry.username && entry.banned && !isProtectedUsername(entry.username));
+if (entries.length) {
+const batch = db.batch();
+entries.forEach((entry) => {
+batch.set(db.collection(USER_BANS_COLLECTION).doc(entry.username), {
+username: entry.username,
+banned: true,
+reason: entry.reason,
+bannedBy: 'legacy-sheet-migration',
+updatedAtMs: Date.now(),
+updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+bannedAtMs: Date.now(),
+bannedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+});
+batch.set(migrationRef, {
+completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+completedAtMs: Date.now(),
+count: entries.length
+}, { merge: true });
+await batch.commit();
+return;
+}
+await migrationRef.set({
+completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+completedAtMs: Date.now(),
+count: 0
+}, { merge: true });
+} catch (err) {
+throw err;
+}
+}
+
+async function getBanRecord(username) {
+const key = normalizeUsername(username);
+if (!key || isProtectedUsername(key)) return null;
+try {
+const doc = await getAdminDb().collection(USER_BANS_COLLECTION).doc(key).get();
+if (!doc.exists) return null;
+const data = doc.data() || {};
+if (data.banned !== true) return null;
+return {
+username: key,
+reason: sanitizeNullableText(data.reason, ''),
+bannedBy: sanitizeNullableText(data.bannedBy, ''),
+updatedAtMs: getTimestampMs(data.updatedAt) || Number(data.updatedAtMs) || 0
+};
+} catch (e) {
+return null;
+}
+}
+
+async function setUserBanStatus(username, banned, reason = '', details = {}) {
+const key = normalizeUsername(username);
+if (!key || isProtectedUsername(key)) return;
+const now = Date.now();
+const payload = {
+username: key,
+banned: !!banned,
+reason: sanitizeNullableText(reason, ''),
+bannedBy: sanitizeNullableText(details.bannedBy, currentChatUser || getUserName() || 'system'),
+ip: sanitizeNullableText(details.ip, ''),
+updatedAtMs: now,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+};
+if (banned) {
+payload.bannedAtMs = now;
+payload.bannedAt = firebase.firestore.FieldValue.serverTimestamp();
+} else {
+payload.unbannedAtMs = now;
+payload.unbannedAt = firebase.firestore.FieldValue.serverTimestamp();
+}
+await getAdminDb().collection(USER_BANS_COLLECTION).doc(key).set(payload, { merge: true });
+}
+
+async function checkBan(username, ip) {
+try {
+return !!(await getBanRecord(username));
+} catch (e) {
+return false;
+}
+}
+
+async function addBan(username, ip, reason = '') {
+if (isProtectedUsername(username)) return;
+try {
+await setUserBanStatus(username, true, reason, { ip });
+} catch (e) {}
+}
+
+function showUserBanNotification() {
+document.body.style.overflow = 'auto';
+Array.from(document.body.children).forEach(function(child) {
+if (child.id !== 'user-ban-notification') {
+child.style.display = 'none';
+}
+});
+var userBanNotification = document.getElementById('user-ban-notification');
+if (userBanNotification) {
+userBanNotification.style.display = 'block';
+(async () => {
+const username = normalizeUsername(document.getElementById('site-login-username').value.trim());
+const banRecord = await getBanRecord(username);
+const reasonElem = document.getElementById('user-ban-reason');
+if (reasonElem) reasonElem.textContent = banRecord && banRecord.reason ? `Reason: ${banRecord.reason}` : '';
+})().catch(() => {
+const reasonElem = document.getElementById('user-ban-reason');
+if (reasonElem) reasonElem.textContent = '';
+});
+}
+}
+
+function getUserName() {
+const stored = normalizeUsername(localStorage.getItem('userName') || '');
+if (!stored) {
+localStorage.removeItem('userName');
+}
+return stored;
+}
+function getBannedIPs() {
+const stored = localStorage.getItem('bannedIPs');
+return stored ? JSON.parse(stored) : [];
+}
+let currentUserIP = '';
+let userName = getUserName();
+
+async function initIPLogging() {
+try {
+const response = await fetch('https://api.ipify.org?format=json');
+const data = await response.json();
+const userIP = data.ip;
+currentUserIP = userIP;
+userName = getUserName();
+const bannedList = (await getBannedUsernames()).map(u => u.trim().toLowerCase());
+if (!isProtectedUsername(userName) && bannedList.includes(userName)) {
+hideSiteLoginModal();
+document.body.style.overflow = 'auto';
+showUserBanNotification();
+return;
+}
+
+let geoData = {};
+try {
+const geoResponse = await fetch(`https://ipapi.co/${encodeURIComponent(userIP)}/json/`, { cache: 'no-store' });
+geoData = await geoResponse.json();
+} catch (geoErr) {
+geoData = {};
+}
+
+const notification = document.getElementById('ip-notification');
+const notificationText = document.getElementById('notification-text');
+const locationInfo = geoData.city ? ` (${geoData.city}, ${geoData.country_name})` : '';
+notificationText.textContent = `⚠️ Your IP will be tracked: ${userName ? userName + ' - ' : ''}${userIP}${locationInfo}`;
+notification.style.display = 'flex';
+console.log('IP Tracking Information:', {
+timestamp: new Date().toISOString(),
+name: userName,
+ip: userIP,
+city: geoData.city || 'Unknown',
+country: geoData.country_name || 'Unknown',
+country_code: geoData.country_code || 'Unknown',
+region: geoData.region || 'Unknown',
+latitude: geoData.latitude || 'Unknown',
+longitude: geoData.longitude || 'Unknown',
+isp: geoData.org || 'Unknown'
+});
+
+
+let alreadyLogged = false;
+let duplicateNameIPs = [];
+try {
+const res = await fetch('https://script.google.com/macros/s/AKfycbzmOBgZz57adqQfVIJtRiQHdhmeHfHsw3fJZH0nbHoXR1MKB1QIv1fQ8pMgUnFfQkSy/exec');
+const ipList = await res.json();
+alreadyLogged = ipList.some(entry => entry.ip === userIP);
+if (userName) {
+duplicateNameIPs = ipList.filter(entry => entry.name && entry.name === userName && entry.ip !== userIP).map(entry => entry.ip);
+}
+} catch (e) {
+}
+
+if (duplicateNameIPs.length > 0 && userName.toLowerCase() !== 'kaiden') {
+console.warn('Duplicate username/IP entries detected for login tracking.', {
+username: userName,
+userIP,
+duplicateNameIPs
+});
+}
+
+if (!alreadyLogged) {
+const formData = new URLSearchParams();
+formData.append('name', userName || 'Unknown');
+formData.append('ip', userIP || 'Unknown');
+formData.append('city', geoData.city || 'Unknown');
+formData.append('country', geoData.country_name || 'Unknown');
+formData.append('country_code', geoData.country_code || 'Unknown');
+formData.append('region', geoData.region || 'Unknown');
+formData.append('latitude', geoData.latitude || 'Unknown');
+formData.append('longitude', geoData.longitude || 'Unknown');
+formData.append('isp', geoData.org || 'Unknown');
+await fetch('https://script.google.com/macros/s/AKfycbzmOBgZz57adqQfVIJtRiQHdhmeHfHsw3fJZH0nbHoXR1MKB1QIv1fQ8pMgUnFfQkSy/exec', {
+method: 'POST',
+body: formData
+});
+} else {
+console.log('IP already logged, skipping duplicate.');
+}
+} catch (error) {
+console.error('IP logging failed:', error);
+const notification = document.getElementById('ip-notification');
+if (notification) {
+const textEl = document.getElementById('notification-text');
+if (textEl) textEl.textContent = '⚠️ Tracking information unavailable';
+notification.style.display = 'flex';
+}
+}
+}
+
+function closeIPNotification() {
+const notification = document.getElementById('ip-notification');
+if (!notification) return;
+notification.style.display = 'none';
+}
+
+function getGlobalAlertStorageKey(text, updatedAtMs = 0) {
+const message = String(text || '').trim();
+if (!message) return '';
+const stamp = Number(updatedAtMs) || 0;
+return stamp > 0 ? `${message}::${stamp}` : message;
+}
+
+function setLastSeenGlobalAlertKey(key) {
+lastGlobalAlertKey = String(key || '');
+try {
+localStorage.setItem('lastGlobalAlertKey', lastGlobalAlertKey);
+} catch (_) {}
+}
+
+function hasSeenGlobalAlert(text, updatedAtMs = 0) {
+const nextKey = getGlobalAlertStorageKey(text, updatedAtMs);
+if (lastGlobalAlertKey === nextKey) return true;
+
+const baseKey = getGlobalAlertStorageKey(text, 0);
+const legacyBaseKey = String(text || '').trim();
+const legacyVersionedKey = legacyBaseKey && (Number(updatedAtMs) || 0) > 0 ? `${legacyBaseKey}::${Number(updatedAtMs) || 0}` : legacyBaseKey;
+if (!baseKey) return true;
+
+if (lastGlobalAlertKey === legacyVersionedKey || lastGlobalAlertKey === legacyBaseKey) {
+return true;
+}
+
+if (!updatedAtMs && lastGlobalAlertKey.startsWith(`${baseKey}::`)) {
+return true;
+}
+
+if (!updatedAtMs && legacyBaseKey && lastGlobalAlertKey.startsWith(`${legacyBaseKey}::`)) {
+return true;
+}
+
+if (updatedAtMs && lastGlobalAlertKey === baseKey) {
+return true;
+}
+
+return false;
+}
+
+function showGlobalAlertNotification(text, durationSeconds = 10) {
+const notification = document.getElementById('global-alert-notification');
+const textEl = document.getElementById('global-alert-text');
+if (!notification || !textEl) return;
+const message = String(text || '').trim();
+if (!message) return;
+textEl.textContent = message;
+notification.style.display = 'flex';
+
+const ms = Math.max(2000, Math.min(30000, (parseInt(durationSeconds, 10) || 10) * 1000));
+setTimeout(() => {
+if (notification.style.display !== 'none') {
+notification.style.display = 'none';
+}
+}, ms);
+}
+
+function closeDMNotification() {
+const notification = document.getElementById('dm-notification');
+if (!notification) return;
+notification.style.display = 'none';
+}
+
+function showFloatingChatNotification(text, durationMs = 4500, options = {}) {
+const notification = document.getElementById('dm-notification');
+const textEl = document.getElementById('dm-notification-text');
+if (!notification || !textEl) return;
+const message = String(text || '').trim();
+if (!message) return;
+textEl.textContent = message;
+notification.style.display = 'flex';
+pushNotification({
+type: String(options.type || 'general'),
+title: String(options.title || 'Notification').slice(0, 120),
+body: message,
+read: false
+});
+setTimeout(() => {
+if (notification.style.display !== 'none') notification.style.display = 'none';
+}, Math.max(2000, durationMs));
+}
+
+function showDMNotification(text, durationMs = 4500) {
+showFloatingChatNotification(text, durationMs, { type: 'dm', title: 'Direct Message' });
+}
+
+function updateAdminSectionVisibility() {
+document.querySelectorAll('#admin-menu .admin-section-card[data-admin-scope]').forEach((card) => {
+const explicitPermission = sanitizeNullableText(card.dataset.adminPermission, '');
+if (explicitPermission) {
+  card.classList.toggle('is-hidden-by-role', !canUseAdminPermission(explicitPermission));
+  return;
+}
+const scope = String(card.dataset.adminScope || 'moderator').toLowerCase();
+const hidden = scope === 'owner'
+  ? !canAssignRoles(currentChatUser)
+  : scope === 'admin'
+    ? !canOpenAdminMenuForUser(currentChatUser)
+    : scope === 'reviewer'
+      ? !canReviewSubmissions(currentChatUser)
+      : !canModerate(currentChatUser);
+card.classList.toggle('is-hidden-by-role', hidden);
+});
+}
+
+function formatRemainingDuration(ms) {
+const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+const hours = Math.floor(totalSeconds / 3600);
+const minutes = Math.floor((totalSeconds % 3600) / 60);
+const seconds = totalSeconds % 60;
+if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+if (minutes > 0) return `${minutes}m ${seconds}s`;
+return `${seconds}s`;
+}
+
+function setChatComposerEnabled(enabled) {
+const ids = ['chat-message-input', 'chat-color-btn', 'chat-image-btn', 'chat-send-as-input'];
+ids.forEach((id) => {
+const el = document.getElementById(id);
+if (!el) return;
+el.disabled = !enabled;
+el.style.opacity = enabled ? '1' : '0.55';
+el.style.cursor = enabled ? '' : 'not-allowed';
+});
+}
+
+function updateChatTimeoutStatusUi() {
+const statusEl = document.getElementById('chat-timeout-status');
+if (!statusEl) return;
+let text = '';
+let blocked = false;
+if (currentTimedBanInfo && currentTimedBanInfo.expiresAt && currentTimedBanInfo.expiresAt.getTime() > Date.now()) {
+text = `Temp banned for ${formatRemainingDuration(currentTimedBanInfo.expiresAt.getTime() - Date.now())}. Reason: ${currentTimedBanInfo.reason || 'Temporary ban'}`;
+blocked = true;
+} else if (currentMuteInfo) {
+if (currentMuteInfo.expiresAt && currentMuteInfo.expiresAt.getTime() > Date.now()) {
+text = `Muted for ${formatRemainingDuration(currentMuteInfo.expiresAt.getTime() - Date.now())}. ${currentMuteInfo.reason ? `Reason: ${currentMuteInfo.reason}` : ''}`.trim();
+} else {
+text = `Muted until an admin unmutes you.${currentMuteInfo.reason ? ` Reason: ${currentMuteInfo.reason}` : ''}`;
+}
+blocked = true;
+}
+if (!text) {
+statusEl.style.display = 'none';
+statusEl.textContent = '';
+setChatComposerEnabled(true);
+return;
+}
+statusEl.textContent = text;
+statusEl.style.display = 'block';
+setChatComposerEnabled(!blocked);
+}
+
+function startTimeoutStatusLoop() {
+if (timeoutStatusInterval) clearInterval(timeoutStatusInterval);
+updateChatTimeoutStatusUi();
+timeoutStatusInterval = setInterval(updateChatTimeoutStatusUi, MUTE_STATUS_REFRESH_MS);
+}
+
+
+function saveBannedIPs(ips) {
+localStorage.setItem('bannedIPs', JSON.stringify(ips));
+}
+
+function isIPBanned(ip) {
+const bannedIPs = getBannedIPs();
+return bannedIPs.includes(ip);
+}
+
+function banIP() {
+const ipInput = document.getElementById('ban-ip-input');
+const ip = ipInput.value.trim();
+
+if (!ip) {
+alert('Please enter an IP address');
+return;
+}
+
+if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+alert('Invalid IP format. Please use XXX.XXX.XXX.XXX');
+return;
+}
+
+const bannedIPs = getBannedIPs();
+if (bannedIPs.includes(ip)) {
+alert('This IP is already banned');
+return;
+}
+
+bannedIPs.push(ip);
+saveBannedIPs(bannedIPs);
+ipInput.value = '';
+
+updateBannedIPsList();
+alert(`IP ${ip} has been banned!`);
+}
+
+function unbanIP(ip) {
+const bannedIPs = getBannedIPs();
+const index = bannedIPs.indexOf(ip);
+
+if (index > -1) {
+bannedIPs.splice(index, 1);
+saveBannedIPs(bannedIPs);
+updateBannedIPsList();
+alert(`IP ${ip} has been unbanned!`);
+}
+}
+
+function updateBannedIPsList() {
+const bannedIPs = getBannedIPs();
+const list = document.getElementById('banned-ips-list');
+
+if (bannedIPs.length === 0) {
+list.innerHTML = '<p style="color: #aaa; font-style: italic;">No IPs banned</p>';
+return;
+}
+
+list.innerHTML = '';
+bannedIPs.forEach(ip => {
+const item = document.createElement('div');
+item.className = 'ban-item';
+item.innerHTML = `
+         <span>${ip}</span>
+         <button onclick="unbanIP('${ip}')">Unban</button>
+     `;
+list.appendChild(item);
+});
+}
+
+function showBanNotification(reason) {
+var loginModal = document.getElementById('site-login-modal');
+if (loginModal) loginModal.style.display = 'none';
+var nameModal = document.getElementById('name-modal');
+if (nameModal) nameModal.style.display = 'none';
+var ipNotif = document.getElementById('ip-notification');
+if (ipNotif) ipNotif.style.display = 'none';
+var banNotif = document.getElementById('ban-notification');
+if (banNotif) banNotif.style.display = 'none';
+document.body.style.overflow = 'auto';
+Array.from(document.body.children).forEach(function(child) {
+if (child.id !== 'user-ban-notification') {
+child.style.display = 'none';
+}
+});
+var userBanNotification = document.getElementById('user-ban-notification');
+if (userBanNotification) userBanNotification.style.display = 'block';
+var reasonElem = document.getElementById('user-ban-reason');
+if (reasonElem) reasonElem.textContent = '';
+}
+window.addEventListener('load', function() {
+showSiteLoginModal();
+});
+
+
+const games = [
+{name: 'Slope', url: 'https://bigfoot9999.github.io/Slope-Game/'},
+{name: 'Tung Tung Sahur', url: 'https://files.twoplayergames.org/files/games/h1/italian-brainrot-obby-parkour-v01l/index.html'},
+{name: 'Wikirace', url: 'https://wiki-race.com'},
+{name: 'Escape Road', url: 'https://unblockedescaperoads.com/#game'},
+{name: 'Escape Road 2', url: 'https://escaperoad-2.github.io/'},
+{name: 'Duck', url: 'https://duck.theducklair.com/'},
+{name: 'Minecraft', url: 'https://eaglercraft.ir/play/1.12.2wasm?touch=false&userscript'},
+{name: 'worldguessr', url: 'https://www.worldguessr.com/'},
+{name: 'Infinite Craft', url: 'https://infinite-craft.org/infinite-craft/'},
+{name: '2v2.io', url: 'https://2v2.io'},
+{name: 'FNAF Launcher', url: 'https://irv77.github.io/FnafLauncher'},
+{name: 'Yoked', url: 'https://files.twoplayergames.org/files/games/o6/get-yoked/index.html'},
+{name: 'Getting Over It', url: 'https://rawcdn.githack.com/genizy/web-port/main/getting-over-it/index.html'},
+{name: 'Buckshot Roulette', url: 'https://rawcdn.githack.com/genizy/web-port/main/buckshot-roulette/index.html'},
+{name: 'Bendy', url: 'https://rawcdn.githack.com/genizy/web-port/main/bendy/index.html'},
+{name: 'Brotato', url: 'https://mathcalulator.b-cdn.net/games/game/?id=brotato'},
+{name: 'Hope', url: 'https://hope.takh.ee/g.html'},
+{name: 'Forest', url: 'https://forest.cautinvestitor.ro.cdn.cloudflare.net/'},
+{name: 'Lucid', url: 'https://s3.amazonaws.com/lucidestatic/index.html#/'},
+{name: 'Beanweb', url: 'https://418x3tk5.beanweb.qzz.io.cdn.cloudflare.net/'},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: 'Zombie', url: 'https://nzp.gay'},
+{name: 'Calcslover', url: 'https://calcsolver.net'},
+{name: '', url: ''},
+{name: '', url: ''},
+{name: 'MathGPT', url: 'https://math-gpt.org/'},
+{name: 'Youtube (Unblock All Videos)', url: 'https://tube.rvere.com/'},
+];
+
+const GAME_FAVORITES_STORAGE_KEY = 'site_game_favorites_v1';
+const GAME_RECENTS_STORAGE_KEY = 'site_game_recents_v1';
+const GAME_OPEN_COUNTS_STORAGE_KEY = 'site_game_open_counts_v1';
+const STORE_FILTERS_STORAGE_KEY = 'site_store_filters_v1';
+const NOTIFICATION_STORAGE_KEY = 'site_notifications_v1';
+const LOCAL_ACTIVITY_STORAGE_KEY = 'site_activity_feed_v1';
+const LOCAL_PROFILE_STORAGE_KEY = 'site_profiles_v1';
+const USER_PROFILES_COLLECTION = 'user_profiles';
+const GAME_SUBMISSIONS_COLLECTION = 'game_submissions';
+const CASE_SUGGESTIONS_COLLECTION = 'case_suggestions';
+const GAME_METADATA_COLLECTION = 'game_metadata';
+const LOGIN_REQUESTS_COLLECTION = 'login_requests';
+const SITE_ACTIVITY_COLLECTION = 'site_activity';
+const CASINO_ACTIVITY_COLLECTION = 'casino_activity';
+const CASINO_COIN_FLIP_COLLECTION = 'casino_coin_flips';
+const CASINO_CONFIG_COLLECTION = 'casino_config';
+const CASINO_INVENTORY_HISTORY_COLLECTION = 'casino_inventory_history';
+const GENERAL_SHOP_TRADES_COLLECTION = 'general_shop_trades';
+const GENERAL_SHOP_COLLECTION = 'general_shop';
+const PROFILE_BACKGROUND_SHOP_COLLECTION = 'profile_background_shop';
+const POKER_ROOMS_COLLECTION = 'poker_rooms';
+const SITE_EVENT_DOC_ID = 'site_event_banner';
+const MAX_LOCAL_NOTIFICATIONS = 80;
+const MAX_ACTIVITY_ITEMS = 30;
+const MAX_CASINO_ACTIVITY_ITEMS = 18;
+const MAX_INVENTORY_HISTORY_ITEMS = 60;
+const MAX_PROFILE_RECENT_PULLS = 6;
+const CASINO_GAME_SETTINGS_DOC_ID = 'game_chances';
+const CASINO_HOT_HAND_STREAK = 3;
+const CASINO_HOT_HAND_DURATION_MS = 20 * 60 * 1000;
+const CASINO_COLD_TABLE_STREAK = 3;
+const CASINO_COLD_TABLE_DURATION_MS = 20 * 60 * 1000;
+const CASINO_ACHIEVEMENTS = [
+{ id: 'first_win', label: 'First Blood', description: 'Win your first casino round.', stat: 'wins', goal: 1 },
+{ id: 'pit_regular', label: 'Pit Regular', description: 'Play 25 casino rounds.', stat: 'gamesPlayed', goal: 25 },
+{ id: 'high_roller', label: 'High Roller', description: 'Wager $5,000 total.', stat: 'totalWagered', goal: 5000 },
+{ id: 'heater', label: 'Heater', description: 'Reach a 3-win streak.', stat: 'bestWinStreak', goal: 3 },
+{ id: 'lucky_seven', label: 'Lucky Seven', description: 'Win $700 or more in one round.', stat: 'biggestWin', goal: 700 },
+{ id: 'stacked', label: 'Stacked', description: 'Reach a $5,000 balance.', stat: 'biggestBalance', goal: 5000 },
+{ id: 'lifeline', label: 'Lifeline', description: 'Claim a bailout once.', stat: 'reliefClaims', goal: 1 },
+{ id: 'rock_bottom', label: 'Rock Bottom', description: 'Go bankrupt 3 times.', stat: 'bankruptcies', goal: 3 }
+];
+const POKER_HAND_GUIDE = [
+{ label: 'Royal Flush', cards: ['A♠', 'K♠', 'Q♠', 'J♠', '10♠'], note: 'Best possible hand.' },
+{ label: 'Straight Flush', cards: ['9♥', '8♥', '7♥', '6♥', '5♥'], note: 'Five in order, same suit.' },
+{ label: 'Four of a Kind', cards: ['K♠', 'K♥', 'K♦', 'K♣', '4♠'], note: 'Four cards of one rank.' },
+{ label: 'Full House', cards: ['Q♠', 'Q♥', 'Q♦', '8♣', '8♦'], note: 'Trips plus a pair.' },
+{ label: 'Flush', cards: ['A♦', 'J♦', '8♦', '5♦', '2♦'], note: 'Same suit, any order.' },
+{ label: 'Straight', cards: ['9♠', '8♦', '7♣', '6♥', '5♠'], note: 'Five in order.' },
+{ label: 'Three of a Kind', cards: ['7♠', '7♥', '7♦', 'K♣', '3♠'], note: 'Three cards of one rank.' },
+{ label: 'Two Pair', cards: ['J♠', 'J♦', '4♣', '4♥', 'A♠'], note: 'Two different pairs.' },
+{ label: 'Pair', cards: ['10♠', '10♣', 'A♦', '7♣', '3♥'], note: 'One pair.' },
+{ label: 'High Card', cards: ['A♣', 'J♦', '8♠', '5♥', '2♣'], note: 'No made hand.' }
+];
+const SLOT_SYMBOL_DEFAULT_WEIGHTS = {
+'7': 1,
+BAR: 2,
+CHERRY: 4,
+STAR: 3,
+BELL: 3
+};
+const SLOT_SYMBOL_EMOJIS = {
+'?': '❔',
+'7': '7️⃣',
+BAR: '💎',
+CHERRY: '🍒',
+STAR: '⭐',
+BELL: '🔔'
+};
+const GENERAL_SHOP_RARITY_CONFIG = [
+{ id: 'mil-spec', label: 'Blue', shortLabel: 'Blue', color: '#4f83ff', chancePct: 78.5 },
+{ id: 'restricted', label: 'Purple', shortLabel: 'Purple', color: '#7e57c2', chancePct: 16.5 },
+{ id: 'classified', label: 'Pink', shortLabel: 'Pink', color: '#ec407a', chancePct: 4.2 },
+{ id: 'covert', label: 'Red', shortLabel: 'Red', color: '#ef5350', chancePct: 0.6 },
+{ id: 'special', label: 'Gold', shortLabel: 'Gold', color: '#f6c453', chancePct: 0.2 }
+];
+const GENERAL_SHOP_CASE_ODDS_BOOST_ITEM_ID = 'crimson-fortune-charm';
+const GENERAL_SHOP_CASE_ODDS_BOOST_COVERT_MULTIPLIER = 2;
+const GENERAL_SHOP_CASE_ODDS_BOOST_SPECIAL_MULTIPLIER = 2.5;
+const PROFILE_REWARD_COSMETICS = [
+{ id: 'glacier', label: 'Glacier Glass', accent: '#6ec6ff', soft: 'rgba(110, 198, 255, 0.24)', glow: 'rgba(40, 122, 196, 0.22)', swatch: 'linear-gradient(135deg, rgba(16, 51, 77, 0.98), rgba(78, 164, 221, 0.88), rgba(206, 241, 255, 0.92))', description: 'Cold blue glass trim for chat cards and profile panels.' },
+{ id: 'ember', label: 'Ember Signal', accent: '#ff8a65', soft: 'rgba(255, 138, 101, 0.22)', glow: 'rgba(176, 82, 39, 0.22)', swatch: 'linear-gradient(135deg, rgba(64, 17, 12, 0.98), rgba(189, 74, 34, 0.9), rgba(255, 174, 107, 0.92))', description: 'Burnt orange trim unlocked from heavy chat activity.' },
+{ id: 'vault', label: 'Vault Gold', accent: '#f6c453', soft: 'rgba(246, 196, 83, 0.22)', glow: 'rgba(147, 100, 18, 0.24)', swatch: 'linear-gradient(135deg, rgba(61, 39, 8, 0.98), rgba(196, 144, 30, 0.92), rgba(255, 236, 179, 0.94))', description: 'High-roller gold trim for stronger casino pulls.' },
+{ id: 'neon', label: 'Neon Circuit', accent: '#7cffd2', soft: 'rgba(124, 255, 210, 0.22)', glow: 'rgba(39, 153, 126, 0.22)', swatch: 'linear-gradient(135deg, rgba(10, 40, 35, 0.98), rgba(25, 148, 120, 0.92), rgba(193, 255, 240, 0.94))', description: 'Sharp mint glow for collectors and grinders.' }
+];
+const GAME_FEATURED_SCORES = {
+Slope: 10,
+'Tung Tung Sahur': 7,
+Wikirace: 8,
+'Escape Road': 9,
+'Escape Road 2': 8,
+Duck: 7,
+Minecraft: 10,
+worldguessr: 8,
+'Infinite Craft': 9,
+'2v2.io': 7,
+'FNAF Launcher': 6,
+Yoked: 6,
+'Getting Over It': 8,
+'Buckshot Roulette': 9,
+'Bendy': 8,
+Brotato: 9,
+Hope: 6,
+Forest: 5,
+Lucid: 5,
+Beanweb: 5,
+Zombie: 8,
+Calcslover: 4,
+MathGPT: 4,
+'Youtube (Unblock All Videos)': 8
+};
+const GAME_METADATA_FALLBACK = {
+'Getting Over It': { createdAtMs: Date.UTC(2026, 2, 31) },
+'Buckshot Roulette': { createdAtMs: Date.UTC(2026, 2, 31) },
+'Bendy': { createdAtMs: Date.UTC(2026, 2, 31) }
+};
+const GAME_NEW_BADGE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+let communityGameSubmissionsCache = [];
+let communitySubmissionsUnsub = null;
+let caseSuggestionsCache = [];
+let caseSuggestionsUnsub = null;
+let caseSuggestionDraftDropSeed = 0;
+let caseSuggestionDraftDrops = [];
+let builtInGameMetadataCache = {};
+let builtInGameMetadataUnsub = null;
+let gameSubmissionsLoaded = false;
+let gameSubmissionsLoading = false;
+let caseSuggestionsLoaded = false;
+let caseSuggestionsLoading = false;
+let loginRequestsCache = [];
+let loginRequestsUnsub = null;
+let loginRequestsLoaded = false;
+let loginRequestsLoading = false;
+let reviewQueueFilters = {
+games: { search: '', status: 'all' },
+cases: { search: '', status: 'all' },
+logins: { search: '', status: 'all' }
+};
+let adminAccountFilters = {
+search: '',
+source: 'all'
+};
+let adminArchiveExpandedSessionId = '';
+let adminArchiveMessagesCache = {};
+let adminAccountManagerCache = [];
+let adminAccountManagerWarnings = [];
+let activeRoomModerationId = '';
+let siteActivityUnsub = null;
+let siteActivityCache = [];
+let casinoActivityUnsub = null;
+let casinoActivityCache = [];
+let casinoCoinFlipUnsub = null;
+let casinoCoinFlipCache = [];
+let casinoGameSettingsLoadPromise = null;
+let casinoGameSettingsCache = null;
+let casinoTransferUsersCache = [];
+let casinoTransferUsersLoadPromise = null;
+let casinoTransferUsersLoaded = false;
+let casinoLeaderboardView = 'balance';
+let generalShopCache = [];
+let generalShopUnsub = null;
+let generalShopStatus = { message: '', tone: 'neutral' };
+let generalShopInventoryStatus = { message: '', tone: 'neutral' };
+let generalShopInventoryItemSort = 'owned';
+let activeGeneralShopEditId = '';
+let generalShopCaseOpenRequestInFlight = false;
+let generalShopCaseOpeningState = {
+caseId: '',
+caseTitle: '',
+reel: [],
+activeIndex: 0,
+rewardItemId: '',
+rewardTitle: '',
+rewardRarity: 'mil-spec',
+opening: false,
+completed: false,
+goldReveal: false,
+goldRevealStage: 0,
+revealActualReward: false
+};
+let profileBackgroundShopCache = [];
+let profileBackgroundShopUnsub = null;
+let profileBackgroundShopStatus = { message: '', tone: 'neutral' };
+let activeProfileBackgroundShopEditId = '';
+let pokerRoomUnsub = null;
+let pokerRoomCache = [];
+let currentPokerRoomId = '';
+let pokerState = null;
+let pokerTutorialExpanded = false;
+let rouletteVisualState = { selectedChoice: '', winningValue: null, activeValue: null, ballAngleDeg: -90, spinning: false };
+let coinFlipVisualState = createDefaultCasinoCoinFlipVisualState();
+let slotsVisualState = ['?', '?', '?'];
+let slotsSpinInProgress = false;
+let localNotificationCache = [];
+let localProfileCache = {};
+let userProfileCache = {};
+let casinoProfileStatsCache = {};
+let inventoryHistoryCache = [];
+let generalShopTradeCache = [];
+let generalShopTradeUnsub = null;
+let generalShopTradeLiveSnapshots = { incoming: [], outgoing: [] };
+let generalShopTradeListenerState = { key: '', incomingReady: false, outgoingReady: false, statuses: {} };
+let activeGeneralShopTradeInviteId = '';
+let activeGeneralShopTradeId = '';
+let generalShopTradeInvitePromptedIds = new Set();
+let generalShopTradeFinalizeInFlight = '';
+let generalShopTradeCountdownInterval = null;
+let inventoryHistoryUnsub = null;
+let activeSiteEventCache = null;
+let activeSiteEventUnsub = null;
+let currentPlayerHubTab = 'notifications';
+let currentChatThreadRootId = '';
+let currentChatThreadRoomId = 'general';
+let currentChatThreadMessages = [];
+let currentChatThreadLoading = false;
+let currentProfileEditorVisible = false;
+let profileModalBackgroundOnly = false;
+let pendingProfileAvatarData = null;
+let pendingProfileBannerData = null;
+let profileGifSearchTimer = null;
+let profileGifResults = [];
+let profileGifQuery = 'trending';
+let profileGifOffset = 0;
+let profileGifTotalCount = 0;
+let profileGifLoading = false;
+let activeGameSubmissionEditId = '';
+let storeFilters = {
+search: '',
+sort: 'featured',
+favoritesOnly: false
+};
+let pendingCreateRoomIconData = '';
+const UI_PREFS_STORAGE_KEY = 'uiPreferences';
+const ROOM_FAVORITES_STORAGE_KEY = 'roomFavorites';
+const CHAT_READ_STORAGE_KEY = 'chatReadMarkers';
+const GAME_RATINGS_STORAGE_KEY = 'gameRatings';
+const GAME_REPORTS_COLLECTION = 'game_reports';
+const UX_WHATS_NEW_VERSION = '2026-04-03';
+const UX_WHATS_NEW_ITEMS = [
+'A persistent what\'s new panel and detailed notes view now make recent site changes easier to review.',
+'Store browsing now includes density and accent preferences, a visible favorites-only toggle, personal ratings, and broken-game reporting.',
+'Chat now supports docking, manual resize, formatting shortcuts, unread separators, and clearer jump-to-latest behavior.',
+'Private rooms now support favorites, invite codes, room icons, searchable member selection, and richer moderation controls.',
+'Profiles, review queues, and thumbnail polls were expanded with banners, compare tools, rejection reasons, bulk actions, and visible voter lists.'
+];
+let updateNotesUpdatedAtCache = null;
+let updateNotesUpdatedByCache = '';
+let uiPreferences = {
+density: 'default',
+accent: '#4f83ff',
+dismissedWhatsNewVersion: '',
+chatDock: 'right'
+};
+let roomFavorites = new Set();
+let roomReadMarkers = {};
+let gameRatings = {};
+let currentBrokenGameReportId = '';
+let createRoomMemberSelection = [];
+let confirmActionHandler = null;
+let adminTextModalHandler = null;
+let reviewActionState = null;
+let chatEditCountdownInterval = null;
+let chatPendingNewMessageCount = 0;
+let activeGameId = '';
+let roomAuditPreviewCache = {};
+let selectedGameSubmissionIds = new Set();
+let selectedLoginRequestIds = new Set();
+
+function getKnownUsernames() {
+const usernames = new Set();
+Object.keys(roleCache || {}).forEach((key) => usernames.add(normalizeUsername(key)));
+Object.keys(userTagCache || {}).forEach((key) => usernames.add(normalizeUsername(key)));
+Object.keys(userProfileCache || {}).forEach((key) => usernames.add(normalizeUsername(key)));
+Object.keys(localProfileCache || {}).forEach((key) => usernames.add(normalizeUsername(key)));
+Object.keys(getStatsStore() || {}).forEach((key) => usernames.add(normalizeUsername(key)));
+loginRequestsCache.forEach((entry) => usernames.add(normalizeUsername(entry && entry.username)));
+adminAccountManagerCache.forEach((entry) => usernames.add(normalizeUsername(entry && entry.username)));
+communityGameSubmissionsCache.forEach((entry) => usernames.add(normalizeUsername(entry && entry.submittedBy)));
+if (currentChatUser) usernames.add(normalizeUsername(currentChatUser));
+return Array.from(usernames).filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+function loadUiPreferences() {
+const stored = readJsonStorage(UI_PREFS_STORAGE_KEY, null);
+if (stored && typeof stored === 'object') {
+uiPreferences = {
+...uiPreferences,
+density: ['compact', 'default', 'large'].includes(stored.density) ? stored.density : 'default',
+accent: /^#[0-9a-fA-F]{6}$/.test(stored.accent || '') ? stored.accent : '#4f83ff',
+dismissedWhatsNewVersion: String(stored.dismissedWhatsNewVersion || ''),
+chatDock: stored.chatDock === 'left' ? 'left' : 'right'
+};
+}
+}
+
+function saveUiPreferences() {
+writeJsonStorage(UI_PREFS_STORAGE_KEY, uiPreferences);
+}
+
+function applyUiPreferences() {
+document.body.dataset.uiDensity = uiPreferences.density || 'default';
+document.body.style.setProperty('--site-accent', uiPreferences.accent || '#4f83ff');
+const densitySelect = document.getElementById('ui-density-select');
+const accentInput = document.getElementById('site-accent-input');
+if (densitySelect) densitySelect.value = uiPreferences.density || 'default';
+if (accentInput) accentInput.value = uiPreferences.accent || '#4f83ff';
+applyChatDockPreference();
+}
+
+function updateUiDensity(value) {
+uiPreferences.density = ['compact', 'default', 'large'].includes(value) ? value : 'default';
+saveUiPreferences();
+applyUiPreferences();
+}
+
+function updateSiteAccent(value) {
+if (!/^#[0-9a-fA-F]{6}$/.test(value || '')) return;
+uiPreferences.accent = value;
+saveUiPreferences();
+applyUiPreferences();
+}
+
+function dismissWhatsNewPanel() {
+uiPreferences.dismissedWhatsNewVersion = UX_WHATS_NEW_VERSION;
+saveUiPreferences();
+renderWhatsNewPanel();
+}
+
+function renderWhatsNewPanel() {
+const panel = document.getElementById('whats-new-panel');
+const subtitle = document.getElementById('whats-new-subtitle');
+const list = document.getElementById('whats-new-list');
+if (!panel || !subtitle || !list) return;
+const visible = uiPreferences.dismissedWhatsNewVersion !== UX_WHATS_NEW_VERSION;
+const items = normalizeUpdateNotesList(updateNotesCache).length ? normalizeUpdateNotesList(updateNotesCache) : UX_WHATS_NEW_ITEMS;
+panel.classList.toggle('is-visible', visible);
+subtitle.textContent = `Updated ${(updateNotesUpdatedAtCache instanceof Date ? updateNotesUpdatedAtCache : new Date('2026-04-02')).toLocaleDateString()} • stays visible until you dismiss it.`;
+list.innerHTML = items.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+}
+
+function loadRoomFavorites() {
+roomFavorites = new Set((readJsonStorage(ROOM_FAVORITES_STORAGE_KEY, []) || []).map(normalizeUsername).filter(Boolean));
+}
+
+function saveRoomFavorites() {
+writeJsonStorage(ROOM_FAVORITES_STORAGE_KEY, Array.from(roomFavorites));
+}
+
+function loadRoomReadMarkers() {
+roomReadMarkers = readJsonStorage(CHAT_READ_STORAGE_KEY, {}) || {};
+}
+
+function saveRoomReadMarkers() {
+writeJsonStorage(CHAT_READ_STORAGE_KEY, roomReadMarkers || {});
+}
+
+function markCurrentRoomRead(markerMs = Date.now()) {
+const roomId = normalizeUsername(currentChatRoom || 'general') || 'general';
+roomReadMarkers[roomId] = Math.max(Number(roomReadMarkers[roomId] || 0), Number(markerMs || Date.now()));
+chatPendingNewMessageCount = 0;
+saveRoomReadMarkers();
+updateOlderChatsButton(false);
+}
+
+function loadGameRatings() {
+gameRatings = readJsonStorage(GAME_RATINGS_STORAGE_KEY, {}) || {};
+}
+
+function saveGameRatings() {
+writeJsonStorage(GAME_RATINGS_STORAGE_KEY, gameRatings || {});
+}
+
+function getGameRating(gameId) {
+return sanitizeNullableText(gameRatings[gameId], '');
+}
+
+function setGameRating(gameId, rating) {
+if (!gameId) return;
+if (rating !== 'up' && rating !== 'down') {
+delete gameRatings[gameId];
+} else if (gameRatings[gameId] === rating) {
+delete gameRatings[gameId];
+} else {
+gameRatings[gameId] = rating;
+}
+saveGameRatings();
+pushNotification({ type: 'game', title: 'Rating saved', body: 'Your game rating was updated.', read: false });
+renderGameStorefront();
+}
+
+function openBrokenGameReportModal(gameId = '') {
+const game = getStoreGameById(gameId || activeGameId || '');
+const title = document.getElementById('broken-game-report-title');
+const subtle = document.getElementById('broken-game-report-subtle');
+const input = document.getElementById('broken-game-report-reason');
+const status = document.getElementById('broken-game-report-status');
+currentBrokenGameReportId = game ? game.id : '';
+if (title) title.textContent = game ? `Report ${game.name}` : 'Report Broken Game';
+if (subtle) subtle.textContent = game ? `${game.name} will be flagged for staff review.` : 'Let staff know what failed so they can fix or remove the game.';
+if (input) input.value = '';
+if (status) status.textContent = '';
+openModalById('broken-game-report-modal');
+}
+
+function closeBrokenGameReportModal() {
+currentBrokenGameReportId = '';
+closeModalById('broken-game-report-modal');
+}
+
+async function submitBrokenGameReport() {
+const game = getStoreGameById(currentBrokenGameReportId || '');
+const input = document.getElementById('broken-game-report-reason');
+const status = document.getElementById('broken-game-report-status');
+const reason = sanitizeNullableText(input && input.value, '').slice(0, 320);
+if (!game) {
+if (status) status.textContent = 'Could not find that game.';
+return;
+}
+if (!reason) {
+if (status) status.textContent = 'Describe what broke before sending the report.';
+return;
+}
+try {
+await getAdminDb().collection(GAME_REPORTS_COLLECTION).add({
+gameId: game.id,
+gameName: game.name,
+reason,
+reportedBy: normalizeUsername(currentChatUser || getUserName() || 'guest'),
+reportedByName: currentChatUser || getUserName() || 'guest',
+reportedAtMs: Date.now(),
+reportedAt: firebase.firestore.FieldValue.serverTimestamp(),
+status: 'pending'
+});
+if (status) status.textContent = 'Broken game report sent.';
+pushNotification({ type: 'game', title: 'Broken game reported', body: `${game.name} was sent to staff review.`, read: false });
+} catch (err) {
+if (status) status.textContent = 'Failed to send the broken game report.';
+}
+}
+
+function openJoinRoomInviteModal() {
+const input = document.getElementById('join-room-invite-code');
+const status = document.getElementById('join-room-invite-status');
+if (input) input.value = '';
+if (status) status.textContent = '';
+openModalById('join-room-invite-modal');
+}
+
+function closeJoinRoomInviteModal() {
+closeModalById('join-room-invite-modal');
+}
+
+function closeConfirmActionModal() {
+confirmActionHandler = null;
+closeModalById('confirm-action-modal');
+}
+
+function openConfirmActionModal(title, body, handler, confirmLabel = 'Confirm') {
+const titleEl = document.getElementById('confirm-action-title');
+const bodyEl = document.getElementById('confirm-action-body');
+const button = document.getElementById('confirm-action-submit');
+const status = document.getElementById('confirm-action-status');
+confirmActionHandler = typeof handler === 'function' ? handler : null;
+if (titleEl) titleEl.textContent = title;
+if (bodyEl) bodyEl.textContent = body;
+if (button) button.textContent = confirmLabel;
+if (status) status.textContent = '';
+openModalById('confirm-action-modal');
+}
+
+async function submitConfirmActionModal() {
+if (!confirmActionHandler) return;
+const status = document.getElementById('confirm-action-status');
+try {
+await confirmActionHandler();
+closeConfirmActionModal();
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Action failed.';
+}
+}
+
+function closeAdminTextModal() {
+adminTextModalHandler = null;
+closeModalById('admin-text-modal');
+}
+
+function openAdminTextModal(config) {
+const title = document.getElementById('admin-text-modal-title');
+const subtle = document.getElementById('admin-text-modal-subtle');
+const label = document.getElementById('admin-text-modal-label');
+const input = document.getElementById('admin-text-modal-input');
+const button = document.getElementById('admin-text-modal-submit');
+const status = document.getElementById('admin-text-modal-status');
+adminTextModalHandler = config && typeof config.onSubmit === 'function' ? config.onSubmit : null;
+if (title) title.textContent = config && config.title ? config.title : 'Admin Action';
+if (subtle) subtle.textContent = config && config.subtitle ? config.subtitle : '';
+if (label) label.textContent = config && config.label ? config.label : 'Value';
+if (input) input.value = config && config.initialValue ? config.initialValue : '';
+if (button) button.textContent = config && config.submitLabel ? config.submitLabel : 'Save';
+if (status) status.textContent = '';
+openModalById('admin-text-modal');
+}
+
+async function submitAdminTextModal() {
+const input = document.getElementById('admin-text-modal-input');
+const status = document.getElementById('admin-text-modal-status');
+if (!adminTextModalHandler || !input) return;
+try {
+await adminTextModalHandler(String(input.value || ''));
+closeAdminTextModal();
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Could not save that value.';
+}
+}
+
+function closeReviewActionModal() {
+reviewActionState = null;
+closeModalById('review-action-modal');
+}
+
+function openReviewActionModal(config) {
+const title = document.getElementById('review-action-title');
+const subtle = document.getElementById('review-action-subtle');
+const reason = document.getElementById('review-action-reason');
+const button = document.getElementById('review-action-submit');
+const status = document.getElementById('review-action-status');
+reviewActionState = config || null;
+if (title) title.textContent = config && config.title ? config.title : 'Review Item';
+if (subtle) subtle.textContent = config && config.subtitle ? config.subtitle : '';
+if (reason) reason.value = config && config.initialReason ? config.initialReason : '';
+if (button) button.textContent = config && config.submitLabel ? config.submitLabel : 'Save';
+if (status) status.textContent = '';
+openModalById('review-action-modal');
+}
+
+async function submitReviewActionModal() {
+const reason = document.getElementById('review-action-reason');
+const status = document.getElementById('review-action-status');
+if (!reviewActionState || typeof reviewActionState.onSubmit !== 'function') return;
+try {
+await reviewActionState.onSubmit(sanitizeNullableText(reason && reason.value, '').slice(0, 320));
+closeReviewActionModal();
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Review action failed.';
+}
+}
+
+function readJsonStorage(key, fallback) {
+try {
+const raw = JSON.parse(localStorage.getItem(key) || 'null');
+return raw == null ? fallback : raw;
+} catch (_) {
+return fallback;
+}
+}
+
+function writeJsonStorage(key, value) {
+localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getFavoriteGameIds() {
+const raw = readJsonStorage(GAME_FAVORITES_STORAGE_KEY, []);
+return new Set((Array.isArray(raw) ? raw : []).map((item) => String(item || '')));
+}
+
+function saveFavoriteGameIds(ids) {
+writeJsonStorage(GAME_FAVORITES_STORAGE_KEY, Array.from(ids));
+}
+
+function getRecentGameEntries() {
+const raw = readJsonStorage(GAME_RECENTS_STORAGE_KEY, []);
+return Array.isArray(raw) ? raw.filter((item) => item && typeof item.gameId === 'string') : [];
+}
+
+function saveRecentGameEntries(entries) {
+writeJsonStorage(GAME_RECENTS_STORAGE_KEY, entries.slice(0, 12));
+}
+
+function getGameOpenCounts() {
+const raw = readJsonStorage(GAME_OPEN_COUNTS_STORAGE_KEY, {});
+return raw && typeof raw === 'object' ? raw : {};
+}
+
+function saveGameOpenCounts(counts) {
+writeJsonStorage(GAME_OPEN_COUNTS_STORAGE_KEY, counts);
+}
+
+function loadStoreFilters() {
+const stored = readJsonStorage(STORE_FILTERS_STORAGE_KEY, null);
+if (stored && typeof stored === 'object') {
+storeFilters = {
+search: String(stored.search || ''),
+sort: String(stored.sort || 'featured'),
+favoritesOnly: !!stored.favoritesOnly
+};
+}
+}
+
+function saveStoreFilters() {
+writeJsonStorage(STORE_FILTERS_STORAGE_KEY, storeFilters);
+}
+
+function getLocalNotifications() {
+const raw = readJsonStorage(NOTIFICATION_STORAGE_KEY, []);
+return Array.isArray(raw) ? raw : [];
+}
+
+function saveLocalNotifications() {
+writeJsonStorage(NOTIFICATION_STORAGE_KEY, localNotificationCache.slice(0, MAX_LOCAL_NOTIFICATIONS));
+}
+
+function getLocalActivityItems() {
+const raw = readJsonStorage(LOCAL_ACTIVITY_STORAGE_KEY, []);
+return Array.isArray(raw) ? raw : [];
+}
+
+function saveLocalActivityItems(items) {
+writeJsonStorage(LOCAL_ACTIVITY_STORAGE_KEY, items.slice(0, MAX_ACTIVITY_ITEMS));
+}
+
+function getLocalProfileStore() {
+const raw = readJsonStorage(LOCAL_PROFILE_STORAGE_KEY, {});
+return raw && typeof raw === 'object' ? raw : {};
+}
+
+function saveLocalProfileStore(store) {
+writeJsonStorage(LOCAL_PROFILE_STORAGE_KEY, store);
+}
+
+function normalizeBuiltInGameMetadata(data) {
+const source = data || {};
+return {
+featured: typeof source.featured === 'number' ? source.featured : null,
+description: typeof source.description === 'string' ? source.description.trim() : '',
+createdAtMs: source.createdAt && typeof source.createdAt.toDate === 'function' ? source.createdAt.toDate().getTime() : (typeof source.createdAtMs === 'number' ? source.createdAtMs : 0),
+newUntilMs: source.newUntil && typeof source.newUntil.toDate === 'function' ? source.newUntil.toDate().getTime() : (typeof source.newUntilMs === 'number' ? source.newUntilMs : 0)
+};
+}
+
+function getBuiltInGameMetadataKey(game) {
+if (!game) return '';
+return normalizeRoomId(game.name || game.id || '');
+}
+
+function getBuiltInGameMetadata(game) {
+const key = getBuiltInGameMetadataKey(game);
+return key ? (builtInGameMetadataCache[key] || null) : null;
+}
+
+function getGameMetadata(game) {
+if (!game) return { featured: 0 };
+const serverMeta = getBuiltInGameMetadata(game) || {};
+const fallbackMeta = GAME_METADATA_FALLBACK[game.name] || {};
+return {
+featured: typeof game.featured === 'number' ? game.featured : (typeof serverMeta.featured === 'number' ? serverMeta.featured : (GAME_FEATURED_SCORES[game.name] || 0)),
+description: typeof game.description === 'string' && game.description.trim() ? game.description.trim() : (serverMeta.description || ''),
+createdAtMs: typeof game.createdAtMs === 'number' && game.createdAtMs > 0 ? game.createdAtMs : (serverMeta.createdAtMs || fallbackMeta.createdAtMs || 0),
+newUntilMs: typeof game.newUntilMs === 'number' && game.newUntilMs > 0 ? game.newUntilMs : (serverMeta.newUntilMs || fallbackMeta.newUntilMs || 0)
+};
+}
+
+function isGameRecentlyAdded(game) {
+if (!game) return false;
+if (typeof game.newUntilMs === 'number' && game.newUntilMs > 0) {
+return Date.now() <= game.newUntilMs;
+}
+if (typeof game.createdAtMs !== 'number' || game.createdAtMs <= 0) return false;
+return (Date.now() - game.createdAtMs) <= GAME_NEW_BADGE_WINDOW_MS;
+}
+
+function getStoreGames() {
+const builtIn = getPlayableGames().map((game) => {
+const meta = getGameMetadata(game);
+return {
+...game,
+source: 'builtin',
+description: meta.description || getGameSummary(game),
+featured: meta.featured,
+createdAtMs: meta.createdAtMs,
+newUntilMs: meta.newUntilMs,
+submitter: ''
+};
+});
+const community = communityGameSubmissionsCache
+  .filter((item) => item && item.status === 'approved' && item.url && item.title)
+  .map((item) => {
+    const id = normalizeRoomId(item.id || `${item.title}-${item.submittedBy || 'community'}`);
+    const game = {
+      id: `community-${id}`,
+      submissionId: item.id,
+      index: null,
+      name: String(item.title || '').trim(),
+      url: String(item.url || '').trim(),
+      description: String(item.description || 'Launch instantly from your library.').trim(),
+      featured: 3,
+      source: 'community',
+      submitter: sanitizeNullableText(item.submittedByName || item.submittedBy, 'community'),
+      createdAtMs: item.approvedAtMs || item.submittedAtMs || 0
+    };
+    const meta = getGameMetadata(game);
+    return { ...game, featured: meta.featured };
+  });
+return [...builtIn, ...community];
+}
+
+function getStoreGameById(gameId) {
+return getStoreGames().find((game) => game.id === gameId) || null;
+}
+
+function getGameSubtitle(game) {
+if (!game) return '';
+return 'Ready to launch';
+}
+
+function getMyProfileKey() {
+return normalizeUsername(currentChatUser || getUserName() || '');
+}
+
+function getProfileDefaults(username) {
+return {
+bio: '',
+statusQuote: '',
+profileTitle: '',
+profileAccentId: '',
+avatarData: '',
+bannerData: '',
+favoriteGameId: '',
+favoriteGameName: '',
+joinLabel: new Date().toLocaleDateString(),
+updatedAtMs: 0,
+createdAtMs: Date.now(),
+username: normalizeUsername(username)
+};
+}
+
+const DEFAULT_PROFILE_BANNER = 'linear-gradient(135deg, #1d2f4b 0%, #111925 100%)';
+
+function sanitizeProfileAvatar(value) {
+const avatar = typeof value === 'string' ? value.trim() : '';
+if (!avatar) return '';
+if (/^data:image\/(gif|png|jpe?g|webp);base64,/i.test(avatar)) return avatar;
+if (isValidReactionImageUrl(avatar) && isDirectImageUrl(avatar)) return avatar;
+return '';
+}
+
+function sanitizeProfileBanner(value) {
+const banner = typeof value === 'string' ? value.trim() : '';
+if (!banner) return '';
+if (/^data:image\/(gif|png|jpe?g|webp);base64,/i.test(banner)) return banner;
+if (isValidReactionImageUrl(banner) && isDirectImageUrl(banner)) return banner;
+if (/^(linear-gradient|radial-gradient|repeating-linear-gradient|repeating-radial-gradient)\(/i.test(banner)) return banner.slice(0, 240);
+if (/^(#[0-9a-f]{3,8}|rgba?\([^)]{1,120}\)|hsla?\([^)]{1,120}\)|[a-z]{3,20})$/i.test(banner)) return banner.slice(0, 120);
+return '';
+}
+
+function isProfileBannerMedia(value) {
+const banner = sanitizeProfileBanner(value);
+return !!banner && (/^data:image\//i.test(banner) || (isValidReactionImageUrl(banner) && isDirectImageUrl(banner)));
+}
+
+function escapeCssUrl(url) {
+return String(url || '').replace(/\\/g, '/').replace(/"/g, '%22').replace(/'/g, '%27').replace(/[\r\n]/g, '');
+}
+
+function getProfileBannerBackground(value) {
+const banner = sanitizeProfileBanner(value);
+if (!banner) return DEFAULT_PROFILE_BANNER;
+if (isProfileBannerMedia(banner)) {
+  return `linear-gradient(180deg, rgba(8, 12, 18, 0.16) 0%, rgba(8, 12, 18, 0.55) 68%, rgba(8, 12, 18, 0.82) 100%), url('${escapeCssUrl(banner)}')`;
+}
+return banner;
+}
+
+function applyProfileBannerBackground(element, bannerValue, emptyElement = null, emptyText = 'No banner selected') {
+if (!element) return;
+const banner = sanitizeProfileBanner(bannerValue);
+const mediaBanner = isProfileBannerMedia(banner);
+const isEmpty = !banner;
+element.classList.toggle('is-empty', isEmpty);
+element.style.background = isEmpty ? DEFAULT_PROFILE_BANNER : getProfileBannerBackground(banner);
+element.style.backgroundSize = mediaBanner ? '100% 100%' : '';
+element.style.backgroundPosition = mediaBanner ? 'center' : '';
+element.style.backgroundRepeat = mediaBanner ? 'no-repeat' : '';
+if (emptyElement) {
+  emptyElement.textContent = emptyText;
+  emptyElement.style.display = isEmpty ? 'flex' : 'none';
+}
+}
+
+const DEFAULT_PROFILE_MODAL_BACKGROUND = 'linear-gradient(180deg, #222 0%, #171c24 100%)';
+
+function normalizeGeneralShopItemType(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'case') return 'case';
+  if (raw === 'shop-item' || raw === 'shopitem' || raw === 'shop') return 'shop-item';
+  if (raw === 'case-drop' || raw === 'casedrop' || raw === 'collectible') return 'case-drop';
+  return 'case-drop';
+}
+
+function normalizeGeneralShopRarity(value) {
+  const raw = normalizeRoomId(value || 'mil-spec');
+  return GENERAL_SHOP_RARITY_CONFIG.some((entry) => entry.id === raw) ? raw : 'mil-spec';
+}
+
+function normalizeOptionalGeneralShopRarity(value) {
+  const raw = normalizeRoomId(value || '');
+  return GENERAL_SHOP_RARITY_CONFIG.some((entry) => entry.id === raw) ? raw : '';
+}
+
+function normalizeCaseSuggestionEntries(value) {
+  const lines = Array.isArray(value) ? value : String(value || '').split(/\r?\n/);
+  const seen = new Set();
+  const next = [];
+  lines.forEach((entry) => {
+    const label = sanitizeNullableText(entry, '').slice(0, 60);
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    next.push(label);
+  });
+  return next.slice(0, 24);
+}
+
+function normalizeCaseSuggestionImages(value) {
+  const lines = Array.isArray(value) ? value : String(value || '').split(/\r?\n/);
+  const seen = new Set();
+  const next = [];
+  lines.forEach((entry) => {
+    const visual = sanitizeProfileBanner(entry);
+    if (!visual || !isProfileBannerMedia(visual)) return;
+    if (seen.has(visual)) return;
+    seen.add(visual);
+    next.push(visual);
+  });
+  return next.slice(0, 12);
+}
+
+function normalizeCaseSuggestionData(id, data = {}) {
+  const legacyRaritySuggestions = {};
+  const legacyRarityImages = {};
+  GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+    const raw = data.raritySuggestions && typeof data.raritySuggestions === 'object'
+      ? data.raritySuggestions[entry.id]
+      : [];
+    legacyRaritySuggestions[entry.id] = normalizeCaseSuggestionEntries(raw);
+    const rawImages = data.rarityImages && typeof data.rarityImages === 'object'
+      ? data.rarityImages[entry.id]
+      : [];
+    legacyRarityImages[entry.id] = normalizeCaseSuggestionImages(rawImages);
+  });
+  const dropItems = normalizeCaseSuggestionDropItems(data.dropItems, legacyRaritySuggestions, legacyRarityImages);
+  const raritySuggestions = {};
+  const rarityImages = {};
+  GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+    raritySuggestions[entry.id] = [];
+    rarityImages[entry.id] = [];
+  });
+  dropItems.forEach((item) => {
+    const rarityId = normalizeGeneralShopRarity(item.rarity);
+    if (item.name) raritySuggestions[rarityId].push(item.name);
+    rarityImages[rarityId] = normalizeCaseSuggestionImages([...(rarityImages[rarityId] || []), ...normalizeCaseSuggestionImages(item.images || [])]);
+  });
+  return {
+    id: sanitizeNullableText(id, ''),
+    caseName: sanitizeNullableText(data.caseName || data.title, 'Untitled Case').slice(0, 40),
+    theme: sanitizeNullableText(data.theme || data.description, '').slice(0, 120),
+    notes: sanitizeNullableText(data.notes, '').slice(0, 220),
+    submittedBy: sanitizeNullableText(data.submittedBy, 'guest'),
+    submittedByName: sanitizeNullableText(data.submittedByName, data.submittedBy || 'guest'),
+    status: normalizeReviewStatus(data.status),
+    reviewReason: sanitizeNullableText(data.reviewReason, '').slice(0, 220),
+    reviewedBy: sanitizeNullableText(data.reviewedBy, ''),
+    dropItems,
+    raritySuggestions,
+    rarityImages,
+    generatedCaseId: normalizeOptionalGeneralShopItemId(data.generatedCaseId || ''),
+    generatedDropIds: Array.isArray(data.generatedDropIds) ? data.generatedDropIds.map((itemId) => normalizeOptionalGeneralShopItemId(itemId)).filter(Boolean) : [],
+    submittedAtMs: data.submittedAt && typeof data.submittedAt.toDate === 'function' ? data.submittedAt.toDate().getTime() : Math.max(0, Number(data.submittedAtMs || 0)),
+    reviewedAtMs: data.reviewedAt && typeof data.reviewedAt.toDate === 'function' ? data.reviewedAt.toDate().getTime() : Math.max(0, Number(data.reviewedAtMs || 0))
+  };
+}
+
+function getDefaultCaseSuggestionVisualByRarity(rarity) {
+  const config = getGeneralShopRarityConfig(rarity);
+  return `linear-gradient(145deg, ${config.color} 0%, #111925 100%)`;
+}
+
+function createDefaultCaseSuggestionDrop(rarity = 'mil-spec', values = {}) {
+  caseSuggestionDraftDropSeed += 1;
+  return {
+    localId: caseSuggestionDraftDropSeed,
+    rarity: normalizeGeneralShopRarity(rarity),
+    name: sanitizeNullableText(values.name || values.title, '').slice(0, 80),
+    manualImagesText: Array.isArray(values.manualImagesText)
+      ? values.manualImagesText.join('\n')
+      : sanitizeNullableText(values.manualImagesText || values.imageUrls || '', '').slice(0, 4000),
+    uploadedImages: normalizeCaseSuggestionImages(values.uploadedImages || values.images || []),
+    statusMessage: sanitizeNullableText(values.statusMessage, '')
+  };
+}
+
+function buildDefaultCaseSuggestionDrops() {
+  return GENERAL_SHOP_RARITY_CONFIG.map((entry) => createDefaultCaseSuggestionDrop(entry.id));
+}
+
+function getCaseSuggestionDropRecord(localId) {
+  return caseSuggestionDraftDrops.find((entry) => entry.localId === Number(localId)) || null;
+}
+
+function getCaseSuggestionDropCombinedImages(drop) {
+  if (!drop) return [];
+  return normalizeCaseSuggestionImages([
+    ...String(drop.manualImagesText || '').split(/\r?\n/),
+    ...(Array.isArray(drop.uploadedImages) ? drop.uploadedImages : [])
+  ]);
+}
+
+function normalizeCaseSuggestionDropItems(value, fallbackSuggestions = {}, fallbackImages = {}) {
+  const next = [];
+  if (Array.isArray(value) && value.length) {
+    value.forEach((item) => {
+      const rarity = normalizeGeneralShopRarity(item && item.rarity);
+      const name = sanitizeNullableText(item && (item.name || item.title), '').slice(0, 80);
+      const images = normalizeCaseSuggestionImages(item && (item.images || item.imageUrls || item.visuals || item.visualData || []));
+      if (!name && !images.length) return;
+      next.push({ rarity, name, images });
+    });
+  }
+  if (next.length) return next.slice(0, 40);
+  GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+    const names = normalizeCaseSuggestionEntries(fallbackSuggestions[entry.id] || []);
+    const images = normalizeCaseSuggestionImages(fallbackImages[entry.id] || []);
+    names.forEach((name, index) => {
+      next.push({
+        rarity: entry.id,
+        name,
+        images: normalizeCaseSuggestionImages([images[index] || images[0] || ''])
+      });
+    });
+  });
+  return next.slice(0, 40);
+}
+
+function getCaseSuggestionDropPreviewVisual(drop) {
+  const images = getCaseSuggestionDropCombinedImages(drop);
+  return sanitizeProfileBanner(images[0] || getDefaultCaseSuggestionVisualByRarity(drop && drop.rarity));
+}
+
+function renderCaseSuggestionDropBuilder() {
+  const container = document.getElementById('case-suggestion-drop-builder');
+  if (!container) return;
+  if (!caseSuggestionDraftDrops.length) caseSuggestionDraftDrops = buildDefaultCaseSuggestionDrops();
+  container.innerHTML = caseSuggestionDraftDrops.map((drop) => {
+    const rarityConfig = getGeneralShopRarityConfig(drop.rarity);
+    const combinedImages = getCaseSuggestionDropCombinedImages(drop);
+    const previewVisual = getCaseSuggestionDropPreviewVisual(drop);
+    const canRemove = caseSuggestionDraftDrops.length > GENERAL_SHOP_RARITY_CONFIG.length;
+    const rarityOptions = GENERAL_SHOP_RARITY_CONFIG.map((entry) => `<option value="${escapeHtml(entry.id)}"${entry.id === drop.rarity ? ' selected' : ''}>${escapeHtml(entry.label)}</option>`).join('');
+    return `<div data-case-suggestion-drop-card="${drop.localId}" style="padding:0.75rem; border-radius:0.7rem; background:#151d28; border:1px solid rgba(255,255,255,0.08); box-shadow:0 12px 24px rgba(0,0,0,0.22); display:grid; gap:0.55rem;"><div style="position:relative; height:9.5rem; border-radius:0.65rem; border:2px solid ${escapeHtml(rarityConfig.color)}; overflow:hidden; ${getGeneralShopVisualStyleText(previewVisual)}; background-color:#0f1620; display:flex; align-items:flex-end; justify-content:flex-start;"><div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(0,0,0,0.28) 100%);"></div>${combinedImages.length ? '' : '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#d9e4f1; font-size:0.95rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Image</div>'}<div style="position:relative; z-index:1; margin:0.55rem; padding:0.22rem 0.45rem; border-radius:999px; background:rgba(0,0,0,0.62); color:#fff; font-size:0.72rem; font-weight:700;">${combinedImages.length ? `${combinedImages.length} photo${combinedImages.length === 1 ? '' : 's'}` : rarityConfig.label}</div></div><select onchange="updateCaseSuggestionDropField(${drop.localId}, 'rarity', this.value)" style="border-color:${escapeHtml(rarityConfig.color)};">${rarityOptions}</select><input type="text" maxlength="80" placeholder="Drop name" value="${escapeHtml(drop.name)}" oninput="updateCaseSuggestionDropField(${drop.localId}, 'name', this.value)" /><textarea rows="3" maxlength="4000" placeholder="Image URLs, one per line (optional)" onchange="updateCaseSuggestionDropField(${drop.localId}, 'manualImagesText', this.value)">${escapeHtml(drop.manualImagesText || '')}</textarea><div class="submission-actions" style="margin-top:0; justify-content:flex-start;"><input type="file" accept="image/*,.gif" multiple onchange="handleCaseSuggestionDropImagesSelected(${drop.localId}, event)" style="flex:1 1 12rem; min-width:0;" /><button type="button" onclick="clearCaseSuggestionDropImages(${drop.localId}, false)" style="padding:0.45rem 0.7rem; background:#37474f; color:#fff; border:none; border-radius:0.35rem;">Clear Photos</button>${canRemove ? `<button type="button" onclick="removeCaseSuggestionDrop(${drop.localId})" style="padding:0.45rem 0.7rem; background:#5d2323; color:#fff; border:none; border-radius:0.35rem;">Remove</button>` : ''}</div><div style="font-size:0.74rem; color:#9fb0c2; min-height:1.1rem;">${escapeHtml(drop.statusMessage || (combinedImages.length ? 'Preview updates from the first photo attached to this drop.' : 'Add a photo URL or upload files to show the image here.'))}</div></div>`;
+  }).join('');
+}
+
+function addCaseSuggestionDrop(rarity = 'mil-spec', values = {}) {
+  caseSuggestionDraftDrops.push(createDefaultCaseSuggestionDrop(rarity, values));
+  renderCaseSuggestionDropBuilder();
+}
+
+function updateCaseSuggestionDropField(localId, field, value) {
+  const drop = getCaseSuggestionDropRecord(localId);
+  if (!drop) return;
+  if (field === 'rarity') {
+    drop.rarity = normalizeGeneralShopRarity(value);
+  } else if (field === 'name') {
+    drop.name = sanitizeNullableText(value, '').slice(0, 80);
+  } else if (field === 'manualImagesText') {
+    drop.manualImagesText = sanitizeNullableText(value, '').slice(0, 4000);
+  }
+  if (field === 'rarity' || field === 'manualImagesText') renderCaseSuggestionDropBuilder();
+}
+
+function removeCaseSuggestionDrop(localId) {
+  caseSuggestionDraftDrops = caseSuggestionDraftDrops.filter((entry) => entry.localId !== Number(localId));
+  renderCaseSuggestionDropBuilder();
+}
+
+function clearCaseSuggestionDropImages(localId, resetManual = false) {
+  const drop = getCaseSuggestionDropRecord(localId);
+  if (!drop) return;
+  drop.uploadedImages = [];
+  if (resetManual) drop.manualImagesText = '';
+  drop.statusMessage = resetManual ? '' : 'Imported photos cleared. You can still paste URLs.';
+  renderCaseSuggestionDropBuilder();
+}
+
+async function handleCaseSuggestionDropImagesSelected(localId, event) {
+  const drop = getCaseSuggestionDropRecord(localId);
+  const input = event && event.target;
+  const files = Array.from(input && input.files ? input.files : []);
+  if (!files.length || !drop) return;
+  drop.statusMessage = 'Processing photos...';
+  renderCaseSuggestionDropBuilder();
+  try {
+    const encodedImages = [];
+    for (const file of files) {
+      const visual = sanitizeProfileBanner(await compressChatImage(file));
+      if (visual && isProfileBannerMedia(visual)) encodedImages.push(visual);
+    }
+    drop.uploadedImages = normalizeCaseSuggestionImages([...(drop.uploadedImages || []), ...encodedImages]);
+    drop.statusMessage = drop.uploadedImages.length ? `${drop.uploadedImages.length} uploaded photo${drop.uploadedImages.length === 1 ? '' : 's'} ready.` : '';
+  } catch (err) {
+    drop.statusMessage = err && err.message ? err.message : 'Could not use those files.';
+  } finally {
+    if (input) input.value = '';
+    renderCaseSuggestionDropBuilder();
+  }
+}
+
+function collectCaseSuggestionDropItems() {
+  return caseSuggestionDraftDrops.map((drop) => ({
+    rarity: normalizeGeneralShopRarity(drop.rarity),
+    name: sanitizeNullableText(drop.name, '').slice(0, 80),
+    images: getCaseSuggestionDropCombinedImages(drop)
+  })).filter((drop) => drop.name || drop.images.length);
+}
+
+function buildCaseSuggestionDropDescription(suggestion, rarityConfig) {
+  const baseTheme = sanitizeNullableText(suggestion.theme, 'Community case concept');
+  return `${rarityConfig.label} drop suggested for ${suggestion.caseName}. ${baseTheme}`.slice(0, 160);
+}
+
+function buildUniqueGeneralShopDraftId(baseValue, existingIds = new Set()) {
+  let nextId = normalizeOptionalGeneralShopItemId(baseValue);
+  if (!nextId) nextId = normalizeOptionalGeneralShopItemId(`draft-${Date.now()}`);
+  let suffix = 2;
+  while (!nextId || existingIds.has(nextId) || getGeneralShopItem(nextId)) {
+    nextId = normalizeOptionalGeneralShopItemId(`${baseValue}-${suffix}`);
+    suffix += 1;
+  }
+  existingIds.add(nextId);
+  return nextId;
+}
+
+async function autoConvertCaseSuggestionToDrafts(id) {
+  const suggestionDoc = await getCaseSuggestionsCollection().doc(id).get();
+  if (!suggestionDoc.exists) throw new Error('Case suggestion no longer exists.');
+  const suggestion = normalizeCaseSuggestionData(suggestionDoc.id, suggestionDoc.data() || {});
+  if (suggestion.generatedCaseId && suggestion.generatedDropIds.length) {
+    return { caseId: suggestion.generatedCaseId, dropIds: suggestion.generatedDropIds, suggestion };
+  }
+  const db = getCasinoDb();
+  const batch = db.batch();
+  const reservedIds = new Set();
+  const generatedDropIds = [];
+  const caseRewards = [];
+  const nowMs = Date.now();
+  suggestion.dropItems.forEach((dropItem) => {
+    const rarityConfig = getGeneralShopRarityConfig(dropItem.rarity);
+    if (!dropItem.name) return;
+      const itemId = buildUniqueGeneralShopDraftId(`${suggestion.caseName}-${rarityConfig.id}-${dropItem.name}`, reservedIds);
+      const visualData = sanitizeProfileBanner(((dropItem.images || [])[0]) || getDefaultCaseSuggestionVisualByRarity(rarityConfig.id));
+      const normalizedItem = normalizeGeneralShopItem(itemId, {
+        title: dropItem.name,
+        description: buildCaseSuggestionDropDescription(suggestion, rarityConfig),
+        price: 0,
+        itemType: 'case-drop',
+        rarity: rarityConfig.id,
+        visualData,
+        active: false,
+        createdAtMs: nowMs,
+        updatedAtMs: nowMs
+      });
+      batch.set(getGeneralShopCollection().doc(itemId), {
+        ...normalizedItem,
+        suggestedCaseId: suggestion.id,
+        updatedBy: currentChatUser || getUserName() || 'reviewer'
+      }, { merge: true });
+      generatedDropIds.push(itemId);
+      caseRewards.push({ itemId, rarity: rarityConfig.id });
+  });
+  const caseId = buildUniqueGeneralShopDraftId(`${suggestion.caseName}-case`, reservedIds);
+  const caseVisualData = sanitizeProfileBanner(
+    ((suggestion.rarityImages.special || [])[0])
+    || ((suggestion.rarityImages.covert || [])[0])
+    || ((suggestion.rarityImages.classified || [])[0])
+    || getDefaultCaseSuggestionVisualByRarity('special')
+  );
+  const normalizedCase = normalizeGeneralShopItem(caseId, {
+    title: suggestion.caseName,
+    description: sanitizeNullableText(suggestion.theme || suggestion.notes || 'Case suggestion converted from the review queue.', '').slice(0, 160),
+    price: 0,
+    itemType: 'case',
+    rarity: 'special',
+    caseRewards,
+    visualData: caseVisualData,
+    active: false,
+    createdAtMs: nowMs,
+    updatedAtMs: nowMs
+  });
+  batch.set(getGeneralShopCollection().doc(caseId), {
+    ...normalizedCase,
+    suggestedCaseId: suggestion.id,
+    updatedBy: currentChatUser || getUserName() || 'reviewer'
+  }, { merge: true });
+  await batch.commit();
+  await getCaseSuggestionsCollection().doc(id).set({
+    generatedCaseId: caseId,
+    generatedDropIds,
+    autoConvertedAtMs: nowMs,
+    autoConvertedBy: currentChatUser || getUserName() || 'reviewer'
+  }, { merge: true });
+  return { caseId, dropIds: generatedDropIds, suggestion: { ...suggestion, generatedCaseId: caseId, generatedDropIds } };
+}
+
+function getGeneralShopRarityConfig(rarity) {
+  return GENERAL_SHOP_RARITY_CONFIG.find((entry) => entry.id === normalizeGeneralShopRarity(rarity)) || GENERAL_SHOP_RARITY_CONFIG[0];
+}
+
+function getBuiltInGeneralShopItems() {
+  return [normalizeGeneralShopItem(GENERAL_SHOP_CASE_ODDS_BOOST_ITEM_ID, {
+    title: 'Crimson Fortune Charm',
+    description: 'Costs $10,000,000 and slightly boosts your chance of hitting red and gold case drops.',
+    price: 10000000,
+    visualData: 'linear-gradient(135deg, #35070d 0%, #8e0000 38%, #ef5350 66%, #f6c453 100%)',
+    itemType: 'shop-item',
+    rarity: 'special',
+    active: true,
+    createdAtMs: Date.UTC(2026, 3, 3),
+    updatedAtMs: Date.UTC(2026, 3, 3)
+  })];
+}
+
+function getAllGeneralShopItems() {
+  const merged = generalShopCache.slice();
+  getBuiltInGeneralShopItems().forEach((item) => {
+    if (!merged.some((existing) => existing.id === item.id)) {
+      merged.unshift(item);
+    }
+  });
+  return merged;
+}
+
+function hasGeneralShopCaseOddsBoost(stats) {
+  return sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds).includes(GENERAL_SHOP_CASE_ODDS_BOOST_ITEM_ID);
+}
+
+function getGeneralShopCaseOddsProfile(stats) {
+  const boostActive = hasGeneralShopCaseOddsBoost(stats);
+  return GENERAL_SHOP_RARITY_CONFIG.map((entry) => {
+    const multiplier = entry.id === 'covert'
+      ? (boostActive ? GENERAL_SHOP_CASE_ODDS_BOOST_COVERT_MULTIPLIER : 1)
+      : entry.id === 'special'
+        ? (boostActive ? GENERAL_SHOP_CASE_ODDS_BOOST_SPECIAL_MULTIPLIER : 1)
+        : 1;
+    return {
+      ...entry,
+      effectiveWeight: entry.chancePct * multiplier
+    };
+  });
+}
+
+function normalizeGeneralShopCaseRewards(rawRewards) {
+  const lines = Array.isArray(rawRewards)
+    ? rawRewards
+    : String(rawRewards || '').split(/\r?\n/);
+  const next = [];
+  const seen = new Set();
+  lines.forEach((entry) => {
+    const rawLine = typeof entry === 'string'
+      ? entry
+      : `${entry && entry.itemId ? entry.itemId : ''}|${entry && entry.rarity ? entry.rarity : ''}`;
+    const [rawItemId, rawRarity] = String(rawLine || '').split('|');
+    const itemId = normalizeOptionalGeneralShopItemId(rawItemId || '');
+    const rarity = normalizeOptionalGeneralShopRarity(rawRarity || (entry && entry.rarity) || '');
+    if (!itemId || seen.has(itemId)) return;
+    seen.add(itemId);
+    next.push({ itemId, rarity });
+  });
+  return next.slice(0, 120);
+}
+
+function formatGeneralShopCaseRewardsText(caseRewards) {
+  return normalizeGeneralShopCaseRewards(caseRewards)
+    .map((entry) => `${entry.itemId}${entry.rarity ? `|${entry.rarity}` : ''}`)
+    .join('\n');
+}
+
+function getOwnedGeneralShopCaseCounts(stats) {
+  return sanitizeOwnedGeneralShopCaseCounts(stats && stats.ownedGeneralShopCaseCounts);
+}
+
+function getOwnedGeneralShopCaseCount(stats, itemId) {
+  const caseId = normalizeOptionalGeneralShopItemId(itemId || '');
+  if (!caseId) return 0;
+  return Math.max(0, Number(getOwnedGeneralShopCaseCounts(stats)[caseId] || 0));
+}
+
+function getGeneralShopOddsSummaryText() {
+  return GENERAL_SHOP_RARITY_CONFIG.map((entry) => `${entry.shortLabel} ${entry.chancePct}%`).join(' • ');
+}
+
+function getGeneralShopOddsSummaryTextForStats(stats) {
+  const profile = getGeneralShopCaseOddsProfile(stats);
+  const totalWeight = profile.reduce((sum, entry) => sum + entry.effectiveWeight, 0) || 1;
+  const summary = profile.map((entry) => `${entry.shortLabel} ${((entry.effectiveWeight / totalWeight) * 100).toFixed(entry.id === 'special' ? 2 : 1)}%`).join(' • ');
+  return hasGeneralShopCaseOddsBoost(stats) ? `${summary} • Charm Active` : summary;
+}
+
+function normalizeGeneralShopItem(itemId, data = {}) {
+  const resolvedId = normalizeOptionalGeneralShopItemId(itemId || data.id || data.title || 'shop-item') || `shop-item-${Date.now()}`;
+  const visualData = sanitizeProfileBanner(data.visualData || data.visual || data.backgroundData || data.background || '');
+  return {
+    id: resolvedId,
+    title: sanitizeNullableText(data.title, 'Untitled Item').slice(0, 40),
+    description: sanitizeNullableText(data.description, '').slice(0, 160),
+    price: Math.max(0, Math.min(1000000000, Math.floor(Number(data.price) || 0))),
+    visualData,
+    itemType: normalizeGeneralShopItemType(data.itemType || data.type || 'case-drop'),
+    rarity: normalizeGeneralShopRarity(data.rarity || 'mil-spec'),
+    caseRewards: normalizeGeneralShopCaseRewards(data.caseRewards || data.caseItems || data.contents || []),
+    active: data.active !== false,
+    createdAtMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : Math.max(0, Number(data.createdAtMs || 0)),
+    updatedAtMs: data.updatedAt && typeof data.updatedAt.toDate === 'function' ? data.updatedAt.toDate().getTime() : Math.max(0, Number(data.updatedAtMs || 0))
+  };
+}
+
+function getGeneralShopItem(itemId) {
+  const key = normalizeOptionalGeneralShopItemId(itemId || '');
+  if (!key) return null;
+  return getAllGeneralShopItems().find((item) => item.id === key) || null;
+}
+
+function getRenderableGeneralShopItems(stats) {
+  const ownedIds = new Set(sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds));
+  const items = getAllGeneralShopItems().filter((item) => item && item.itemType === 'shop-item' && item.active);
+  getAllGeneralShopItems().forEach((item) => {
+    if (item && item.itemType === 'shop-item' && ownedIds.has(item.id) && !items.some((existing) => existing.id === item.id)) {
+      items.push(item);
+    }
+  });
+  return items.sort((a, b) => {
+    if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+    if (a.price !== b.price) return a.price - b.price;
+    return a.title.localeCompare(b.title);
+  });
+}
+
+function getOwnedGeneralShopItems(stats) {
+  return sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds)
+    .map((itemId) => getGeneralShopItem(itemId))
+    .filter((item) => item && item.itemType !== 'case');
+}
+
+function getOwnedGeneralShopItemEntries(stats) {
+  const itemIds = sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds);
+  const saleValues = sanitizeOwnedGeneralShopItemSaleValues(itemIds, stats && stats.ownedGeneralShopItemSaleValues);
+  return itemIds.map((itemId, index) => {
+    const item = getGeneralShopItem(itemId);
+    if (!item || item.itemType === 'case') return null;
+    const resolvedSaleValue = Math.max(0, Number(saleValues[index] || 0)) || getLegacyGeneralShopCaseDropSaleValue(item);
+    return {
+      itemId,
+      item,
+      saleValue: resolvedSaleValue
+    };
+  }).filter(Boolean);
+}
+
+function getMostValuableOwnedGeneralShopDropEntry(stats) {
+  return getOwnedGeneralShopItemEntries(stats).reduce((bestEntry, entry) => {
+    if (!entry || !entry.item || entry.item.itemType !== 'case-drop') return bestEntry;
+    if (!bestEntry) return entry;
+    const saleDelta = Math.max(0, Number(entry.saleValue || 0)) - Math.max(0, Number(bestEntry.saleValue || 0));
+    if (saleDelta !== 0) return saleDelta > 0 ? entry : bestEntry;
+    const rarityDelta = getGeneralShopRaritySortValue(entry.item.rarity) - getGeneralShopRaritySortValue(bestEntry.item.rarity);
+    if (rarityDelta !== 0) return rarityDelta > 0 ? entry : bestEntry;
+    return entry.item.title.localeCompare(bestEntry.item.title) < 0 ? entry : bestEntry;
+  }, null);
+}
+
+function getAllTimeBestGeneralShopDropRecord(stats) {
+  const itemId = normalizeOptionalGeneralShopItemId(stats && stats.allTimeBestGeneralShopDropItemId || '');
+  const item = getGeneralShopItem(itemId);
+  const title = sanitizeNullableText(stats && stats.allTimeBestGeneralShopDropTitle, item ? item.title : '').slice(0, 40);
+  const rarity = normalizeGeneralShopRarity(stats && stats.allTimeBestGeneralShopDropRarity || (item ? item.rarity : 'mil-spec'));
+  const value = Math.max(0, Number(stats && stats.allTimeBestGeneralShopDropValue || 0));
+  if (value > 0 && title) {
+    return {
+      itemId,
+      item,
+      title,
+      rarity,
+      value
+    };
+  }
+  const fallbackEntry = getMostValuableOwnedGeneralShopDropEntry(stats);
+  if (!fallbackEntry || !fallbackEntry.item) return null;
+  return {
+    itemId: fallbackEntry.itemId,
+    item: fallbackEntry.item,
+    title: fallbackEntry.item.title,
+    rarity: normalizeGeneralShopRarity(fallbackEntry.item.rarity),
+    value: Math.max(0, Number(fallbackEntry.saleValue || 0))
+  };
+}
+
+function getTotalOwnedGeneralShopInventoryValue(stats) {
+  const ownedEntries = getOwnedGeneralShopItemEntries(stats);
+  const caseCounts = getOwnedGeneralShopCaseCounts(stats);
+  const caseValue = getOwnedGeneralShopCases(stats).reduce((sum, caseItem) => {
+    const count = Math.max(0, Number(caseCounts[caseItem.id] || 0));
+    return sum + (count * Math.max(0, Number(caseItem.price || 0)));
+  }, 0);
+  const itemValue = ownedEntries.reduce((sum, entry) => {
+    if (!entry || !entry.item) return sum;
+    if (entry.item.itemType === 'case-drop') return sum + Math.max(0, Number(entry.saleValue || 0));
+    return sum + Math.max(0, Number(entry.item.price || 0));
+  }, 0);
+  return {
+    totalValue: Math.max(0, Math.floor(itemValue + caseValue)),
+    itemCount: ownedEntries.length,
+    caseCount: Object.values(caseCounts).reduce((sum, count) => sum + Math.max(0, Number(count || 0)), 0)
+  };
+}
+
+function getMostValuableGeneralShopInventoryAsset(stats) {
+  const ownedEntries = getOwnedGeneralShopItemEntries(stats);
+  const caseCounts = getOwnedGeneralShopCaseCounts(stats);
+  let bestAsset = null;
+  ownedEntries.forEach((entry) => {
+    if (!entry || !entry.item) return;
+    const assetValue = entry.item.itemType === 'case-drop'
+      ? Math.max(0, Number(entry.saleValue || 0))
+      : Math.max(0, Number(entry.item.price || 0));
+    const candidate = {
+      title: entry.item.title,
+      value: assetValue,
+      rarity: entry.item.rarity,
+      typeLabel: entry.item.itemType === 'case-drop' ? 'Drop' : 'Item'
+    };
+    if (!bestAsset || candidate.value > bestAsset.value || (candidate.value === bestAsset.value && candidate.title.localeCompare(bestAsset.title) < 0)) {
+      bestAsset = candidate;
+    }
+  });
+  getOwnedGeneralShopCases(stats).forEach((caseItem) => {
+    const count = Math.max(0, Number(caseCounts[caseItem.id] || 0));
+    const assetValue = Math.max(0, Number(caseItem.price || 0));
+    if (!count || assetValue <= 0) return;
+    const candidate = {
+      title: `${caseItem.title}${count > 1 ? ` x${count}` : ''}`,
+      value: assetValue,
+      rarity: 'mil-spec',
+      typeLabel: 'Case'
+    };
+    if (!bestAsset || candidate.value > bestAsset.value || (candidate.value === bestAsset.value && candidate.title.localeCompare(bestAsset.title) < 0)) {
+      bestAsset = candidate;
+    }
+  });
+  return bestAsset;
+}
+
+function getGeneralShopRaritySortValue(rarity) {
+  const index = GENERAL_SHOP_RARITY_CONFIG.findIndex((entry) => entry.id === normalizeGeneralShopRarity(rarity));
+  return index < 0 ? 0 : index;
+}
+
+function getSortedOwnedGeneralShopItemEntries(stats, sortMode = generalShopInventoryItemSort) {
+  const entries = getOwnedGeneralShopItemEntries(stats);
+  if (sortMode !== 'rarity') return entries;
+  return entries.slice().sort((a, b) => {
+    const rarityDelta = getGeneralShopRaritySortValue(b.item.rarity) - getGeneralShopRaritySortValue(a.item.rarity);
+    if (rarityDelta !== 0) return rarityDelta;
+    if (a.item.itemType !== b.item.itemType) return a.item.itemType === 'case-drop' ? -1 : 1;
+    return a.item.title.localeCompare(b.item.title);
+  });
+}
+
+function getSelectedGeneralShopFeaturedItem(stats) {
+  const itemId = normalizeOptionalGeneralShopItemId(stats && stats.selectedGeneralShopFeaturedItemId || '');
+  if (!itemId) return null;
+  if (!sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds).includes(itemId)) return null;
+  const item = getGeneralShopItem(itemId);
+  if (!item || item.itemType !== 'case-drop') return null;
+  return item;
+}
+
+function getRenderableGeneralShopCases(stats) {
+  const caseCounts = getOwnedGeneralShopCaseCounts(stats);
+  const items = getAllGeneralShopItems().filter((item) => item && item.itemType === 'case' && item.active);
+  getAllGeneralShopItems().forEach((item) => {
+    if (item && item.itemType === 'case' && caseCounts[item.id] > 0 && !items.some((existing) => existing.id === item.id)) {
+      items.push(item);
+    }
+  });
+  return items.sort((a, b) => {
+    if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+    if (a.price !== b.price) return a.price - b.price;
+    return a.title.localeCompare(b.title);
+  });
+}
+
+function getOwnedGeneralShopCases(stats) {
+  const caseCounts = getOwnedGeneralShopCaseCounts(stats);
+  return getRenderableGeneralShopCases(stats).filter((item) => caseCounts[item.id] > 0);
+}
+
+function getResolvedGeneralShopCaseRewards(caseItem) {
+  return normalizeGeneralShopCaseRewards(caseItem && caseItem.caseRewards).map((entry) => {
+    const item = getGeneralShopItem(entry.itemId);
+    if (!item || item.itemType !== 'case-drop') return null;
+    return {
+      itemId: item.id,
+      rarity: normalizeGeneralShopRarity(entry.rarity || item.rarity),
+      item
+    };
+  }).filter(Boolean);
+}
+
+function getGeneralShopCasePreviewData(caseItem) {
+  const rarityOrder = GENERAL_SHOP_RARITY_CONFIG.reduce((map, entry, index) => {
+    map[entry.id] = index;
+    return map;
+  }, {});
+  const uniqueVisibleRewards = [];
+  const seenIds = new Set();
+  let hasGoldReward = false;
+  getResolvedGeneralShopCaseRewards(caseItem).slice().sort((a, b) => {
+    const rarityDelta = (rarityOrder[a.rarity] ?? 0) - (rarityOrder[b.rarity] ?? 0);
+    if (rarityDelta !== 0) return rarityDelta;
+    return (a.item && a.item.title ? a.item.title : '').localeCompare(b.item && b.item.title ? b.item.title : '');
+  }).forEach((entry) => {
+    if (!entry || !entry.item) return;
+    if (entry.rarity === 'special') {
+      hasGoldReward = true;
+      return;
+    }
+    if (seenIds.has(entry.item.id)) return;
+    seenIds.add(entry.item.id);
+    uniqueVisibleRewards.push(entry);
+  });
+  return {
+    rewards: uniqueVisibleRewards.slice(0, 6),
+    extraCount: Math.max(0, uniqueVisibleRewards.length - 6),
+    hasGoldReward
+  };
+}
+
+function renderGeneralShopCaseContentsPreview(caseItem) {
+  const preview = getGeneralShopCasePreviewData(caseItem);
+  if (!preview.rewards.length && !preview.hasGoldReward) {
+    return '<div class="store-mini-card-meta" style="color:#6f859d;">No drops configured yet.</div>';
+  }
+  const chips = preview.rewards.map((entry) => {
+    const rarity = getGeneralShopRarityConfig(entry.rarity);
+    return `<span style="display:inline-flex; align-items:center; padding:0.22rem 0.5rem; border-radius:999px; border:1px solid ${rarity.color}; background:rgba(12,18,28,0.78); color:${rarity.color}; font-size:0.69rem; font-weight:700;">${escapeHtml(entry.item.title)}</span>`;
+  });
+  if (preview.extraCount) {
+    chips.push(`<span style="display:inline-flex; align-items:center; padding:0.22rem 0.5rem; border-radius:999px; border:1px solid rgba(147,169,193,0.4); background:rgba(12,18,28,0.78); color:#c5d2df; font-size:0.69rem; font-weight:700;">+${preview.extraCount} more</span>`);
+  }
+  if (preview.hasGoldReward) {
+    chips.push('<span style="display:inline-flex; align-items:center; padding:0.22rem 0.5rem; border-radius:999px; border:1px solid #f6c453; background:linear-gradient(135deg, rgba(92,64,8,0.95), rgba(191,145,28,0.55)); color:#ffe082; font-size:0.69rem; font-weight:800; letter-spacing:0.04em; text-transform:uppercase;">★ Rare Special Item</span>');
+  }
+  return `<div class="store-chip-row">${chips.join('')}</div>${preview.hasGoldReward ? '<div class="store-case-note">Gold rewards stay hidden until you hit one.</div>' : ''}`;
+}
+
+function pickGeneralShopCaseReward(caseItem, stats) {
+  const allRewards = getResolvedGeneralShopCaseRewards(caseItem);
+  if (!allRewards.length) return null;
+  const ownedIds = new Set(sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds));
+  const rewards = allRewards.some((entry) => !ownedIds.has(entry.item.id))
+    ? allRewards.filter((entry) => !ownedIds.has(entry.item.id))
+    : allRewards;
+  const availableRarities = getGeneralShopCaseOddsProfile(stats)
+    .map((config) => ({ ...config, rewards: rewards.filter((entry) => entry.rarity === config.id) }))
+    .filter((config) => config.rewards.length);
+  if (!availableRarities.length) return null;
+  const totalWeight = availableRarities.reduce((sum, config) => sum + config.effectiveWeight, 0);
+  let remaining = Math.random() * totalWeight;
+  let selectedBucket = availableRarities[0];
+  for (const bucket of availableRarities) {
+    remaining -= bucket.effectiveWeight;
+    if (remaining <= 0) {
+      selectedBucket = bucket;
+      break;
+    }
+  }
+  const reward = selectedBucket.rewards[Math.floor(Math.random() * selectedBucket.rewards.length)];
+  return reward ? { ...reward, rarityConfig: getGeneralShopRarityConfig(reward.rarity) } : null;
+}
+
+function buildGeneralShopCaseOpeningReel(caseItem, rewardInfo) {
+  const rewards = getResolvedGeneralShopCaseRewards(caseItem);
+  const reel = [];
+  const finalIndex = 30;
+  for (let index = 0; index < 38; index += 1) {
+    const randomReward = rewards[Math.floor(Math.random() * rewards.length)] || rewardInfo;
+    reel.push(index === finalIndex ? rewardInfo : randomReward);
+  }
+  return { reel, finalIndex };
+}
+
+function getGeneralShopVisualStyle(visualData) {
+  const banner = sanitizeProfileBanner(visualData);
+  const mediaBanner = isProfileBannerMedia(banner);
+  return {
+    background: banner ? (mediaBanner ? `linear-gradient(180deg, rgba(8, 12, 18, 0.08) 0%, rgba(8, 12, 18, 0.1) 42%, rgba(8, 12, 18, 0.38) 100%), url('${escapeCssUrl(banner)}')` : banner) : DEFAULT_PROFILE_MODAL_BACKGROUND,
+    backgroundSize: mediaBanner ? '100% 100%' : '',
+    backgroundPosition: mediaBanner ? 'center' : '',
+    backgroundRepeat: mediaBanner ? 'no-repeat' : ''
+  };
+}
+
+function applyGeneralShopVisualBackground(element, visualData) {
+  if (!element) return;
+  const style = getGeneralShopVisualStyle(visualData);
+  element.style.background = style.background;
+  element.style.backgroundSize = style.backgroundSize;
+  element.style.backgroundPosition = style.backgroundPosition;
+  element.style.backgroundRepeat = style.backgroundRepeat;
+}
+
+function getGeneralShopVisualStyleText(visualData, extras = '') {
+  const style = getGeneralShopVisualStyle(visualData);
+  return `background:${style.background};${style.backgroundSize ? `background-size:${style.backgroundSize};` : ''}${style.backgroundPosition ? `background-position:${style.backgroundPosition};` : ''}${style.backgroundRepeat ? `background-repeat:${style.backgroundRepeat};` : ''}${extras}`;
+}
+
+function normalizeProfileBackgroundShopItem(itemId, data = {}) {
+  const resolvedId = normalizeRoomId(itemId || data.id || data.title || 'profile-background');
+  const backgroundData = sanitizeProfileBanner(data.backgroundData || data.background || '');
+  return {
+    id: resolvedId,
+    title: sanitizeNullableText(data.title, 'Untitled Background').slice(0, 40),
+    description: sanitizeNullableText(data.description, '').slice(0, 160),
+    price: Math.max(0, Math.min(1000000, Math.floor(Number(data.price) || 0))),
+    backgroundData,
+    active: data.active !== false,
+    createdAtMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : Math.max(0, Number(data.createdAtMs || 0)),
+    updatedAtMs: data.updatedAt && typeof data.updatedAt.toDate === 'function' ? data.updatedAt.toDate().getTime() : Math.max(0, Number(data.updatedAtMs || 0))
+  };
+}
+
+function getProfileBackgroundShopItem(itemId) {
+  const key = normalizeOptionalProfileBackgroundId(itemId || '');
+  if (!key) return null;
+  return profileBackgroundShopCache.find((item) => item.id === key) || null;
+}
+
+function getRenderableProfileBackgroundShopItems(stats) {
+  const ownedIds = new Set(sanitizeOwnedProfileBackgroundIds(stats && stats.ownedProfileBackgroundIds));
+  const items = profileBackgroundShopCache.filter((item) => item && item.active);
+  profileBackgroundShopCache.forEach((item) => {
+    if (item && ownedIds.has(item.id) && !items.some((existing) => existing.id === item.id)) {
+      items.push(item);
+    }
+  });
+  return items.sort((a, b) => {
+    if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+    if (a.price !== b.price) return a.price - b.price;
+    return a.title.localeCompare(b.title);
+  });
+}
+
+function getProfileModalBackgroundStyle(backgroundValue) {
+  const banner = sanitizeProfileBanner(backgroundValue);
+  const mediaBanner = isProfileBannerMedia(banner);
+  return {
+    background: banner ? (mediaBanner ? `linear-gradient(180deg, rgba(8, 12, 18, 0.12) 0%, rgba(8, 12, 18, 0.05) 34%, rgba(8, 12, 18, 0.18) 100%), url('${escapeCssUrl(banner)}')` : banner) : DEFAULT_PROFILE_MODAL_BACKGROUND,
+    backgroundSize: mediaBanner ? 'cover' : '',
+    backgroundPosition: mediaBanner ? 'center' : '',
+    backgroundRepeat: mediaBanner ? 'no-repeat' : ''
+  };
+}
+
+function applyProfileModalBackground(element, backgroundValue) {
+  if (!element) return;
+  const banner = sanitizeProfileBanner(backgroundValue);
+  const hasCustomBackground = !!banner;
+  const mediaBackground = isProfileBannerMedia(banner);
+  const style = getProfileModalBackgroundStyle(backgroundValue);
+  element.classList.toggle('profile-modal-themed', hasCustomBackground);
+  element.classList.toggle('profile-modal-media-bg', hasCustomBackground && mediaBackground);
+  element.style.setProperty('background', style.background, 'important');
+  if (style.backgroundSize) {
+    element.style.setProperty('background-size', style.backgroundSize, 'important');
+  } else {
+    element.style.removeProperty('background-size');
+  }
+  if (style.backgroundPosition) {
+    element.style.setProperty('background-position', style.backgroundPosition, 'important');
+  } else {
+    element.style.removeProperty('background-position');
+  }
+  if (style.backgroundRepeat) {
+    element.style.setProperty('background-repeat', style.backgroundRepeat, 'important');
+  } else {
+    element.style.removeProperty('background-repeat');
+  }
+}
+
+function getProfileModalBackgroundStyleText(backgroundValue, extras = '') {
+  const style = getProfileModalBackgroundStyle(backgroundValue);
+  return `background:${style.background};${style.backgroundSize ? `background-size:${style.backgroundSize};` : ''}${style.backgroundPosition ? `background-position:${style.backgroundPosition};` : ''}${style.backgroundRepeat ? `background-repeat:${style.backgroundRepeat};` : ''}${extras}`;
+}
+
+function buildProfileCacheEntry(username, data = {}) {
+const key = normalizeUsername(username);
+return {
+  bio: sanitizeNullableText(data.bio, '').slice(0, 220),
+  statusQuote: sanitizeNullableText(data.statusQuote, '').slice(0, 120),
+  profileTitle: sanitizeNullableText(data.profileTitle, '').slice(0, 40),
+  profileAccentId: sanitizeNullableText(data.profileAccentId, '').slice(0, 24),
+  avatarData: sanitizeProfileAvatar(data.avatarData),
+  bannerData: sanitizeProfileBanner(data.bannerData),
+  favoriteGameId: sanitizeNullableText(data.favoriteGameId, '').slice(0, 120),
+  favoriteGameName: sanitizeNullableText(data.favoriteGameName, '').slice(0, 80),
+  joinLabel: sanitizeNullableText(data.joinLabel, ''),
+  updatedAtMs: data.updatedAt && typeof data.updatedAt.toDate === 'function' ? data.updatedAt.toDate().getTime() : (data.updatedAtMs || 0),
+  createdAtMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : (data.createdAtMs || Date.now()),
+  username: key
+};
+}
+
+function getProfileAvatarFallbackText(username) {
+const key = normalizeUsername(username);
+return key ? key.slice(0, 2).toUpperCase() : '?';
+}
+
+function getCachedProfile(username) {
+const key = normalizeUsername(username);
+if (!key) return getProfileDefaults('');
+const localStore = localProfileCache || {};
+const localData = localStore[key] || {};
+const remoteData = userProfileCache[key] || {};
+return { ...getProfileDefaults(key), ...localData, ...remoteData, username: key };
+}
+
+function renderInlineProfileAvatarHtml(username, extraClass = '') {
+const key = normalizeUsername(username);
+const avatarData = sanitizeProfileAvatar(getCachedProfile(key).avatarData);
+const className = `inline-profile-avatar${extraClass ? ` ${extraClass}` : ''}`;
+const fallback = escapeHtml(getProfileAvatarFallbackText(key));
+const label = escapeHtml(key || 'user');
+if (avatarData) {
+return `<span class="${className}" data-profile-avatar-user="${label}"><img src="${escapeHtml(avatarData)}" alt="${label} avatar" loading="lazy" /></span>`;
+}
+return `<span class="${className}" data-profile-avatar-user="${label}"><span class="inline-profile-avatar-fallback">${fallback}</span></span>`;
+}
+
+function refreshInlineProfileAvatars(targetUsername = '') {
+const normalizedTarget = normalizeUsername(targetUsername);
+const avatarNodes = document.querySelectorAll('[data-profile-avatar-user]');
+avatarNodes.forEach((node) => {
+const nodeUser = normalizeUsername(node.getAttribute('data-profile-avatar-user') || '');
+if (normalizedTarget && nodeUser !== normalizedTarget) return;
+const avatarData = sanitizeProfileAvatar(getCachedProfile(nodeUser).avatarData);
+const fallback = getProfileAvatarFallbackText(nodeUser);
+node.innerHTML = avatarData
+? `<img src="${escapeHtml(avatarData)}" alt="${escapeHtml(nodeUser || 'user')} avatar" loading="lazy" />`
+: `<span class="inline-profile-avatar-fallback">${escapeHtml(fallback)}</span>`;
+});
+}
+
+function getProfileBadges(profileUserKey, stats, profile) {
+const badges = [];
+const unlocked = getUnlockedAchievements(stats, profileUserKey);
+if (myFriends.has(profileUserKey)) badges.push({ label: 'Friend', icon: '👥' });
+if ((stats.gamesOpened || 0) >= 20) badges.push({ label: 'Arcade Regular', icon: '🎮' });
+if ((stats.messagesSent || 0) >= 75) badges.push({ label: 'Talker', icon: '💬' });
+if ((stats.mediaShared || 0) >= 10) badges.push({ label: 'Media Dropper', icon: '🖼' });
+if (unlocked.length >= 5) badges.push({ label: 'Collector', icon: '🏅' });
+if (profileUserKey === OWNER_TAG_USERNAME) badges.push({ label: 'Owner', icon: '👑' });
+return badges.slice(0, 6);
+}
+
+function syncStoreFilterControls() {
+const searchInput = document.getElementById('store-search-input');
+const sortSelect = document.getElementById('store-sort-select');
+ const favoritesToggle = document.getElementById('store-favorites-toggle');
+if (searchInput) searchInput.value = storeFilters.search;
+if (sortSelect) sortSelect.value = storeFilters.sort;
+ if (favoritesToggle) {
+   favoritesToggle.classList.toggle('is-active', storeFilters.favoritesOnly);
+   favoritesToggle.textContent = storeFilters.favoritesOnly ? 'Favorites Only On' : 'Favorites Only';
+ }
+}
+
+function handleStoreSearchInput() {
+const input = document.getElementById('store-search-input');
+storeFilters.search = input ? input.value.trim().toLowerCase() : '';
+saveStoreFilters();
+renderGameStorefront();
+}
+
+function handleStoreFilterChange() {
+const select = document.getElementById('store-sort-select');
+storeFilters.sort = select ? select.value : 'featured';
+saveStoreFilters();
+renderGameStorefront();
+}
+
+function toggleStoreFilter(key) {
+if (key === 'favorites') storeFilters.favoritesOnly = !storeFilters.favoritesOnly;
+saveStoreFilters();
+syncStoreFilterControls();
+renderGameStorefront();
+}
+
+ function toggleFavoritesOnly() {
+ toggleStoreFilter('favorites');
+ }
+
+function getFilteredStoreGames() {
+const favorites = getFavoriteGameIds();
+const recentIds = getRecentGameEntries().map((entry) => entry.gameId);
+const recentMap = new Map(recentIds.map((id, index) => [id, index]));
+const counts = getGameOpenCounts();
+const query = storeFilters.search;
+let list = getStoreGames().filter((game) => {
+  const haystack = [game.name, game.description, game.submitter].join(' ').toLowerCase();
+  if (query && !haystack.includes(query)) return false;
+  if (storeFilters.favoritesOnly && !favorites.has(game.id)) return false;
+  return true;
+});
+
+list.sort((a, b) => {
+  if (storeFilters.sort === 'alphabetical') return a.name.localeCompare(b.name);
+  if (storeFilters.sort === 'recent') return (recentMap.get(a.id) ?? 9999) - (recentMap.get(b.id) ?? 9999);
+  if (storeFilters.sort === 'favorites') {
+    const favDiff = Number(favorites.has(b.id)) - Number(favorites.has(a.id));
+    if (favDiff) return favDiff;
+  }
+  if (storeFilters.sort === 'popular') {
+    const countDiff = (counts[b.id] || 0) - (counts[a.id] || 0);
+    if (countDiff) return countDiff;
+  }
+  const featuredDiff = (b.featured || 0) - (a.featured || 0);
+  if (featuredDiff) return featuredDiff;
+  return a.name.localeCompare(b.name);
+});
+return list;
+}
+
+function recordRecentGame(game) {
+if (!game || !game.id) return;
+const entries = getRecentGameEntries().filter((entry) => entry.gameId !== game.id);
+entries.unshift({
+  gameId: game.id,
+  name: game.name,
+  atMs: Date.now(),
+  source: game.source || 'builtin'
+});
+saveRecentGameEntries(entries);
+}
+
+function incrementGameOpenCount(gameId) {
+if (!gameId) return;
+const counts = getGameOpenCounts();
+counts[gameId] = (counts[gameId] || 0) + 1;
+saveGameOpenCounts(counts);
+}
+
+function toggleFavoriteGame(gameId) {
+ const favorites = getFavoriteGameIds();
+ if (favorites.has(gameId)) {
+   favorites.delete(gameId);
+ } else {
+   favorites.add(gameId);
+ }
+ saveFavoriteGameIds(favorites);
+ syncStoreFilterControls();
+ renderGameStorefront();
+}
+
+function renderPersonalShelf() {
+const container = document.getElementById('store-personal-shelf');
+const meta = document.getElementById('store-personal-meta');
+if (!container) return;
+const storeGames = getStoreGames();
+const gameMap = new Map(storeGames.map((game) => [game.id, game]));
+const recents = getRecentGameEntries().map((entry) => gameMap.get(entry.gameId)).filter(Boolean);
+const list = recents.slice(0, 6);
+if (meta) {
+  meta.textContent = `${recents.length} recent`;
+}
+if (!list.length) {
+  container.innerHTML = '<div class="activity-feed-empty" style="grid-column:1 / -1;">Open a few titles to build your quick shelf.</div>';
+  return;
+}
+container.innerHTML = list.map((game) => `
+  <div class="store-mini-card">
+    <div class="store-mini-card-title">${escapeHtml(game.name)}</div>
+    <div class="store-mini-card-meta">${escapeHtml(getGameSubtitle(game) || 'Ready to launch')}</div>
+    <div class="store-mini-card-actions">
+      <button type="button" onclick="openGameById('${escapeHtml(game.id)}')">Play</button>
+    </div>
+  </div>`).join('');
+}
+
+function formatRelativeTime(ms) {
+if (!ms) return 'just now';
+const diff = Math.max(0, Date.now() - ms);
+const minutes = Math.floor(diff / 60000);
+if (minutes < 1) return 'just now';
+if (minutes < 60) return `${minutes}m ago`;
+const hours = Math.floor(minutes / 60);
+if (hours < 24) return `${hours}h ago`;
+const days = Math.floor(hours / 24);
+return `${days}d ago`;
+}
+
+function renderActivityFeed() {
+const container = document.getElementById('activity-feed-list');
+if (!container) return;
+const items = siteActivityCache.length ? siteActivityCache : getLocalActivityItems();
+if (!items.length) {
+  container.innerHTML = '<div class="activity-feed-empty">No activity yet. Game launches, profile updates, and submissions will show here.</div>';
+  return;
+}
+container.innerHTML = items.slice(0, MAX_ACTIVITY_ITEMS).map((item) => `
+  <div class="activity-feed-item">
+    <div class="activity-feed-head">
+      <div class="activity-feed-title">${escapeHtml(item.title || 'Activity')}</div>
+      <div class="activity-feed-meta">${escapeHtml(formatRelativeTime(item.atMs || 0))}</div>
+    </div>
+    <div class="activity-feed-body">${escapeHtml(item.body || '')}</div>
+  </div>`).join('');
+}
+
+function clearActivityFeed() {
+siteActivityCache = [];
+saveLocalActivityItems([]);
+renderActivityFeed();
+}
+
+async function addSiteActivity(type, title, body = '') {
+const entry = {
+  type: String(type || 'activity'),
+  title: String(title || 'Activity').slice(0, 120),
+  body: String(body || '').slice(0, 220),
+  by: getMyProfileKey() || 'guest',
+  atMs: Date.now()
+};
+const localItems = [entry, ...getLocalActivityItems()].slice(0, MAX_ACTIVITY_ITEMS);
+saveLocalActivityItems(localItems);
+siteActivityCache = localItems;
+renderActivityFeed();
+try {
+  if (!chatInitialized) return;
+  const db = getAdminDb();
+  await db.collection(SITE_ACTIVITY_COLLECTION).add({
+    ...entry,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+} catch (_) {}
+}
+
+function listenForSiteActivity() {
+renderActivityFeed();
+try {
+  if (!chatInitialized) return;
+  const db = getAdminDb();
+  if (siteActivityUnsub) siteActivityUnsub();
+  siteActivityUnsub = db.collection(SITE_ACTIVITY_COLLECTION)
+    .orderBy('createdAt', 'desc')
+    .limit(MAX_ACTIVITY_ITEMS)
+    .onSnapshot((snapshot) => {
+      const items = snapshot.docs.map((doc) => {
+        const data = doc.data() || {};
+        return {
+          type: data.type || 'activity',
+          title: data.title || 'Activity',
+          body: data.body || '',
+          by: data.by || '',
+          atMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : (data.atMs || 0)
+        };
+      });
+      siteActivityCache = items;
+      saveLocalActivityItems(items);
+      renderActivityFeed();
+    });
+} catch (_) {
+  renderActivityFeed();
+}
+}
+
+function pushNotification(entry) {
+const notification = {
+    id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: String(entry && entry.type || 'general'),
+    title: String(entry && entry.title || 'Notification').slice(0, 120),
+    body: String(entry && entry.body || '').slice(0, 240),
+    atMs: Date.now(),
+    read: !!(entry && entry.read),
+    action: entry && entry.action ? entry.action : ''
+  };
+  localNotificationCache = [notification, ...localNotificationCache].slice(0, MAX_LOCAL_NOTIFICATIONS);
+  saveLocalNotifications();
+  renderNotificationCenter();
+}
+
+function updateNotificationBadge() {
+const badge = document.getElementById('notification-badge');
+if (!badge) return;
+const unread = localNotificationCache.filter((item) => !item.read).length;
+if (!unread) {
+  badge.style.display = 'none';
+  badge.textContent = '0';
+  return;
+}
+badge.style.display = 'inline-block';
+badge.textContent = unread > 99 ? '99+' : String(unread);
+}
+
+function renderNotificationCenter() {
+const list = document.getElementById('notification-list');
+if (!list) {
+  updateNotificationBadge();
+  return;
+}
+if (!localNotificationCache.length) {
+  list.innerHTML = '<div class="notification-empty">No notifications yet. Mentions, replies, DMs, and store actions will appear here.</div>';
+  updateNotificationBadge();
+  return;
+}
+list.innerHTML = localNotificationCache.map((item) => `
+  <div class="notification-item ${item.read ? '' : 'is-unread'}" onclick="handleNotificationClick('${escapeHtml(item.id)}')">
+    <div class="notification-item-head">
+      <div class="notification-item-title">${escapeHtml(item.title)}</div>
+      <div class="notification-item-meta">${escapeHtml(formatRelativeTime(item.atMs))}</div>
+    </div>
+    <div class="notification-item-body">${escapeHtml(item.body)}</div>
+    ${item.action ? `<div class="notification-item-action">Open related item</div>` : ''}
+  </div>`).join('');
+updateNotificationBadge();
+}
+
+function handleNotificationClick(notificationId) {
+const notification = localNotificationCache.find((item) => item.id === notificationId);
+if (!notification) return;
+notification.read = true;
+saveLocalNotifications();
+renderNotificationCenter();
+const action = notification.action || null;
+if (!action || typeof action !== 'object') return;
+if (action.kind === 'room' && action.roomId) {
+  if (!doesChatRoomExist(action.roomId)) {
+    localNotificationCache = localNotificationCache.filter((item) => item.id !== notificationId);
+    saveLocalNotifications();
+    renderNotificationCenter();
+    return;
+  }
+  changeChatRoom(action.roomId);
+  toggleChat();
+} else if (action.kind === 'dm' && action.username) {
+  openDMModal(action.username);
+} else if (action.kind === 'game' && action.gameId) {
+  openGameById(action.gameId);
+} else if (action.kind === 'hub') {
+  openPlayerHubModal(action.tab || 'notifications');
+} else if (action.kind === 'trade' && action.tradeId) {
+  openGeneralShopTradeModal(encodeURIComponent(action.tradeId));
+} else if (action.kind === 'profile' && action.username) {
+  openUserProfileFromChat(encodeURIComponent(action.username));
+}
+}
+
+function openNotificationCenter() {
+renderNotificationCenter();
+openModalById('notification-center-modal');
+}
+
+function closeNotificationCenter() {
+closeModalById('notification-center-modal');
+}
+
+function markAllNotificationsRead() {
+localNotificationCache = localNotificationCache.map((item) => ({ ...item, read: true }));
+saveLocalNotifications();
+renderNotificationCenter();
+}
+
+function clearNotifications() {
+localNotificationCache = [];
+saveLocalNotifications();
+renderNotificationCenter();
+}
+
+function getUnlockedProfileRewardTitles(stats = getStatsForUserKey(getMyProfileKey()), casinoStats = getCachedCasinoProfileStats(getMyProfileKey()), profileUserKey = '') {
+const next = [];
+const resolvedUserKey = normalizeUsername(profileUserKey || (casinoStats && casinoStats.username) || getMyProfileKey());
+const levelInfo = calculateUserLevel(stats || {}, resolvedUserKey);
+const level = Math.max(0, Number(levelInfo && levelInfo.level || 0));
+const achievements = Array.isArray(casinoStats && casinoStats.achievementIds) ? casinoStats.achievementIds.length : 0;
+const messagesSent = Math.max(0, Number(stats && stats.messagesSent || 0));
+const gamesOpened = Math.max(0, Number(stats && stats.gamesOpened || 0));
+const dropsOwned = getSortedOwnedGeneralShopItemEntries(casinoStats || {}).filter((entry) => entry.item && entry.item.itemType === 'case-drop').length;
+if (level >= 3) next.push('Rookie');
+if (level >= 6) next.push('Regular');
+if (level >= 10) next.push('Veteran');
+if (achievements >= 5) next.push('Collector');
+if (messagesSent >= 250) next.push('Loudmouth');
+if (gamesOpened >= 40) next.push('Arcade Grinder');
+if (dropsOwned >= 8) next.push('Case Hunter');
+if (Math.max(0, Number(casinoStats && casinoStats.bestWinStreak || 0)) >= 5) next.push('Hot Hand');
+if (Math.max(0, Number(casinoStats && casinoStats.allTimeBestGeneralShopDropValue || 0)) >= 5000) next.push('High Roller');
+return Array.from(new Set(next)).slice(0, 10);
+}
+
+function getProfileRewardCosmetic(id) {
+const key = sanitizeNullableText(id, '').slice(0, 24);
+return PROFILE_REWARD_COSMETICS.find((entry) => entry.id === key) || null;
+}
+
+function getUnlockedProfileRewardCosmetics(stats = getStatsForUserKey(getMyProfileKey()), casinoStats = getCachedCasinoProfileStats(getMyProfileKey()), profileUserKey = '') {
+const unlockedIds = [];
+const resolvedUserKey = normalizeUsername(profileUserKey || (casinoStats && casinoStats.username) || getMyProfileKey());
+const levelInfo = calculateUserLevel(stats || {}, resolvedUserKey);
+const level = Math.max(0, Number(levelInfo && levelInfo.level || 0));
+const achievements = Array.isArray(casinoStats && casinoStats.achievementIds) ? casinoStats.achievementIds.length : 0;
+const messagesSent = Math.max(0, Number(stats && stats.messagesSent || 0));
+const dropsOwned = getSortedOwnedGeneralShopItemEntries(casinoStats || {}).filter((entry) => entry.item && entry.item.itemType === 'case-drop').length;
+const bestDropValue = Math.max(0, Number(casinoStats && casinoStats.allTimeBestGeneralShopDropValue || 0));
+if (level >= 5) unlockedIds.push('glacier');
+if (messagesSent >= 200) unlockedIds.push('ember');
+if (achievements >= 4) unlockedIds.push('neon');
+if (dropsOwned >= 10 || bestDropValue >= 5000) unlockedIds.push('vault');
+return PROFILE_REWARD_COSMETICS.filter((entry) => unlockedIds.includes(entry.id));
+}
+
+function getProfileRewardGuideData(stats = getStatsForUserKey(getMyProfileKey()), casinoStats = getCachedCasinoProfileStats(getMyProfileKey()), profileUserKey = '') {
+const resolvedUserKey = normalizeUsername(profileUserKey || (casinoStats && casinoStats.username) || getMyProfileKey());
+const levelInfo = calculateUserLevel(stats || {}, resolvedUserKey);
+const level = Math.max(0, Number(levelInfo && levelInfo.level || 0));
+const achievements = Array.isArray(casinoStats && casinoStats.achievementIds) ? casinoStats.achievementIds.length : 0;
+const messagesSent = Math.max(0, Number(stats && stats.messagesSent || 0));
+const gamesOpened = Math.max(0, Number(stats && stats.gamesOpened || 0));
+const dropsOwned = getSortedOwnedGeneralShopItemEntries(casinoStats || {}).filter((entry) => entry.item && entry.item.itemType === 'case-drop').length;
+const bestWinStreak = Math.max(0, Number(casinoStats && casinoStats.bestWinStreak || 0));
+const bestDropValue = Math.max(0, Number(casinoStats && casinoStats.allTimeBestGeneralShopDropValue || 0));
+  return {
+    titles: [
+      { label: 'Rookie', unlocked: level >= 3, howToGet: 'Reach level 3.', progress: `${Math.min(level, 3)}/3 levels` },
+      { label: 'Regular', unlocked: level >= 6, howToGet: 'Reach level 6.', progress: `${Math.min(level, 6)}/6 levels` },
+      { label: 'Veteran', unlocked: level >= 10, howToGet: 'Reach level 10.', progress: `${Math.min(level, 10)}/10 levels` },
+      { label: 'Collector', unlocked: achievements >= 5, howToGet: 'Unlock 5 achievements.', progress: `${Math.min(achievements, 5)}/5 achievements` },
+      { label: 'Loudmouth', unlocked: messagesSent >= 250, howToGet: 'Send 250 chat messages.', progress: `${Math.min(messagesSent, 250)}/250 messages` },
+      { label: 'Arcade Grinder', unlocked: gamesOpened >= 40, howToGet: 'Open 40 games.', progress: `${Math.min(gamesOpened, 40)}/40 games` },
+      { label: 'Case Hunter', unlocked: dropsOwned >= 8, howToGet: 'Own 8 case drops.', progress: `${Math.min(dropsOwned, 8)}/8 drops` },
+      { label: 'Hot Hand', unlocked: bestWinStreak >= 5, howToGet: 'Hit a best win streak of 5.', progress: `${Math.min(bestWinStreak, 5)}/5 streak` },
+      { label: 'High Roller', unlocked: bestDropValue >= 5000, howToGet: 'Pull a case drop worth $5,000 or more.', progress: `$${Math.min(bestDropValue, 5000).toLocaleString()}/$5,000` }
+    ],
+    cosmetics: [
+      { label: 'Glacier Glass', unlocked: level >= 5, howToGet: 'Reach level 5.', progress: `${Math.min(level, 5)}/5 levels` },
+      { label: 'Ember Signal', unlocked: messagesSent >= 200, howToGet: 'Send 200 chat messages.', progress: `${Math.min(messagesSent, 200)}/200 messages` },
+      { label: 'Neon Circuit', unlocked: achievements >= 4, howToGet: 'Unlock 4 achievements.', progress: `${Math.min(achievements, 4)}/4 achievements` },
+      { label: 'Vault Gold', unlocked: dropsOwned >= 10 || bestDropValue >= 5000, howToGet: 'Own 10 case drops or pull a drop worth $5,000.', progress: `${Math.min(dropsOwned, 10)}/10 drops • $${Math.min(bestDropValue, 5000).toLocaleString()}/$5,000` }
+    ]
+  };
+}
+
+function getEquippedProfileRewardCosmetic(profileUserKey, stats, casinoStats, profile) {
+const available = getUnlockedProfileRewardCosmetics(stats, casinoStats, profileUserKey);
+const savedId = sanitizeNullableText(profile && profile.profileAccentId, '').slice(0, 24);
+if (savedId) {
+  const savedCosmetic = available.find((entry) => entry.id === savedId);
+  if (savedCosmetic) return savedCosmetic;
+}
+return available[0] || null;
+}
+
+function applyProfileRewardCosmetic(element, cosmetic) {
+if (!element) return;
+if (!cosmetic) {
+  element.classList.remove('profile-modal-rewarded');
+  element.style.removeProperty('--reward-accent');
+  element.style.removeProperty('--reward-accent-soft');
+  element.style.removeProperty('--reward-accent-glow');
+  return;
+}
+element.classList.add('profile-modal-rewarded');
+element.style.setProperty('--reward-accent', cosmetic.accent || '#6ec6ff');
+element.style.setProperty('--reward-accent-soft', cosmetic.soft || 'rgba(110, 198, 255, 0.24)');
+element.style.setProperty('--reward-accent-glow', cosmetic.glow || 'rgba(40, 122, 196, 0.22)');
+}
+
+function getEquippedProfileRewardTitle(profileUserKey, stats, casinoStats, profile) {
+const available = getUnlockedProfileRewardTitles(stats, casinoStats, profileUserKey);
+const savedTitle = sanitizeNullableText(profile && profile.profileTitle, '').slice(0, 40);
+if (savedTitle && available.includes(savedTitle)) return savedTitle;
+return available[0] || '';
+}
+
+function normalizeCasinoInventoryHistoryEntry(id, data = {}) {
+return {
+  id: sanitizeNullableText(id, ''),
+  type: sanitizeNullableText(data.type, 'inventory').slice(0, 40),
+  actor: normalizeUsername(data.actor || ''),
+  targetUser: normalizeUsername(data.targetUser || ''),
+  itemId: normalizeOptionalGeneralShopItemId(data.itemId || ''),
+  itemTitle: sanitizeNullableText(data.itemTitle, '').slice(0, 80),
+  itemType: normalizeGeneralShopItemType(data.itemType || ''),
+  caseId: normalizeOptionalGeneralShopItemId(data.caseId || ''),
+  caseTitle: sanitizeNullableText(data.caseTitle, '').slice(0, 80),
+  rarity: normalizeGeneralShopRarity(data.rarity || 'mil-spec'),
+  amount: Math.max(0, Math.floor(Number(data.amount) || 0)),
+  value: Math.max(0, Math.floor(Number(data.value) || 0)),
+  note: sanitizeNullableText(data.note, '').slice(0, 220),
+  userKeys: Array.isArray(data.userKeys) ? data.userKeys.map((value) => normalizeUsername(value)).filter(Boolean) : [],
+  atMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : Math.max(0, Number(data.atMs || 0))
+};
+}
+
+async function addCasinoInventoryHistory(entry = {}) {
+try {
+  const actor = normalizeUsername(entry.actor || getCasinoPlayerKey() || currentChatUser || '');
+  const targetUser = normalizeUsername(entry.targetUser || '');
+  const payload = {
+    type: sanitizeNullableText(entry.type, 'inventory').slice(0, 40),
+    actor,
+    targetUser,
+    itemId: normalizeOptionalGeneralShopItemId(entry.itemId || ''),
+    itemTitle: sanitizeNullableText(entry.itemTitle, '').slice(0, 80),
+    itemType: normalizeGeneralShopItemType(entry.itemType || ''),
+    caseId: normalizeOptionalGeneralShopItemId(entry.caseId || ''),
+    caseTitle: sanitizeNullableText(entry.caseTitle, '').slice(0, 80),
+    rarity: normalizeGeneralShopRarity(entry.rarity || 'mil-spec'),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    value: Math.max(0, Math.floor(Number(entry.value) || 0)),
+    note: sanitizeNullableText(entry.note, '').slice(0, 220),
+    userKeys: Array.from(new Set([actor, targetUser].filter(Boolean))),
+    atMs: Date.now(),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await getCasinoInventoryHistoryCollection().add(payload);
+} catch (_) {}
+}
+
+async function loadInventoryHistoryForUser(username) {
+  const key = normalizeUsername(username || getCasinoPlayerKey());
+  if (!key) {
+    inventoryHistoryCache = [];
+    return inventoryHistoryCache;
+  }
+  try {
+    const snapshot = await getCasinoInventoryHistoryCollection()
+      .where('userKeys', 'array-contains', key)
+      .orderBy('createdAt', 'desc')
+      .limit(MAX_INVENTORY_HISTORY_ITEMS)
+      .get();
+    inventoryHistoryCache = snapshot.docs.map((doc) => normalizeCasinoInventoryHistoryEntry(doc.id, doc.data() || {}));
+  } catch (_) {
+    inventoryHistoryCache = [];
+  }
+  return inventoryHistoryCache;
+}
+
+function normalizeGeneralShopTradeOfferData(id, data = {}) {
+  return {
+    id: sanitizeNullableText(id, ''),
+    fromUser: normalizeUsername(data.fromUser || ''),
+    toUser: normalizeUsername(data.toUser || ''),
+    itemId: normalizeOptionalGeneralShopItemId(data.itemId || ''),
+    itemTitle: sanitizeNullableText(data.itemTitle, '').slice(0, 80),
+    saleValue: Math.max(0, Math.floor(Number(data.saleValue) || 0)),
+    rarity: normalizeGeneralShopRarity(data.rarity || 'mil-spec'),
+    note: sanitizeNullableText(data.note, '').slice(0, 220),
+    status: sanitizeNullableText(data.status, 'pending').toLowerCase(),
+    fromItems: normalizeGeneralShopTradeItemEntries(data.fromItems || (data.itemId ? [{ itemId: data.itemId, saleValue: data.saleValue }] : [])),
+    toItems: normalizeGeneralShopTradeItemEntries(data.toItems || []),
+    fromAccepted: !!data.fromAccepted,
+    toAccepted: !!data.toAccepted,
+    countdownEndsAtMs: Math.max(0, Number(data.countdownEndsAtMs || 0)),
+    openedAtMs: Math.max(0, Number(data.openedAtMs || 0)),
+    completedAtMs: Math.max(0, Number(data.completedAtMs || 0)),
+    createdAtMs: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate().getTime() : Math.max(0, Number(data.createdAtMs || 0)),
+    updatedAtMs: data.updatedAt && typeof data.updatedAt.toDate === 'function' ? data.updatedAt.toDate().getTime() : Math.max(0, Number(data.updatedAtMs || 0))
+  };
+}
+
+function normalizeGeneralShopTradeItemEntries(rawEntries) {
+  const entries = Array.isArray(rawEntries) ? rawEntries : [];
+  return entries.map((entry) => {
+    if (typeof entry === 'string') {
+      return {
+        itemId: normalizeOptionalGeneralShopItemId(entry),
+        saleValue: 0
+      };
+    }
+    return {
+      itemId: normalizeOptionalGeneralShopItemId(entry && entry.itemId || ''),
+      saleValue: Math.max(0, Math.floor(Number(entry && entry.saleValue || 0)))
+    };
+  }).filter((entry) => entry.itemId).slice(0, 9);
+}
+
+function serializeGeneralShopTradeItemEntries(entries) {
+  return normalizeGeneralShopTradeItemEntries(entries).map((entry) => ({
+    itemId: entry.itemId,
+    saleValue: Math.max(0, Math.floor(Number(entry.saleValue || 0)))
+  }));
+}
+
+function getGeneralShopTradeById(tradeId) {
+  const key = sanitizeNullableText(tradeId, '');
+  if (!key) return null;
+  return generalShopTradeCache.find((trade) => trade.id === key) || null;
+}
+
+function upsertGeneralShopTradeCacheEntry(trade) {
+  if (!trade || !trade.id) return;
+  const index = generalShopTradeCache.findIndex((entry) => entry.id === trade.id);
+  if (index >= 0) {
+    generalShopTradeCache[index] = trade;
+  } else {
+    generalShopTradeCache.unshift(trade);
+  }
+  generalShopTradeCache.sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+}
+
+function getGeneralShopTradeParticipantSide(trade, username) {
+  const key = normalizeUsername(username || getCasinoPlayerKey());
+  if (!trade || !key) return '';
+  if (trade.fromUser === key) return 'from';
+  if (trade.toUser === key) return 'to';
+  return '';
+}
+
+function getGeneralShopTradeOtherUser(trade, username) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (side === 'from') return trade.toUser;
+  if (side === 'to') return trade.fromUser;
+  return '';
+}
+
+function getGeneralShopTradeSideEntries(trade, side) {
+  return normalizeGeneralShopTradeItemEntries(side === 'to' ? trade && trade.toItems : trade && trade.fromItems);
+}
+
+function getGeneralShopTradeEntryKey(entry) {
+  return `${normalizeOptionalGeneralShopItemId(entry && entry.itemId || '')}|${Math.max(0, Math.floor(Number(entry && entry.saleValue || 0)))}`;
+}
+
+function getGeneralShopTradeEntryCountMap(entries) {
+  const counts = {};
+  normalizeGeneralShopTradeItemEntries(entries).forEach((entry) => {
+    const key = getGeneralShopTradeEntryKey(entry);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return counts;
+}
+
+function getAvailableGeneralShopTradeEntriesForUser(trade, username, statsOverride = null) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (!side) return [];
+  const stats = statsOverride || getCachedCasinoProfileStats(username);
+  const offeredCounts = getGeneralShopTradeEntryCountMap(getGeneralShopTradeSideEntries(trade, side));
+  const ownedEntries = getOwnedGeneralShopItemEntries(stats).filter((entry) => entry && entry.item && entry.item.itemType === 'case-drop');
+  const usedCounts = {};
+  return ownedEntries.filter((entry) => {
+    const key = getGeneralShopTradeEntryKey(entry);
+    usedCounts[key] = (usedCounts[key] || 0) + 1;
+    return usedCounts[key] > Math.max(0, Number(offeredCounts[key] || 0));
+  }).slice(0, 60);
+}
+
+function canMutateGeneralShopTrade(trade, username) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (!side) return false;
+  if (trade.status === 'pending') return side === 'from';
+  return trade.status === 'open' || trade.status === 'countdown';
+}
+
+function removeTradeEntriesFromOwnedInventory(stats, entriesToRemove) {
+  const nextIds = sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds).slice();
+  const nextValues = sanitizeOwnedGeneralShopItemSaleValues(nextIds, stats && stats.ownedGeneralShopItemSaleValues).slice();
+  const requested = normalizeGeneralShopTradeItemEntries(entriesToRemove);
+  for (const entry of requested) {
+    const targetId = entry.itemId;
+    const targetValue = Math.max(0, Math.floor(Number(entry.saleValue || 0)));
+    const index = nextIds.findIndex((itemId, itemIndex) => itemId === targetId && Math.max(0, Math.floor(Number(nextValues[itemIndex] || 0))) === targetValue);
+    if (index < 0) {
+      return null;
+    }
+    nextIds.splice(index, 1);
+    nextValues.splice(index, 1);
+  }
+  return {
+    ownedGeneralShopItemIds: nextIds,
+    ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextIds, nextValues)
+  };
+}
+
+function appendTradeEntriesToOwnedInventory(stats, entriesToAdd) {
+  const currentIds = sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds);
+  const currentValues = sanitizeOwnedGeneralShopItemSaleValues(currentIds, stats && stats.ownedGeneralShopItemSaleValues);
+  const nextIds = currentIds.concat(normalizeGeneralShopTradeItemEntries(entriesToAdd).map((entry) => entry.itemId));
+  const nextValues = currentValues.concat(normalizeGeneralShopTradeItemEntries(entriesToAdd).map((entry) => Math.max(0, Math.floor(Number(entry.saleValue || 0)))));
+  return {
+    ownedGeneralShopItemIds: sanitizeOwnedGeneralShopItemIds(nextIds),
+    ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextIds, nextValues)
+  };
+}
+
+function getGeneralShopTradeAcceptedState(trade, username) {
+  const side = getGeneralShopTradeParticipantSide(trade, username);
+  if (side === 'from') return !!trade.fromAccepted;
+  if (side === 'to') return !!trade.toAccepted;
+  return false;
+}
+
+function getGeneralShopTradeCountdownRemainingMs(trade) {
+  return Math.max(0, Math.floor(Number(trade && trade.countdownEndsAtMs || 0) - Date.now()));
+}
+
+async function fetchGeneralShopTradeById(tradeId) {
+  const key = sanitizeNullableText(tradeId, '');
+  if (!key) return null;
+  const cached = getGeneralShopTradeById(key);
+  if (cached) return cached;
+  try {
+    const snap = await getGeneralShopTradesCollection().doc(key).get();
+    if (!snap.exists) return null;
+    const trade = normalizeGeneralShopTradeOfferData(snap.id, snap.data() || {});
+    upsertGeneralShopTradeCacheEntry(trade);
+    return trade;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function openTradeRequestPrompt(tradeId) {
+  const trade = await fetchGeneralShopTradeById(tradeId);
+  if (!trade || trade.status !== 'pending' || trade.toUser !== getCasinoPlayerKey()) return;
+  generalShopTradeInvitePromptedIds.add(trade.id);
+  activeGeneralShopTradeInviteId = trade.id;
+  renderGeneralShopTradeInviteModal();
+  openModalById('general-shop-trade-invite-modal');
+}
+
+function closeGeneralShopTradeInviteModal() {
+  closeModalById('general-shop-trade-invite-modal');
+  activeGeneralShopTradeInviteId = '';
+}
+
+async function openGeneralShopTradeModal(encodedTradeId = '') {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  if (!tradeId) return;
+  activeGeneralShopTradeId = tradeId;
+  await fetchGeneralShopTradeById(tradeId);
+  renderGeneralShopTradeModal();
+  openModalById('general-shop-trade-modal');
+}
+
+function closeGeneralShopTradeModal() {
+  closeModalById('general-shop-trade-modal');
+  activeGeneralShopTradeId = '';
+  if (generalShopTradeCountdownInterval) {
+    clearInterval(generalShopTradeCountdownInterval);
+    generalShopTradeCountdownInterval = null;
+  }
+}
+
+async function addItemToGeneralShopTrade(encodedTradeId, encodedEntryKey) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const [rawItemId, rawSaleValue] = sanitizeNullableText(decodeURIComponent(encodedEntryKey || ''), '').split('|');
+  const itemId = normalizeOptionalGeneralShopItemId(rawItemId || '');
+  const saleValue = Math.max(0, Math.floor(Number(rawSaleValue) || 0));
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !itemId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const [tradeSnap, balanceSnap] = await Promise.all([tx.get(tradeRef), tx.get(balanceRef)]);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      if (!canMutateGeneralShopTrade(trade, user)) throw new Error('That trade can no longer be edited.');
+      const side = getGeneralShopTradeParticipantSide(trade, user);
+      const sideKey = side === 'to' ? 'toItems' : 'fromItems';
+      const currentStats = normalizeCasinoProfileStatsData(user, balanceSnap.exists ? (balanceSnap.data() || {}) : {});
+      const availableEntries = getAvailableGeneralShopTradeEntriesForUser(trade, user, currentStats);
+      const matched = availableEntries.find((entry) => entry.itemId === itemId && Math.max(0, Math.floor(Number(entry.saleValue || 0))) === saleValue);
+      if (!matched) throw new Error('You no longer have that item available to add.');
+      const nextEntries = getGeneralShopTradeSideEntries(trade, side);
+      if (nextEntries.length >= 9) throw new Error('Each side can only offer up to 9 items.');
+      nextEntries.push({ itemId, saleValue });
+      tx.set(tradeRef, {
+        [sideKey]: serializeGeneralShopTradeItemEntries(nextEntries),
+        fromAccepted: false,
+        toAccepted: false,
+        countdownEndsAtMs: 0,
+        status: trade.status === 'pending' ? 'pending' : 'open',
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not add that item to the trade.');
+  }
+}
+
+async function removeItemFromGeneralShopTrade(encodedTradeId, side, indexValue) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const itemIndex = Math.max(0, Math.floor(Number(indexValue) || 0));
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const tradeSnap = await tx.get(tradeRef);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      const mySide = getGeneralShopTradeParticipantSide(trade, user);
+      if (side !== mySide) throw new Error('You can only remove items from your own side.');
+      if (!canMutateGeneralShopTrade(trade, user)) throw new Error('That trade can no longer be edited.');
+      const sideKey = side === 'to' ? 'toItems' : 'fromItems';
+      const nextEntries = getGeneralShopTradeSideEntries(trade, side);
+      if (!nextEntries[itemIndex]) throw new Error('That trade item was not found.');
+      nextEntries.splice(itemIndex, 1);
+      tx.set(tradeRef, {
+        [sideKey]: serializeGeneralShopTradeItemEntries(nextEntries),
+        fromAccepted: false,
+        toAccepted: false,
+        countdownEndsAtMs: 0,
+        status: trade.status === 'pending' ? 'pending' : 'open',
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not remove that item from the trade.');
+  }
+}
+
+async function toggleGeneralShopTradeAccepted(encodedTradeId) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const tradeSnap = await tx.get(tradeRef);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      if (!(trade.status === 'open' || trade.status === 'countdown')) throw new Error('That trade cannot be readied right now.');
+      const side = getGeneralShopTradeParticipantSide(trade, user);
+      if (!side) throw new Error('You are not part of that trade.');
+      const nextFromAccepted = side === 'from' ? !trade.fromAccepted : !!trade.fromAccepted;
+      const nextToAccepted = side === 'to' ? !trade.toAccepted : !!trade.toAccepted;
+      const bothAccepted = nextFromAccepted && nextToAccepted;
+      tx.set(tradeRef, {
+        fromAccepted: nextFromAccepted,
+        toAccepted: nextToAccepted,
+        status: bothAccepted ? 'countdown' : 'open',
+        countdownEndsAtMs: bothAccepted ? (Date.now() + 3000) : 0,
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not update ready state.');
+  }
+}
+
+async function cancelGeneralShopTrade(encodedTradeId) {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const trade = getGeneralShopTradeById(tradeId);
+  if (!trade) return;
+  const action = trade.status === 'pending' && trade.toUser === user ? 'reject' : 'cancel';
+  const statusValue = action === 'reject' ? 'rejected' : 'cancelled';
+  try {
+    await getGeneralShopTradesCollection().doc(tradeId).set({
+      status: statusValue,
+      countdownEndsAtMs: 0,
+      updatedAtMs: Date.now(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    if (activeGeneralShopTradeId === tradeId) closeGeneralShopTradeModal();
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not close that trade.');
+  }
+}
+
+async function finalizeGeneralShopTrade(tradeId) {
+  const key = sanitizeNullableText(tradeId, '');
+  const user = getCasinoPlayerKey();
+  if (!key || !user || generalShopTradeFinalizeInFlight === key) return;
+  generalShopTradeFinalizeInFlight = key;
+  const tradeRef = getGeneralShopTradesCollection().doc(key);
+  try {
+    await getCasinoDb().runTransaction(async (tx) => {
+      const tradeSnap = await tx.get(tradeRef);
+      if (!tradeSnap.exists) throw new Error('Trade session no longer exists.');
+      const trade = normalizeGeneralShopTradeOfferData(tradeSnap.id, tradeSnap.data() || {});
+      if (trade.status !== 'countdown') return;
+      if (!trade.fromAccepted || !trade.toAccepted) return;
+      if (trade.countdownEndsAtMs > Date.now()) return;
+      const fromRef = getCasinoBalanceCollection().doc(trade.fromUser);
+      const toRef = getCasinoBalanceCollection().doc(trade.toUser);
+      const [fromSnap, toSnap] = await Promise.all([tx.get(fromRef), tx.get(toRef)]);
+      const fromStats = normalizeCasinoProfileStatsData(trade.fromUser, fromSnap.exists ? (fromSnap.data() || {}) : {});
+      const toStats = normalizeCasinoProfileStatsData(trade.toUser, toSnap.exists ? (toSnap.data() || {}) : {});
+      const fromRemoved = removeTradeEntriesFromOwnedInventory(fromStats, trade.fromItems);
+      const toRemoved = removeTradeEntriesFromOwnedInventory(toStats, trade.toItems);
+      if (!fromRemoved) throw new Error(`${trade.fromUser} no longer owns one of the offered items.`);
+      if (!toRemoved) throw new Error(`${trade.toUser} no longer owns one of the offered items.`);
+      const nextFromInventory = appendTradeEntriesToOwnedInventory({
+        ownedGeneralShopItemIds: fromRemoved.ownedGeneralShopItemIds,
+        ownedGeneralShopItemSaleValues: fromRemoved.ownedGeneralShopItemSaleValues
+      }, trade.toItems);
+      const nextToInventory = appendTradeEntriesToOwnedInventory({
+        ownedGeneralShopItemIds: toRemoved.ownedGeneralShopItemIds,
+        ownedGeneralShopItemSaleValues: toRemoved.ownedGeneralShopItemSaleValues
+      }, trade.fromItems);
+      const nextFromFeatured = nextFromInventory.ownedGeneralShopItemIds.includes(fromStats.selectedGeneralShopFeaturedItemId)
+        ? fromStats.selectedGeneralShopFeaturedItemId
+        : '';
+      const nextToFeatured = nextToInventory.ownedGeneralShopItemIds.includes(toStats.selectedGeneralShopFeaturedItemId)
+        ? toStats.selectedGeneralShopFeaturedItemId
+        : '';
+      tx.set(fromRef, {
+        username: trade.fromUser,
+        displayName: sanitizeNullableText((fromSnap.exists ? (fromSnap.data() || {}).displayName : '') || trade.fromUser, trade.fromUser),
+        ...fromStats,
+        ...nextFromInventory,
+        selectedGeneralShopFeaturedItemId: nextFromFeatured,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(toRef, {
+        username: trade.toUser,
+        displayName: sanitizeNullableText((toSnap.exists ? (toSnap.data() || {}).displayName : '') || trade.toUser, trade.toUser),
+        ...toStats,
+        ...nextToInventory,
+        selectedGeneralShopFeaturedItemId: nextToFeatured,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(tradeRef, {
+        status: 'accepted',
+        countdownEndsAtMs: 0,
+        completedAtMs: Date.now(),
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+    await loadCasinoBalance().catch(() => {});
+    await loadInventoryHistoryForUser(user).catch(() => []);
+    renderGeneralShopInventoryModal();
+    renderGeneralShopTradeModal();
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not finalize that trade.');
+  } finally {
+    generalShopTradeFinalizeInFlight = '';
+  }
+}
+
+async function loadGeneralShopTradeModalIfNeeded() {
+  if (!activeGeneralShopTradeId) return null;
+  return fetchGeneralShopTradeById(activeGeneralShopTradeId);
+}
+
+function renderGeneralShopTradeParticipantHeader(username, accepted = false, subtle = '') {
+  const safeUser = normalizeUsername(username || '') || 'unknown';
+  return `<div class="trade-board-user-row"><div class="trade-board-avatar">${renderInlineProfileAvatarHtml(safeUser)}</div><div class="trade-board-user-meta"><div class="trade-board-user">${escapeHtml(safeUser)}${accepted ? ' • Ready' : ''}</div>${subtle ? `<div class="trade-board-user-subtle">${escapeHtml(subtle)}</div>` : ''}</div></div>`;
+}
+
+function renderGeneralShopTradeInviteModal() {
+  const container = document.getElementById('general-shop-trade-invite-content');
+  if (!container) return;
+  const trade = getGeneralShopTradeById(activeGeneralShopTradeInviteId);
+  if (!trade) {
+    container.innerHTML = '<div class="submission-empty">Trade request not found.</div>';
+    return;
+  }
+  const offeredEntry = getGeneralShopTradeSideEntries(trade, 'from')[0] || null;
+  const offeredItem = offeredEntry ? getGeneralShopItem(offeredEntry.itemId) : null;
+  const offeredRarity = getGeneralShopRarityConfig(offeredItem && offeredItem.rarity || trade.rarity || 'mil-spec');
+  container.innerHTML = `<div class="trade-invite-card"><div class="trade-invite-header">${renderInlineProfileAvatarHtml(trade.fromUser)}<div class="trade-invite-copy"><div class="trade-invite-title">${escapeHtml(trade.fromUser)} sent you a trade</div><div class="overlay-subtle">${trade.note ? escapeHtml(trade.note) : 'No note added.'}</div></div></div><div class="trade-invite-preview"><div class="trade-invite-item"><div class="trade-invite-item-visual" style="${getGeneralShopVisualStyleText(offeredItem && offeredItem.visualData, '')}"></div><div class="trade-invite-copy"><div class="trade-invite-title">${escapeHtml(offeredItem && offeredItem.title || trade.itemTitle || 'Trade item')}</div><div style="color:${escapeHtml(offeredRarity.color)}; font-weight:700;">${escapeHtml(offeredRarity.label)}</div><div class="overlay-subtle">$${Math.max(0, Number(offeredEntry && offeredEntry.saleValue || trade.saleValue || 0)).toLocaleString()}</div></div></div><div class="trade-invite-arrow">⇄</div></div><div class="submission-actions"><button type="button" onclick="cancelGeneralShopTrade('${encodeURIComponent(trade.id)}')" style="background:#5d4037; color:#fff; border:none; border-radius:0.55rem;">Decline</button><button type="button" onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','accept')" style="background:#2e7d32; color:#fff; border:none; border-radius:0.55rem;">Accept</button></div></div>`;
+}
+
+function renderGeneralShopTradeOfferSlots(trade, side, canEdit) {
+  const entries = getGeneralShopTradeSideEntries(trade, side);
+  return Array.from({ length: 9 }, (_, index) => {
+    const entry = entries[index] || null;
+    if (!entry) return '<div class="trade-board-slot is-empty"></div>';
+    const item = getGeneralShopItem(entry.itemId);
+    const rarity = getGeneralShopRarityConfig(item && item.rarity || 'mil-spec');
+    const removeBtn = canEdit ? `<button type="button" onclick="removeItemFromGeneralShopTrade('${encodeURIComponent(trade.id)}','${side}',${index})" style="position:absolute; top:0.3rem; right:0.3rem; width:1.5rem; height:1.5rem; border:none; border-radius:999px; background:rgba(10,14,20,0.84); color:#fff; cursor:pointer;">×</button>` : '';
+    return `<div class="trade-board-slot is-filled" style="--trade-rarity-color:${escapeHtml(rarity.color)};"><div class="trade-board-slot-fill" style="${getGeneralShopVisualStyleText(item && item.visualData, 'justify-content:flex-start;')}"><div class="trade-item-stack"><div class="trade-slot-title">${escapeHtml(item && item.title || entry.itemId)}</div><div class="trade-slot-value">$${Math.max(0, Number(entry.saleValue || 0)).toLocaleString()} • ${escapeHtml(rarity.label)}</div></div>${removeBtn}</div></div>`;
+  }).join('');
+}
+
+function renderGeneralShopTradeAvailablePool(trade, username) {
+  const available = getAvailableGeneralShopTradeEntriesForUser(trade, username);
+  if (!available.length) return '<div class="overlay-subtle">No extra case drops available to add.</div>';
+  return `<div style="display:flex; gap:0.45rem; flex-wrap:wrap; margin-top:0.7rem;">${available.map((entry) => {
+    const item = entry.item;
+    const entryKey = encodeURIComponent(`${entry.itemId}|${Math.max(0, Number(entry.saleValue || 0))}`);
+    return `<button type="button" onclick="addItemToGeneralShopTrade('${encodeURIComponent(trade.id)}','${entryKey}')" style="padding:0.45rem 0.65rem; border-radius:0.6rem; border:1px solid rgba(125,157,194,0.22); background:#182434; color:#e8f3ff; cursor:pointer;">${escapeHtml(item && item.title || entry.itemId)} • $${Math.max(0, Number(entry.saleValue || 0)).toLocaleString()}</button>`;
+  }).join('')}</div>`;
+}
+
+function renderGeneralShopTradeModal() {
+  const container = document.getElementById('general-shop-trade-content');
+  const status = document.getElementById('general-shop-trade-status');
+  if (!container || !status) return;
+  const trade = getGeneralShopTradeById(activeGeneralShopTradeId);
+  if (!trade) {
+    container.innerHTML = '<div class="submission-empty">Trade session not found.</div>';
+    status.textContent = '';
+    return;
+  }
+  const myUser = getCasinoPlayerKey();
+  const mySide = getGeneralShopTradeParticipantSide(trade, myUser);
+  const otherUser = getGeneralShopTradeOtherUser(trade, myUser);
+  const canEdit = canMutateGeneralShopTrade(trade, myUser) && (trade.status !== 'countdown');
+  const myAccepted = getGeneralShopTradeAcceptedState(trade, myUser);
+  const otherAccepted = getGeneralShopTradeAcceptedState(trade, otherUser);
+  const countdownMs = getGeneralShopTradeCountdownRemainingMs(trade);
+  const waitingInvite = trade.status === 'pending';
+  status.textContent = waitingInvite
+    ? (trade.toUser === myUser ? 'Trade request waiting for your answer.' : `Waiting for ${trade.toUser} to accept this trade request.`)
+    : trade.status === 'countdown'
+      ? `Trade locks in ${Math.ceil(countdownMs / 1000)}...`
+      : trade.status === 'accepted'
+        ? 'Trade completed.'
+        : trade.status === 'rejected'
+          ? 'Trade declined.'
+          : trade.status === 'cancelled'
+            ? 'Trade cancelled.'
+            : 'Edit your side, then both players accept.';
+  status.style.color = trade.status === 'accepted'
+    ? '#9fe3a5'
+    : trade.status === 'rejected' || trade.status === 'cancelled'
+      ? '#ffb4a8'
+      : '#9fb0c2';
+  const myUserLabel = escapeHtml(myUser || 'you');
+  const otherUserLabel = escapeHtml(otherUser || 'other player');
+  const closeLabel = trade.status === 'pending' && trade.toUser === myUser ? 'Decline' : (trade.status === 'accepted' ? 'Close' : 'Cancel Trade');
+  const closeAction = trade.status === 'accepted' ? `closeGeneralShopTradeModal()` : `cancelGeneralShopTrade('${encodeURIComponent(trade.id)}')`;
+  container.innerHTML = `
+    <div class="trade-board-card">
+      <div class="trade-board-shell">
+        <div class="trade-board-side">
+          ${renderGeneralShopTradeParticipantHeader(myUserLabel, myAccepted, 'Your side')}
+          <div class="trade-board-grid">${renderGeneralShopTradeOfferSlots(trade, mySide === 'to' ? 'to' : 'from', canEdit)}</div>
+          ${canEdit ? renderGeneralShopTradeAvailablePool(trade, myUser) : ''}
+        </div>
+        <div class="trade-board-center">
+          <div class="trade-board-icon">⇄</div>
+          <div class="trade-board-status" data-state="${escapeHtml(trade.status)}">${escapeHtml(trade.status)}</div>
+          ${trade.status === 'countdown' ? `<div class="overlay-subtle" style="color:#d9ebff; text-align:center;">Finalizing in ${Math.ceil(countdownMs / 1000)}</div>` : ''}
+        </div>
+        <div class="trade-board-side">
+          ${renderGeneralShopTradeParticipantHeader(otherUserLabel, otherAccepted, 'Other side')}
+          <div class="trade-board-grid">${renderGeneralShopTradeOfferSlots(trade, mySide === 'to' ? 'from' : 'to', false)}</div>
+          <div class="overlay-subtle" style="margin-top:0.7rem;">${trade.note ? escapeHtml(trade.note) : 'No note added.'}</div>
+        </div>
+      </div>
+      <div class="trade-board-meta">
+        <div class="trade-board-note">${escapeHtml(trade.fromUser)} ↔ ${escapeHtml(trade.toUser)}</div>
+        <div>${escapeHtml(formatRelativeTime(Math.max(trade.updatedAtMs, trade.createdAtMs)))}</div>
+      </div>
+      <div class="submission-actions" style="margin-top:0.9rem;">
+        ${trade.status === 'open' || trade.status === 'countdown' ? `<button type="button" onclick="toggleGeneralShopTradeAccepted('${encodeURIComponent(trade.id)}')" style="background:${myAccepted ? '#455a64' : '#2e7d32'}; color:#fff; border:none; border-radius:0.55rem;">${myAccepted ? 'Unaccept' : 'Accept Trade'}</button>` : ''}
+        ${trade.status === 'pending' && trade.toUser === myUser ? `<button type="button" onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','accept')" style="background:#2e7d32; color:#fff; border:none; border-radius:0.55rem;">Accept Request</button>` : ''}
+        <button type="button" onclick="${closeAction}" style="background:#5d4037; color:#fff; border:none; border-radius:0.55rem;">${closeLabel}</button>
+      </div>
+    </div>`;
+  if (generalShopTradeCountdownInterval) clearInterval(generalShopTradeCountdownInterval);
+  generalShopTradeCountdownInterval = null;
+  if (trade.status === 'countdown') {
+    generalShopTradeCountdownInterval = setInterval(() => {
+      renderGeneralShopTradeModal();
+      if (getGeneralShopTradeCountdownRemainingMs(getGeneralShopTradeById(trade.id) || trade) <= 0) {
+        finalizeGeneralShopTrade(trade.id);
+      }
+    }, 250);
+  }
+}
+
+async function loadGeneralShopTradesForUser(username) {
+  const key = normalizeUsername(username || getCasinoPlayerKey());
+  if (!key) {
+    generalShopTradeCache = [];
+    return generalShopTradeCache;
+  }
+  try {
+    const db = getGeneralShopTradesCollection();
+    const [incoming, outgoing] = await Promise.all([
+      db.where('toUser', '==', key).limit(60).get(),
+      db.where('fromUser', '==', key).limit(60).get()
+    ]);
+    const seen = new Set();
+    generalShopTradeCache = incoming.docs.concat(outgoing.docs)
+      .filter((doc) => {
+        if (seen.has(doc.id)) return false;
+        seen.add(doc.id);
+        return true;
+      })
+      .map((doc) => normalizeGeneralShopTradeOfferData(doc.id, doc.data() || {}))
+      .sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+  } catch (_) {
+    generalShopTradeCache = [];
+  }
+  return generalShopTradeCache;
+}
+
+function mergeLiveGeneralShopTradeCache() {
+const seen = new Set();
+generalShopTradeCache = generalShopTradeLiveSnapshots.incoming.concat(generalShopTradeLiveSnapshots.outgoing)
+  .filter((trade) => {
+    if (!trade || !trade.id || seen.has(trade.id)) return false;
+    seen.add(trade.id);
+    return true;
+  })
+  .sort((a, b) => Math.max(b.updatedAtMs, b.createdAtMs) - Math.max(a.updatedAtMs, a.createdAtMs));
+if (document.getElementById('player-hub-modal')?.style.display === 'flex') {
+  renderPlayerHubModal();
+}
+}
+
+function processGeneralShopTradeSnapshot(snapshot, direction) {
+const normalized = snapshot.docs.map((doc) => normalizeGeneralShopTradeOfferData(doc.id, doc.data() || {}));
+const readyKey = direction === 'incoming' ? 'incomingReady' : 'outgoingReady';
+const shouldNotify = generalShopTradeListenerState[readyKey];
+generalShopTradeLiveSnapshots[direction] = normalized;
+if (shouldNotify) {
+  normalized.forEach((trade) => {
+    const previousStatus = generalShopTradeListenerState.statuses[trade.id];
+    if (direction === 'incoming' && previousStatus === undefined && trade.status === 'pending') {
+      pushNotification({ type: 'trade', title: `Trade from ${trade.fromUser}`, body: `${trade.itemTitle || 'Item'} is waiting for your answer.`, read: false, action: { kind: 'trade', tradeId: trade.id } });
+      openTradeRequestPrompt(trade.id);
+    }
+    if (direction === 'outgoing' && previousStatus === 'pending' && trade.status === 'accepted') {
+      pushNotification({ type: 'trade', title: 'Trade completed', body: `${trade.toUser} completed ${trade.itemTitle || 'your trade'}.`, read: false, action: { kind: 'trade', tradeId: trade.id } });
+    }
+    if (direction === 'outgoing' && previousStatus === 'pending' && trade.status === 'rejected') {
+      pushNotification({ type: 'trade', title: 'Trade declined', body: `${trade.toUser} declined ${trade.itemTitle || 'your trade'}.`, read: false, action: { kind: 'trade', tradeId: trade.id } });
+    }
+  });
+}
+normalized.forEach((trade) => {
+  generalShopTradeListenerState.statuses[trade.id] = trade.status;
+  if (direction === 'incoming' && trade.status === 'pending' && !generalShopTradeInvitePromptedIds.has(trade.id)) {
+    openTradeRequestPrompt(trade.id);
+  }
+  if (activeGeneralShopTradeInviteId === trade.id) {
+    if (trade.status !== 'pending') {
+      closeGeneralShopTradeInviteModal();
+    } else {
+      renderGeneralShopTradeInviteModal();
+    }
+  }
+  if ((trade.status === 'open' || trade.status === 'countdown') && (trade.fromUser === getCasinoPlayerKey() || trade.toUser === getCasinoPlayerKey()) && !activeGeneralShopTradeId) {
+    openGeneralShopTradeModal(encodeURIComponent(trade.id));
+  }
+  if (activeGeneralShopTradeId === trade.id) {
+    renderGeneralShopTradeModal();
+  }
+  if (trade.status === 'countdown' && trade.countdownEndsAtMs && trade.countdownEndsAtMs <= Date.now()) {
+    finalizeGeneralShopTrade(trade.id);
+  }
+});
+generalShopTradeListenerState[readyKey] = true;
+mergeLiveGeneralShopTradeCache();
+}
+
+function listenForGeneralShopTrades(username) {
+const key = normalizeUsername(username || getCasinoPlayerKey());
+if (key && generalShopTradeUnsub && generalShopTradeListenerState.key === key) {
+  return;
+}
+if (generalShopTradeUnsub) {
+  generalShopTradeUnsub();
+  generalShopTradeUnsub = null;
+}
+generalShopTradeLiveSnapshots = { incoming: [], outgoing: [] };
+if (!key || !chatInitialized) {
+  generalShopTradeCache = [];
+  return;
+}
+generalShopTradeListenerState = { key, incomingReady: false, outgoingReady: false, statuses: {} };
+const db = getGeneralShopTradesCollection();
+const incomingUnsub = db.where('toUser', '==', key).limit(60).onSnapshot((snapshot) => {
+  processGeneralShopTradeSnapshot(snapshot, 'incoming');
+}, () => {});
+const outgoingUnsub = db.where('fromUser', '==', key).limit(60).onSnapshot((snapshot) => {
+  processGeneralShopTradeSnapshot(snapshot, 'outgoing');
+}, () => {});
+generalShopTradeUnsub = () => {
+  incomingUnsub();
+  outgoingUnsub();
+};
+}
+
+async function openTradeOfferPrompt(encodedItemId) {
+  const user = getCasinoPlayerKey();
+  const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+  if (!user || !itemId) return;
+  const item = getGeneralShopItem(itemId);
+  if (!item || item.itemType !== 'case-drop') return;
+  const ownedEntry = getOwnedGeneralShopItemEntries(getCachedCasinoProfileStats(user)).find((entry) => entry.itemId === itemId);
+  if (!ownedEntry) {
+    setGeneralShopInventoryStatus('You do not own that case drop anymore.', 'error');
+    return;
+  }
+  const targetUser = normalizeUsername(prompt('Send trade offer to which username?', '') || '');
+  if (!targetUser) return;
+  if (targetUser === user) {
+    setGeneralShopInventoryStatus('You cannot trade with yourself.', 'error');
+    return;
+  }
+  const note = sanitizeNullableText(prompt('Optional trade note', `Trade offer for ${item.title}`) || '', '').slice(0, 220);
+  try {
+    const tradeRef = await getGeneralShopTradesCollection().add({
+      fromUser: user,
+      toUser: targetUser,
+      itemId: item.id,
+      itemTitle: item.title,
+      saleValue: Math.max(0, Math.floor(Number(ownedEntry.saleValue || 0))),
+      rarity: normalizeGeneralShopRarity(item.rarity),
+      fromItems: [{ itemId: item.id, saleValue: Math.max(0, Math.floor(Number(ownedEntry.saleValue || 0))) }],
+      toItems: [],
+      fromAccepted: false,
+      toAccepted: false,
+      countdownEndsAtMs: 0,
+      note,
+      status: 'pending',
+      createdAtMs: Date.now(),
+      updatedAtMs: Date.now(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await addCasinoInventoryHistory({ type: 'trade_offer_sent', actor: user, targetUser, itemId: item.id, itemTitle: item.title, itemType: item.itemType, rarity: item.rarity, value: ownedEntry.saleValue, note });
+    pushNotification({ type: 'trade', title: 'Trade offer sent', body: `${item.title} offered to ${targetUser}.`, read: false, action: { kind: 'trade', tradeId: tradeRef.id } });
+    setGeneralShopInventoryStatus(`Trade offer sent to ${targetUser}.`, 'success');
+    await openGeneralShopTradeModal(encodeURIComponent(tradeRef.id));
+  } catch (err) {
+    setGeneralShopInventoryStatus('Could not send that trade offer.', 'error');
+  }
+}
+
+async function respondToGeneralShopTradeOffer(encodedTradeId, action = 'reject') {
+  const tradeId = sanitizeNullableText(decodeURIComponent(encodedTradeId || ''), '');
+  const user = getCasinoPlayerKey();
+  if (!tradeId || !user) return;
+  const tradeRef = getGeneralShopTradesCollection().doc(tradeId);
+  try {
+    if (action === 'accept') {
+      await getGeneralShopTradesCollection().doc(tradeId).set({
+        status: 'open',
+        openedAtMs: Date.now(),
+        fromAccepted: false,
+        toAccepted: false,
+        countdownEndsAtMs: 0,
+        updatedAtMs: Date.now(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        acceptedBy: user
+      }, { merge: true });
+      pushNotification({ type: 'trade', title: 'Trade request accepted', body: 'The trade window is ready.', read: false, action: { kind: 'trade', tradeId } });
+    } else {
+      await tradeRef.set({ status: 'rejected', countdownEndsAtMs: 0, updatedAtMs: Date.now(), updatedAt: firebase.firestore.FieldValue.serverTimestamp(), rejectedBy: user }, { merge: true });
+    }
+    await loadGeneralShopTradesForUser(user);
+    await loadInventoryHistoryForUser(user);
+    renderGeneralShopInventoryModal();
+    if (activeGeneralShopTradeInviteId === tradeId) {
+      closeGeneralShopTradeInviteModal();
+    }
+    if (action === 'accept') {
+      await openGeneralShopTradeModal(encodeURIComponent(tradeId));
+    }
+    await refreshCasinoProfileUiForUser(user);
+  } catch (err) {
+    alert(err && err.message ? err.message : 'Could not update that trade offer.');
+  }
+}
+
+function normalizeSiteEventData(data = {}) {
+  const title = sanitizeNullableText(data.title, '').slice(0, 80);
+  const body = sanitizeNullableText(data.body, '').slice(0, 240);
+  const accent = /^#[0-9a-fA-F]{6}$/.test(String(data.accent || '')) ? String(data.accent) : '#2f8d46';
+  const endsAtMs = data.endsAt && typeof data.endsAt.toDate === 'function' ? data.endsAt.toDate().getTime() : Math.max(0, Number(data.endsAtMs || 0));
+  return title ? { title, body, accent, endsAtMs } : null;
+}
+
+async function loadActiveSiteEvent() {
+  try {
+    const doc = await getAdminDb().collection('chat_meta').doc(SITE_EVENT_DOC_ID).get();
+    activeSiteEventCache = doc.exists ? normalizeSiteEventData(doc.data() || {}) : null;
+  } catch (_) {
+    activeSiteEventCache = null;
+  }
+  return activeSiteEventCache;
+}
+
+function renderActiveSiteEventBanner() {
+  const banner = document.getElementById('site-announcement-banner');
+  if (!banner) return;
+  const eventData = activeSiteEventCache;
+  if (!eventData || (eventData.endsAtMs && eventData.endsAtMs <= Date.now())) {
+    if (!moderationSettings.announcementText) {
+      banner.style.display = 'none';
+      banner.textContent = '';
+    }
+    return;
+  }
+  banner.style.display = 'block';
+  banner.style.background = `${eventData.accent}`;
+  banner.style.borderColor = eventData.accent;
+  banner.textContent = `${eventData.title}${eventData.body ? ` • ${eventData.body}` : ''}${eventData.endsAtMs ? ` • Ends ${new Date(eventData.endsAtMs).toLocaleString()}` : ''}`;
+}
+
+function setPlayerHubTab(tab) {
+  currentPlayerHubTab = ['notifications', 'history', 'cases', 'rewards', 'events', 'threads'].includes(tab) ? tab : 'notifications';
+  renderPlayerHubModal();
+}
+
+function getThreadMessagesForRoot(rootId) {
+  const root = window._chatDocs && window._chatDocs[rootId] ? { id: rootId, ...(window._chatDocs[rootId] || {}) } : null;
+  const docs = Object.entries(window._chatDocs || {}).map(([id, data]) => ({ id, ...(data || {}) }));
+  const related = docs.filter((entry) => entry.id === rootId || normalizeUsername(entry.room || 'general') === normalizeUsername(currentChatThreadRoomId || currentChatRoom || 'general'));
+  return related.filter((entry) => {
+    if (entry.id === rootId) return true;
+    const replyTo = entry.replyTo || {};
+    return sanitizeNullableText(replyTo.rootDocId || replyTo.docId, '') === rootId;
+  }).sort((a, b) => getTimestampMs(a.timestamp) - getTimestampMs(b.timestamp));
+}
+
+async function loadThreadMessagesForRoot(rootId, roomId = 'general') {
+  const resolvedRootId = sanitizeNullableText(rootId, '');
+  if (!resolvedRootId) {
+    currentChatThreadMessages = [];
+    currentChatThreadLoading = false;
+    renderChatThreadModal();
+    return [];
+  }
+  currentChatThreadLoading = true;
+  currentChatThreadMessages = getThreadMessagesForRoot(resolvedRootId);
+  renderChatThreadModal();
+  try {
+    const db = getPrimaryDb();
+    const snapshot = await db.collection('site_messages').orderBy('timestamp', 'desc').limit(450).get();
+    const merged = new Map(currentChatThreadMessages.map((entry) => [entry.id, entry]));
+    snapshot.docs.forEach((doc) => {
+      const entry = { id: doc.id, ...(doc.data() || {}) };
+      const entryRoom = normalizeUsername(entry.room || 'general');
+      const replyTo = entry.replyTo || {};
+      const replyRoot = sanitizeNullableText(replyTo.rootDocId || replyTo.docId, '');
+      if (entry.id !== resolvedRootId && replyRoot !== resolvedRootId) return;
+      if (roomId && entryRoom !== normalizeUsername(roomId)) return;
+      merged.set(entry.id, entry);
+    });
+    currentChatThreadMessages = Array.from(merged.values()).sort((a, b) => getTimestampMs(a.timestamp) - getTimestampMs(b.timestamp));
+  } catch (_) {
+  } finally {
+    currentChatThreadLoading = false;
+    renderChatThreadModal();
+  }
+  return currentChatThreadMessages;
+}
+
+function renderChatThreadModal() {
+  const containers = [document.getElementById('chat-thread-content'), document.getElementById('player-hub-thread-content')].filter(Boolean);
+  if (!containers.length) return;
+  if (currentChatThreadLoading && !currentChatThreadMessages.length) {
+    containers.forEach((container) => {
+      container.innerHTML = '<div class="submission-empty">Loading thread...</div>';
+    });
+    return;
+  }
+  const items = currentChatThreadMessages.length ? currentChatThreadMessages : getThreadMessagesForRoot(currentChatThreadRootId);
+  if (!items.length) {
+    containers.forEach((container) => {
+      container.innerHTML = '<div class="submission-empty">No thread messages found yet.</div>';
+    });
+    return;
+  }
+  const html = items.map((entry) => {
+    const name = sanitizeNullableText(entry.displayUser || entry.user, 'unknown');
+    const text = sanitizeNullableText(entry.message, entry.imageData ? '[image]' : (entry.videoUrl || entry.videoData ? '[video]' : (entry.type === 'gif' ? '[gif]' : '')));
+    const time = entry.timestamp && typeof entry.timestamp.toDate === 'function' ? entry.timestamp.toDate().toLocaleString() : '';
+    return `<div class="modal-history-item"><div class="modal-history-meta">${escapeHtml(name)}${time ? ` • ${escapeHtml(time)}` : ''}</div><div>${escapeHtml(text || 'No text')}</div></div>`;
+  }).join('');
+  containers.forEach((container) => {
+    container.innerHTML = `${currentChatThreadLoading ? '<div class="overlay-subtle" style="margin-bottom:0.65rem;">Loading older replies...</div>' : ''}${html}`;
+  });
+}
+
+async function openChatThreadModal(encodedDocId = '') {
+  currentChatThreadRootId = sanitizeNullableText(decodeURIComponent(encodedDocId || ''), '');
+  currentChatThreadRoomId = currentChatRoom;
+  currentChatThreadMessages = getThreadMessagesForRoot(currentChatThreadRootId);
+  renderChatThreadModal();
+  openModalById('chat-thread-modal');
+  await loadThreadMessagesForRoot(currentChatThreadRootId, currentChatThreadRoomId);
+}
+
+function closeChatThreadModal() {
+  closeModalById('chat-thread-modal');
+  currentChatThreadRootId = '';
+  currentChatThreadMessages = [];
+  currentChatThreadLoading = false;
+}
+
+function renderTradeBoardSlots(item, rarity, filledIndex = -1) {
+  return Array.from({ length: 9 }, (_, index) => {
+    if (index !== filledIndex || !item) return '<div class="trade-board-slot is-empty"></div>';
+    return `<div class="trade-board-slot is-filled" style="--trade-rarity-color:${escapeHtml(rarity.color)};"><div class="trade-board-slot-fill" style="${getGeneralShopVisualStyleText(item.visualData, 'justify-content:flex-start;')}">${escapeHtml(item.title)}</div></div>`;
+  }).join('');
+}
+
+function renderGeneralShopTradeBoard(trade, myKey) {
+  const item = getGeneralShopItem(trade.itemId);
+  const rarity = getGeneralShopRarityConfig(trade.rarity || (item && item.rarity) || 'mil-spec');
+  const incoming = trade.toUser === myKey;
+  const state = sanitizeNullableText(trade.status, 'pending');
+  const senderGetsItem = state !== 'accepted';
+  const leftSlots = renderTradeBoardSlots(senderGetsItem ? item : null, rarity, senderGetsItem && item ? 0 : -1);
+  const rightSlots = renderTradeBoardSlots(!senderGetsItem ? item : null, rarity, !senderGetsItem && item ? 0 : -1);
+  const note = sanitizeNullableText(trade.note, 'No note');
+  const actions = state === 'pending' && incoming
+    ? `<div class="submission-actions" style="margin-top:0.8rem;"><button onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','reject')" style="background:#7b2f2f; color:#fff;">Decline</button><button onclick="respondToGeneralShopTradeOffer('${encodeURIComponent(trade.id)}','accept')" style="background:#2e7d32; color:#fff;">Accept</button></div>`
+    : '';
+  return `<div class="trade-board-card"><div class="trade-board-shell"><div class="trade-board-side"><div class="trade-board-user">${escapeHtml(trade.fromUser)}</div><div class="trade-board-grid">${leftSlots}</div></div><div class="trade-board-center"><div class="trade-board-icon">⇄</div><div class="trade-board-status" data-state="${escapeHtml(state)}">${escapeHtml(state)}</div></div><div class="trade-board-side"><div class="trade-board-user">${escapeHtml(trade.toUser)}</div><div class="trade-board-grid">${rightSlots}</div></div></div><div class="trade-board-meta"><div class="trade-board-note">${escapeHtml(note)}${item ? ` • ${escapeHtml(item.title)}` : ''}</div><div>${escapeHtml(formatRelativeTime(Math.max(trade.updatedAtMs, trade.createdAtMs)))}</div></div>${actions}</div>`;
+}
+
+function renderPlayerHubModal() {
+  const container = document.getElementById('player-hub-content');
+  if (!container) return;
+  ['notifications', 'history', 'cases', 'rewards', 'events', 'threads'].forEach((tab) => {
+    const btn = document.getElementById(`player-hub-tab-${tab}`);
+    if (!btn) return;
+    btn.style.background = currentPlayerHubTab === tab ? '#1565c0' : '#263238';
+    btn.style.color = '#fff';
+  });
+  const myKey = getCasinoPlayerKey() || getMyProfileKey();
+  if (currentPlayerHubTab === 'notifications') {
+    container.innerHTML = `<div class="notification-actions"><button onclick="markAllNotificationsRead()">Mark All Read</button><button onclick="clearNotifications()">Clear</button></div><div id="notification-list" class="notification-list"></div>`;
+    renderNotificationCenter();
+    return;
+  }
+  if (currentPlayerHubTab === 'history') {
+    container.innerHTML = inventoryHistoryCache.length ? inventoryHistoryCache.map((entry) => `<div class="modal-history-item"><div class="modal-history-meta">${escapeHtml(entry.type.replace(/_/g, ' '))} • ${escapeHtml(formatRelativeTime(entry.atMs))}</div><div>${escapeHtml(entry.itemTitle || entry.caseTitle || entry.note || 'Inventory action')}</div><div style="margin-top:0.2rem; color:#9fb0c2;">${entry.value ? `$${entry.value.toLocaleString()}` : ''}${entry.note ? ` • ${escapeHtml(entry.note)}` : ''}</div></div>`).join('') : '<div class="submission-empty">No inventory history yet.</div>';
+    return;
+  }
+  if (currentPlayerHubTab === 'cases') {
+    const openings = inventoryHistoryCache.filter((entry) => entry.type === 'open_case');
+    const totalOpened = openings.length;
+    const totalRewardValue = openings.reduce((sum, entry) => sum + Math.max(0, Number(entry.value || 0)), 0);
+    const best = openings.slice().sort((a, b) => Math.max(0, Number(b.value || 0)) - Math.max(0, Number(a.value || 0)))[0] || null;
+    container.innerHTML = `<div class="profile-detail-list" style="margin-bottom:0.8rem;">${[
+      ['Cases Opened', String(totalOpened)],
+      ['Reward Value', `$${totalRewardValue.toLocaleString()}`],
+      ['Average Return', `$${totalOpened ? Math.round(totalRewardValue / totalOpened).toLocaleString() : '0'}`],
+      ['Best Pull', best ? `${best.itemTitle} ($${Math.max(0, Number(best.value || 0)).toLocaleString()})` : 'None']
+    ].map(([label, value]) => `<div class="profile-detail-card"><div class="profile-detail-label">${escapeHtml(label)}</div><div class="profile-detail-value">${escapeHtml(value)}</div></div>`).join('')}</div><div class="modal-history-list">${openings.length ? openings.map((entry) => `<div class="modal-history-item"><div class="modal-history-meta">${escapeHtml(entry.caseTitle || 'Case')} • ${escapeHtml(formatRelativeTime(entry.atMs))}</div><div>${escapeHtml(entry.itemTitle || 'Unknown drop')}</div><div style="margin-top:0.2rem; color:#9fb0c2;">$${Math.max(0, Number(entry.value || 0)).toLocaleString()} • ${escapeHtml(getGeneralShopRarityConfig(entry.rarity).label)}</div></div>`).join('') : '<div class="submission-empty">No case openings yet.</div>'}</div>`;
+    return;
+  }
+  if (currentPlayerHubTab === 'rewards') {
+    const stats = getStatsForUserKey(getMyProfileKey());
+    const casinoStats = getCachedCasinoProfileStats(getMyProfileKey());
+    const profile = getCachedProfile(getMyProfileKey());
+    const titles = getUnlockedProfileRewardTitles(stats, casinoStats);
+    const equippedTitle = getEquippedProfileRewardTitle(getMyProfileKey(), stats, casinoStats, profile);
+    const cosmetics = getUnlockedProfileRewardCosmetics(stats, casinoStats);
+    const equippedCosmetic = getEquippedProfileRewardCosmetic(getMyProfileKey(), stats, casinoStats, profile);
+    const rewardGuide = getProfileRewardGuideData(stats, casinoStats, getMyProfileKey());
+    container.innerHTML = `<div class="overlay-subtle" style="margin-bottom:0.8rem;">Rewards now show the exact unlock requirement, so you can see how to get each title and trim.</div><div style="font-weight:700; color:#d7e3f4; margin-bottom:0.45rem;">Unlocked Titles</div><div class="profile-badge-row" style="margin-bottom:1rem;">${titles.length ? titles.map((title) => `<span class="profile-badge" style="background:${title === equippedTitle ? '#1565c0' : '#263238'};">${escapeHtml(title)}</span>`).join('') : '<span style="color:#999;">No reward titles unlocked yet.</span>'}</div><div style="font-weight:700; color:#d7e3f4; margin-bottom:0.45rem;">Unlocked Trims</div><div class="reward-cosmetic-grid">${cosmetics.length ? cosmetics.map((cosmetic) => `<div class="reward-cosmetic-card ${equippedCosmetic && equippedCosmetic.id === cosmetic.id ? 'is-equipped' : ''}" style="--reward-accent-soft:${escapeHtml(cosmetic.soft)}; --reward-accent-glow:${escapeHtml(cosmetic.glow)};"><div class="reward-cosmetic-swatch" style="background:${escapeHtml(cosmetic.swatch)};"></div><div style="font-weight:800; color:${escapeHtml(cosmetic.accent)};">${escapeHtml(cosmetic.label)}</div><div class="overlay-subtle" style="margin-top:0.35rem; color:#b9cada;">${escapeHtml(cosmetic.description)}</div></div>`).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">No cosmetic trims unlocked yet.</div>'}</div><div style="font-weight:700; color:#d7e3f4; margin:1rem 0 0.45rem;">How To Get Reward Titles</div><div class="profile-detail-list" style="margin-bottom:1rem;">${rewardGuide.titles.map((reward) => `<div class="profile-detail-card"><div class="profile-detail-label">${escapeHtml(reward.label)}</div><div class="profile-detail-value" style="font-size:0.95rem; color:${reward.unlocked ? '#9ee3b0' : '#dce6f7'};">${reward.unlocked ? 'Unlocked' : 'Locked'}</div><div class="overlay-subtle" style="margin-top:0.35rem;">${escapeHtml(reward.howToGet)}</div><div style="margin-top:0.35rem; color:#90a4ae; font-size:0.8rem;">${escapeHtml(reward.progress)}</div></div>`).join('')}</div><div style="font-weight:700; color:#d7e3f4; margin-bottom:0.45rem;">How To Get Reward Trims</div><div class="profile-detail-list">${rewardGuide.cosmetics.map((reward) => `<div class="profile-detail-card"><div class="profile-detail-label">${escapeHtml(reward.label)}</div><div class="profile-detail-value" style="font-size:0.95rem; color:${reward.unlocked ? '#9ee3b0' : '#dce6f7'};">${reward.unlocked ? 'Unlocked' : 'Locked'}</div><div class="overlay-subtle" style="margin-top:0.35rem;">${escapeHtml(reward.howToGet)}</div><div style="margin-top:0.35rem; color:#90a4ae; font-size:0.8rem;">${escapeHtml(reward.progress)}</div></div>`).join('')}</div>`;
+    return;
+  }
+  if (currentPlayerHubTab === 'events') {
+    const eventData = activeSiteEventCache;
+    container.innerHTML = eventData ? `<div class="store-mini-card"><div class="store-mini-card-title">${escapeHtml(eventData.title)}</div><div class="store-mini-card-meta">${escapeHtml(eventData.body || 'Limited-time event')}</div><div class="store-mini-card-meta" style="color:#9fb0c2;">${eventData.endsAtMs ? `Ends ${new Date(eventData.endsAtMs).toLocaleString()}` : 'No end date set'}</div></div>` : '<div class="submission-empty">No active event right now.</div>';
+    return;
+  }
+  container.innerHTML = `<div id="player-hub-thread-content">${currentChatThreadRootId ? '' : '<div class="submission-empty">Open a thread from a chat message to view it here.</div>'}</div>`;
+  renderChatThreadModal();
+}
+
+async function openPlayerHubModal(defaultTab = '') {
+  if (defaultTab) currentPlayerHubTab = ['notifications', 'history', 'cases', 'rewards', 'events', 'threads'].includes(defaultTab) ? defaultTab : 'notifications';
+  listenForGeneralShopTrades(getCasinoPlayerKey());
+  await Promise.all([
+    loadInventoryHistoryForUser(getCasinoPlayerKey()).catch(() => []),
+    loadGeneralShopTradesForUser(getCasinoPlayerKey()).catch(() => []),
+    loadActiveSiteEvent().catch(() => null)
+  ]);
+  renderActiveSiteEventBanner();
+  renderPlayerHubModal();
+  openModalById('player-hub-modal');
+}
+
+function closePlayerHubModal() {
+  closeModalById('player-hub-modal');
+}
+
+function openCaseSuggestionModal() {
+  const status = document.getElementById('case-suggestion-status');
+  if (status) status.textContent = '';
+  [
+    'case-suggestion-name',
+    'case-suggestion-theme',
+    'case-suggestion-notes'
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  caseSuggestionDraftDrops = buildDefaultCaseSuggestionDrops();
+  renderCaseSuggestionDropBuilder();
+  openModalById('case-suggestion-modal');
+}
+
+function closeCaseSuggestionModal() {
+  const status = document.getElementById('case-suggestion-status');
+  if (status) status.textContent = '';
+  closeModalById('case-suggestion-modal');
+}
+
+async function openGameSubmissionModal(encodedId = '') {
+const heading = document.getElementById('game-submission-heading');
+const subtitle = document.getElementById('game-submission-subtitle');
+const submitBtn = document.getElementById('game-submission-submit-btn');
+const status = document.getElementById('game-submission-status');
+const titleEl = document.getElementById('submission-title');
+const urlEl = document.getElementById('submission-url');
+const descriptionEl = document.getElementById('submission-description');
+const notesEl = document.getElementById('submission-notes');
+const rawId = decodeURIComponent(encodedId || '');
+let item = rawId ? communityGameSubmissionsCache.find((entry) => entry && entry.id === rawId) : null;
+if (rawId && !item) {
+  if (status) status.textContent = 'Loading game submission...';
+  try {
+    const snapshot = await getAdminDb().collection(GAME_SUBMISSIONS_COLLECTION).doc(rawId).get();
+    if (snapshot && snapshot.exists) {
+      const data = snapshot.data() || {};
+      item = {
+        id: snapshot.id,
+        ...data,
+        submittedAtMs: data.submittedAt && typeof data.submittedAt.toDate === 'function' ? data.submittedAt.toDate().getTime() : (data.submittedAtMs || 0),
+        approvedAtMs: data.approvedAt && typeof data.approvedAt.toDate === 'function' ? data.approvedAt.toDate().getTime() : (data.approvedAtMs || 0)
+      };
+      communityGameSubmissionsCache = communityGameSubmissionsCache.some((entry) => entry && entry.id === item.id)
+        ? communityGameSubmissionsCache.map((entry) => entry && entry.id === item.id ? item : entry)
+        : [item, ...communityGameSubmissionsCache];
+      renderSubmissionQueue();
+    }
+  } catch (_) {
+    item = null;
+  }
+}
+activeGameSubmissionEditId = item ? item.id : '';
+if (heading) heading.textContent = item ? 'Edit Game Submission' : 'Submit a Game';
+if (subtitle) subtitle.textContent = item
+? 'Update the title, URL, description, or notes for this game submission.'
+: 'Send a game directly into the site queue instead of using an external form.';
+if (submitBtn) submitBtn.textContent = item ? 'Save Changes' : 'Submit Game';
+if (titleEl) titleEl.value = item ? sanitizeNullableText(item.title, '') : '';
+if (urlEl) urlEl.value = item ? sanitizeNullableText(item.url, '') : '';
+if (descriptionEl) descriptionEl.value = item ? sanitizeNullableText(item.description, '') : '';
+if (notesEl) notesEl.value = item ? sanitizeNullableText(item.notes, '') : '';
+if (status) status.textContent = item || !rawId ? '' : 'Game submission not found.';
+openModalById('game-submission-modal');
+}
+
+function closeGameSubmissionModal() {
+activeGameSubmissionEditId = '';
+const heading = document.getElementById('game-submission-heading');
+const subtitle = document.getElementById('game-submission-subtitle');
+const submitBtn = document.getElementById('game-submission-submit-btn');
+const status = document.getElementById('game-submission-status');
+const fields = ['submission-title', 'submission-url', 'submission-description', 'submission-notes'];
+if (heading) heading.textContent = 'Submit a Game';
+if (subtitle) subtitle.textContent = 'Send a game directly into the site queue instead of using an external form.';
+if (submitBtn) submitBtn.textContent = 'Submit Game';
+if (status) status.textContent = '';
+fields.forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.value = '';
+});
+closeModalById('game-submission-modal');
+}
+
+function openLoginRequestModal() {
+const usernameInput = document.getElementById('site-login-username');
+const modalUser = document.getElementById('login-request-username');
+const modalPassword = document.getElementById('login-request-password');
+const modalNotes = document.getElementById('login-request-notes');
+const status = document.getElementById('login-request-status');
+if (modalUser) modalUser.value = normalizeUsername(usernameInput ? usernameInput.value : '');
+if (modalPassword) modalPassword.value = '';
+if (modalNotes) modalNotes.value = '';
+if (status) {
+status.textContent = '';
+status.classList.remove('has-error', 'has-success');
+}
+openModalById('login-request-modal');
+}
+
+function closeLoginRequestModal() {
+closeModalById('login-request-modal');
+}
+
+function formatAdminElapsedTime(ms) {
+const safeMs = Math.max(0, Number(ms) || 0);
+const totalMinutes = Math.floor(safeMs / 60000);
+if (totalMinutes < 1) return 'just now';
+if (totalMinutes < 60) return `${totalMinutes}m ago`;
+const totalHours = Math.floor(totalMinutes / 60);
+if (totalHours < 24) return `${totalHours}h ago`;
+const totalDays = Math.floor(totalHours / 24);
+if (totalDays < 30) return `${totalDays}d ago`;
+const totalMonths = Math.floor(totalDays / 30);
+return `${Math.max(1, totalMonths)}mo ago`;
+}
+
+function syncReviewQueueFilterInputs() {
+const gameSearch = document.getElementById('admin-game-submissions-search');
+const gameStatus = document.getElementById('admin-game-submissions-status');
+const caseSearch = document.getElementById('admin-case-suggestions-search');
+const caseStatus = document.getElementById('admin-case-suggestions-status');
+const loginSearch = document.getElementById('admin-login-requests-search');
+const loginStatus = document.getElementById('admin-login-requests-status');
+if (gameSearch) gameSearch.value = reviewQueueFilters.games.search;
+if (gameStatus) gameStatus.value = reviewQueueFilters.games.status;
+if (caseSearch) caseSearch.value = reviewQueueFilters.cases.search;
+if (caseStatus) caseStatus.value = reviewQueueFilters.cases.status;
+if (loginSearch) loginSearch.value = reviewQueueFilters.logins.search;
+if (loginStatus) loginStatus.value = reviewQueueFilters.logins.status;
+}
+
+function updateReviewQueueFilter(queueType, key, value) {
+const targetKey = queueType === 'logins' ? 'logins' : queueType === 'cases' ? 'cases' : 'games';
+if (!reviewQueueFilters[targetKey]) return;
+reviewQueueFilters[targetKey][key] = key === 'status' ? String(value || 'all') : String(value || '').trim().toLowerCase();
+if (targetKey === 'games') {
+  renderSubmissionQueue();
+  return;
+}
+if (targetKey === 'cases') {
+  renderCaseSuggestionQueue();
+  return;
+}
+renderLoginRequestQueue();
+}
+
+function resetReviewQueueFilters(queueType) {
+const targetKey = queueType === 'logins' ? 'logins' : queueType === 'cases' ? 'cases' : 'games';
+reviewQueueFilters[targetKey] = { search: '', status: 'all' };
+if (targetKey === 'games') {
+  renderSubmissionQueue();
+  return;
+}
+if (targetKey === 'cases') {
+  renderCaseSuggestionQueue();
+  return;
+}
+renderLoginRequestQueue();
+}
+
+function filterReviewQueueItems(queueType, items) {
+const targetKey = queueType === 'logins' ? 'logins' : queueType === 'cases' ? 'cases' : 'games';
+const filters = reviewQueueFilters[targetKey] || { search: '', status: 'all' };
+const query = String(filters.search || '').trim().toLowerCase();
+const status = filters.status || 'all';
+return (items || []).filter((item) => {
+  const itemStatus = normalizeReviewStatus(item && item.status);
+  if (status !== 'all' && itemStatus !== status) return false;
+  if (!query) return true;
+  if (targetKey === 'games') {
+    const haystack = [
+      item.title,
+      item.url,
+      item.description,
+      item.notes,
+      item.submittedBy,
+      item.submittedByName,
+      item.reviewedBy
+    ].map((part) => sanitizeNullableText(part, '').toLowerCase()).join(' ');
+    return haystack.includes(query);
+  }
+  if (targetKey === 'cases') {
+    const rarityText = GENERAL_SHOP_RARITY_CONFIG.map((entry) => ((item.raritySuggestions && item.raritySuggestions[entry.id]) || []).join(' ')).join(' ');
+    const haystack = [
+      item.caseName,
+      item.theme,
+      item.notes,
+      item.submittedBy,
+      item.submittedByName,
+      item.reviewedBy,
+      rarityText
+    ].map((part) => sanitizeNullableText(part, '').toLowerCase()).join(' ');
+    return haystack.includes(query);
+  }
+  const haystack = [
+    item.username,
+    item.notes,
+    item.reviewedBy
+  ].map((part) => sanitizeNullableText(part, '').toLowerCase()).join(' ');
+  return haystack.includes(query);
+});
+}
+
+function toggleReviewQueueSelection(queueType, encodedId, checked) {
+const targetKey = queueType === 'logins' ? 'logins' : 'games';
+const id = targetKey === 'logins' ? normalizeUsername(decodeURIComponent(encodedId || '')) : decodeURIComponent(encodedId || '');
+if (!id) return;
+const selection = targetKey === 'logins' ? selectedLoginRequestIds : selectedGameSubmissionIds;
+if (checked) selection.add(id);
+else selection.delete(id);
+if (targetKey === 'logins') renderLoginRequestQueue();
+else renderSubmissionQueue();
+}
+
+function setAllReviewQueueSelections(queueType, shouldSelect) {
+const targetKey = queueType === 'logins' ? 'logins' : 'games';
+const items = filterReviewQueueItems(targetKey, targetKey === 'logins' ? loginRequestsCache : communityGameSubmissionsCache);
+const selection = targetKey === 'logins' ? selectedLoginRequestIds : selectedGameSubmissionIds;
+if (!shouldSelect) {
+  selection.clear();
+} else {
+  items.forEach((item) => selection.add(targetKey === 'logins' ? normalizeUsername(item && item.username) : String(item && item.id || '')));
+}
+if (targetKey === 'logins') renderLoginRequestQueue();
+else renderSubmissionQueue();
+}
+
+function syncAdminAccountFilterInputs() {
+const search = document.getElementById('admin-account-search');
+const source = document.getElementById('admin-account-source');
+if (search) search.value = adminAccountFilters.search;
+if (source) source.value = adminAccountFilters.source;
+}
+
+function updateAdminAccountFilter(key, value) {
+if (!(key in adminAccountFilters)) return;
+adminAccountFilters[key] = key === 'source' ? String(value || 'all') : String(value || '').trim().toLowerCase();
+renderAdminAccountManager();
+}
+
+function getManagedAccountPresence(entry) {
+if (!entry || !entry.activityUpdatedAtMs) return 'No activity yet';
+const msAgo = Date.now() - entry.activityUpdatedAtMs;
+if (msAgo < 10 * 60000) return 'Online now';
+return `Seen ${formatAdminElapsedTime(msAgo)}`;
+}
+
+function getAccountManagerEntries() {
+const query = String(adminAccountFilters.search || '').trim().toLowerCase();
+const sourceFilter = adminAccountFilters.source || 'all';
+return adminAccountManagerCache.filter((entry) => {
+  if (sourceFilter !== 'all' && entry.source !== sourceFilter) return false;
+  if (!query) return true;
+  return sanitizeNullableText(entry.username, '').toLowerCase().includes(query);
+});
+}
+
+function renderAdminAccountCard(entry) {
+const safeUser = encodeURIComponent(entry.username || '');
+const role = sanitizeNullableText(entry.role, 'member');
+const presence = getManagedAccountPresence(entry);
+const createdLabel = entry.createdAtMs ? new Date(entry.createdAtMs).toLocaleDateString() : 'Unknown';
+const levelInfo = calculateUserLevel(entry.stats || {}, entry.username || '');
+return `<div class="admin-compact-card">
+  <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+    <div>
+      <div style="font-weight:bold; color:#ffca28;">${escapeHtml(entry.username || 'unknown')}</div>
+      <div style="margin-top:0.2rem; color:#90a4ae; font-size:0.78rem;">Firestore account • Role: ${escapeHtml(getRoleDisplayName(role))} • ${escapeHtml(presence)}</div>
+    </div>
+    <div class="admin-chip-row" style="margin-top:0;">
+      <span class="admin-info-chip">Level ${escapeHtml(String(levelInfo.level || 1))}</span>
+      <span class="admin-info-chip">${escapeHtml(String(levelInfo.points || 0))} pts</span>
+    </div>
+  </div>
+  <div class="admin-chip-row">
+    <span class="admin-info-chip">Joined ${escapeHtml(createdLabel)}</span>
+    <span class="admin-info-chip">Messages ${escapeHtml(String((entry.stats && entry.stats.messagesSent) || 0))}</span>
+    <span class="admin-info-chip">Games ${escapeHtml(String((entry.stats && entry.stats.gamesOpened) || 0))}</span>
+    <span class="admin-info-chip">Media ${escapeHtml(String((entry.stats && entry.stats.mediaShared) || 0))}</span>
+  </div>
+  <div class="admin-compact-actions">
+    <button onclick="openUserProfileFromChat('${safeUser}', event)" style="padding:0.3rem 0.55rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Profile</button>
+    <button onclick="inspectManagedAccount('${safeUser}')" style="padding:0.3rem 0.55rem; background:#263238; color:#fff; border:none; border-radius:0.25rem;">History</button>
+    <button onclick="adminResetManagedAccountPassword('${safeUser}')" style="padding:0.3rem 0.55rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Reset Password</button>
+    <button onclick="adminSuspendManagedAccount('${safeUser}')" style="padding:0.3rem 0.55rem; background:#8e24aa; color:#fff; border:none; border-radius:0.25rem;">Suspend</button>
+    <button onclick="adminDeleteManagedAccount('${safeUser}')" style="padding:0.3rem 0.55rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete</button>
+  </div>
+</div>`;
+}
+
+function renderAdminAccountManager() {
+const container = document.getElementById('admin-account-manager');
+if (!container) return;
+syncAdminAccountFilterInputs();
+if (!canUseAdminPermission('manageAccounts')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+const entries = getAccountManagerEntries();
+if (!entries.length) {
+  container.innerHTML = '<div class="submission-empty">No accounts match the current filters.</div>';
+  return;
+}
+container.innerHTML = `${adminAccountManagerWarnings.length ? `<div style="color:#ffb74d; font-size:0.78rem; margin-bottom:0.5rem;">Loaded with limited data: ${escapeHtml(adminAccountManagerWarnings.join(', '))}.</div>` : ''}${entries.map(renderAdminAccountCard).join('')}`;
+}
+
+function inspectManagedAccount(encodedUsername) {
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+applySelectedAdminUser(username);
+loadAdminUserHistory(username);
+}
+
+function normalizeReviewStatus(value) {
+const status = sanitizeNullableText(value, 'pending').toLowerCase();
+if (status === 'approved' || status === 'rejected') return status;
+return 'pending';
+}
+
+function renderReviewGroup(title, items, emptyText, renderItem) {
+return `<div style="margin-bottom:0.9rem;">
+  <div style="font-weight:bold; color:#90caf9; margin-bottom:0.45rem;">${escapeHtml(title)} <span style="color:#78909c; font-weight:normal;">(${items.length})</span></div>
+  ${items.length ? items.map(renderItem).join('') : `<div class="submission-empty">${escapeHtml(emptyText)}</div>`}
+</div>`;
+}
+
+function renderGameSubmissionCard(item, showActions, allowDelete = false) {
+const safeId = encodeURIComponent(item.id || '');
+const status = normalizeReviewStatus(item.status);
+const reviewer = sanitizeNullableText(item.reviewedBy, '');
+const reviewMeta = reviewer ? `${status} by ${reviewer}` : status;
+const selected = selectedGameSubmissionIds.has(item.id || '');
+const editAction = canReviewSubmissions(currentChatUser)
+? `<button onclick="openGameSubmissionModal('${safeId}')" style="padding:0.3rem 0.55rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Edit</button>`
+: '';
+return `<div class="admin-compact-card">
+  <div style="display:flex; gap:0.55rem; align-items:flex-start;">
+    <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleReviewQueueSelection('games', '${safeId}', this.checked)" style="margin-top:0.2rem;" />
+    <div style="flex:1; min-width:0;">
+      <div style="font-weight:bold; color:#ffca28;">${escapeHtml(item.title || 'Untitled')}</div>
+  <div style="color:#bbb; font-size:0.8rem; margin-top:0.2rem;">${escapeHtml(item.url || '')}</div>
+  <div style="color:#90a4ae; font-size:0.76rem; margin-top:0.2rem;">${escapeHtml(reviewMeta)} • by ${escapeHtml(item.submittedByName || item.submittedBy || 'unknown')}</div>
+  <div style="color:#ddd; font-size:0.82rem; margin-top:0.35rem;">${escapeHtml((item.description || '').slice(0, 180))}</div>
+  ${(showActions || allowDelete || editAction) ? `<div class="admin-compact-actions">
+    ${editAction}
+    ${showActions ? `<button onclick="reviewGameSubmission('${safeId}','approve')" style="padding:0.3rem 0.55rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Approve</button>
+    <button onclick="reviewGameSubmission('${safeId}','reject')" style="padding:0.3rem 0.55rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Reject</button>` : ''}
+    ${allowDelete ? `<button onclick="deleteGameSubmission('${safeId}')" style="padding:0.3rem 0.55rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}
+  </div>` : ''}
+    </div>
+  </div>
+</div>`;
+}
+
+function renderLoginRequestCard(item, showActions, allowDelete = false) {
+const safeId = encodeURIComponent(item.id || item.username || '');
+const status = normalizeReviewStatus(item.status);
+const reviewer = sanitizeNullableText(item.reviewedBy, '');
+const reviewMeta = reviewer ? `${status} by ${reviewer}` : status;
+const selected = selectedLoginRequestIds.has(item.username || '');
+return `<div class="admin-compact-card">
+  <div style="display:flex; gap:0.55rem; align-items:flex-start;">
+    <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleReviewQueueSelection('logins', '${safeId}', this.checked)" style="margin-top:0.2rem;" />
+    <div style="flex:1; min-width:0;">
+      <div style="font-weight:bold; color:#ffca28;">${escapeHtml(item.username || 'unknown')}</div>
+  <div style="color:#bbb; font-size:0.8rem; margin-top:0.2rem;">Password: ${escapeHtml(item.password || '')}</div>
+  <div style="color:#90a4ae; font-size:0.76rem; margin-top:0.2rem;">${escapeHtml(reviewMeta)}</div>
+  <div style="color:#ddd; font-size:0.82rem; margin-top:0.35rem;">${escapeHtml((item.notes || '').slice(0, 180) || 'No notes.')}</div>
+  ${status === 'rejected' && item.reviewReason ? `<div style="color:#ffcc80; font-size:0.78rem; margin-top:0.35rem;">Reason: ${escapeHtml(item.reviewReason)}</div>` : ''}
+  ${(showActions || allowDelete) ? `<div class="admin-compact-actions">
+    ${showActions ? `<button onclick="reviewLoginRequest('${safeId}','approve')" style="padding:0.3rem 0.55rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Approve</button>
+    <button onclick="reviewLoginRequest('${safeId}','reject')" style="padding:0.3rem 0.55rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Reject</button>` : ''}
+    ${allowDelete ? `<button onclick="deleteLoginRequest('${safeId}')" style="padding:0.3rem 0.55rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}
+  </div>` : ''}
+    </div>
+  </div>
+</div>`;
+}
+
+async function loadGameSubmissionsOnce(force = false) {
+const container = document.getElementById('admin-game-submissions');
+if (force) gameSubmissionsLoaded = false;
+if (gameSubmissionsLoading) return;
+gameSubmissionsLoading = true;
+if (container && canReviewSubmissions(currentChatUser) && !gameSubmissionsLoaded) {
+  container.innerHTML = '<div class="submission-empty">Loading submissions...</div>';
+}
+try {
+  const db = getAdminDb();
+  const snapshot = await db.collection(GAME_SUBMISSIONS_COLLECTION)
+    .orderBy('submittedAt', 'desc')
+    .limit(80)
+    .get();
+  communityGameSubmissionsCache = snapshot.docs.map((doc) => {
+    const data = doc.data() || {};
+    return {
+      id: doc.id,
+      ...data,
+      submittedAtMs: data.submittedAt && typeof data.submittedAt.toDate === 'function' ? data.submittedAt.toDate().getTime() : (data.submittedAtMs || 0),
+      approvedAtMs: data.approvedAt && typeof data.approvedAt.toDate === 'function' ? data.approvedAt.toDate().getTime() : (data.approvedAtMs || 0)
+    };
+  });
+      if (activeGeneralShopTradeInviteId === tradeId) closeGeneralShopTradeInviteModal();
+  gameSubmissionsLoaded = true;
+  updateReviewQueueBadges();
+  renderGameStorefront();
+  renderAdminGameBioManager();
+  renderSubmissionQueue();
+} catch (err) {
+  updateReviewQueueBadges();
+  if (container && canReviewSubmissions(currentChatUser)) {
+    container.innerHTML = '<div class="submission-empty">Could not load submissions from Firestore.</div>';
+  }
+} finally {
+  gameSubmissionsLoading = false;
+}
+}
+
+function getPendingGameSubmissionCount() {
+return communityGameSubmissionsCache.filter((item) => normalizeReviewStatus(item && item.status) === 'pending').length;
+}
+
+function listenForBuiltInGameMetadata() {
+try {
+  const db = getAdminDb();
+  if (builtInGameMetadataUnsub) builtInGameMetadataUnsub();
+  builtInGameMetadataUnsub = db.collection(GAME_METADATA_COLLECTION)
+    .limit(120)
+    .onSnapshot((snapshot) => {
+      const nextCache = {};
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data() || {};
+        const key = normalizeRoomId(data.name || data.gameName || doc.id || '');
+        if (!key) return;
+        nextCache[key] = normalizeBuiltInGameMetadata(data);
+      });
+      builtInGameMetadataCache = nextCache;
+      renderGameStorefront();
+      renderAdminGameBioManager();
+    });
+} catch (_) {
+  builtInGameMetadataCache = {};
+}
+}
+
+function getAdminGameBioInputId(gameId) {
+return `admin-game-bio-${normalizeRoomId(gameId || '')}`;
+}
+
+function renderAdminGameBioManager() {
+const container = document.getElementById('admin-game-bio-manager');
+if (!container) return;
+if (!canUseAdminPermission('manageGameBios')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+const games = getStoreGames().slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+if (!games.length) {
+  container.innerHTML = '<div class="submission-empty">No games available.</div>';
+  return;
+}
+container.innerHTML = games.map((game) => {
+  const encodedId = encodeURIComponent(game.id || '');
+  const inputId = getAdminGameBioInputId(game.id);
+  const sourceLabel = game.source === 'community' ? 'Community game' : 'Built-in game';
+  return `<div class="admin-compact-card">
+  <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+    <div>
+      <div style="font-weight:bold; color:#ffca28;">${escapeHtml(game.name || 'Untitled')}</div>
+      <div style="color:#90a4ae; font-size:0.76rem; margin-top:0.18rem;">${escapeHtml(sourceLabel)}</div>
+    </div>
+    <button onclick="adminSaveGameBio('${encodedId}')" style="width:auto; padding:0.45rem 0.85rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Save Bio</button>
+  </div>
+  <textarea id="${escapeHtml(inputId)}" maxlength="280" placeholder="Leave blank to reset ${escapeHtml(game.name || 'this game')} to its default bio."></textarea>
+</div>`;
+}).join('');
+}
+
+async function adminSaveGameBio(encodedGameId) {
+if (!canUseAdminPermission('manageGameBios')) return;
+const gameId = decodeURIComponent(encodedGameId || '');
+const game = getStoreGameById(gameId);
+const statusDiv = document.getElementById('admin-ban-status');
+if (!game) {
+  if (statusDiv) statusDiv.textContent = 'Could not find that game.';
+  return;
+}
+const input = document.getElementById(getAdminGameBioInputId(game.id));
+const nextDescription = sanitizeNullableText(input ? input.value : '', '').slice(0, 280);
+try {
+  const db = getAdminDb();
+  if (game.source === 'community') {
+    const submissionId = String(game.submissionId || '').trim();
+    if (!submissionId) throw new Error('Missing community submission id.');
+    await db.collection(GAME_SUBMISSIONS_COLLECTION).doc(submissionId).set({
+      description: nextDescription,
+      updatedBy: currentChatUser,
+      updatedAtMs: Date.now(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    communityGameSubmissionsCache = communityGameSubmissionsCache.map((entry) => entry && entry.id === submissionId ? {
+      ...entry,
+      description: nextDescription,
+      updatedBy: currentChatUser,
+      updatedAtMs: Date.now()
+    } : entry);
+  } else {
+    const metadataId = normalizeRoomId(game.name || game.id || '');
+    await db.collection(GAME_METADATA_COLLECTION).doc(metadataId).set({
+      name: game.name,
+      gameName: game.name,
+      description: nextDescription,
+      updatedBy: currentChatUser,
+      updatedAtMs: Date.now(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    builtInGameMetadataCache[metadataId] = {
+      ...(builtInGameMetadataCache[metadataId] || {}),
+      description: nextDescription
+    };
+  }
+  await writeAuditLog('edit_game_bio', game.name || game.id, `${nextDescription ? 'Updated' : 'Reset'} ${game.source || 'builtin'} game bio`);
+  if (input) input.value = '';
+  if (statusDiv) statusDiv.textContent = nextDescription ? `Saved bio for ${game.name}.` : `Reset bio for ${game.name}.`;
+  renderGameStorefront();
+  renderAdminGameBioManager();
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to save game bio.';
+}
+}
+
+function getPendingLoginRequestCount() {
+return loginRequestsCache.filter((item) => normalizeReviewStatus(item && item.status) === 'pending').length;
+}
+
+function canManageLoginRequests(username = currentChatUser) {
+return canUseAdminPermission('manageLoginRequests', username);
+}
+
+function getPendingCaseSuggestionCount() {
+return caseSuggestionsCache.filter((item) => normalizeReviewStatus(item && item.status) === 'pending').length;
+}
+
+function updateReviewQueueBadges() {
+const pendingCount = getPendingGameSubmissionCount();
+const pendingCaseCount = getPendingCaseSuggestionCount();
+const pendingLoginCount = getPendingLoginRequestCount();
+const totalPending = (canReviewSubmissions(currentChatUser) ? (pendingCount + pendingCaseCount) : 0) + (canManageLoginRequests(currentChatUser) ? pendingLoginCount : 0);
+const titleBadge = document.getElementById('admin-submissions-pending-count');
+const caseBadge = document.getElementById('admin-case-suggestions-pending-count');
+const loginBadge = document.getElementById('admin-login-requests-pending-count');
+const menuBadge = document.getElementById('admin-menu-pending-badge');
+if (titleBadge) {
+  titleBadge.textContent = String(pendingCount);
+  titleBadge.style.display = pendingCount > 0 && canReviewSubmissions(currentChatUser) ? 'inline-flex' : 'none';
+}
+if (caseBadge) {
+  caseBadge.textContent = String(pendingCaseCount);
+  caseBadge.style.display = pendingCaseCount > 0 && canReviewSubmissions(currentChatUser) ? 'inline-flex' : 'none';
+}
+if (loginBadge) {
+  loginBadge.textContent = String(pendingLoginCount);
+  loginBadge.style.display = pendingLoginCount > 0 && canManageLoginRequests(currentChatUser) ? 'inline-flex' : 'none';
+}
+if (menuBadge) {
+  menuBadge.textContent = String(totalPending);
+  menuBadge.style.display = totalPending > 0 && canReviewSubmissions(currentChatUser) ? 'inline-flex' : 'none';
+}
+}
+
+function renderSubmissionQueue() {
+const container = document.getElementById('admin-game-submissions');
+if (!container) return;
+updateReviewQueueBadges();
+syncReviewQueueFilterInputs();
+if (!canReviewSubmissions(currentChatUser)) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+if (gameSubmissionsLoading && !communityGameSubmissionsCache.length) {
+  container.innerHTML = '<div class="submission-empty">Loading submissions...</div>';
+  return;
+}
+if (!communityGameSubmissionsCache.length) {
+  container.innerHTML = '<div class="submission-empty">No submissions yet.</div>';
+  return;
+}
+const filteredItems = filterReviewQueueItems('games', communityGameSubmissionsCache);
+if (!filteredItems.length) {
+  container.innerHTML = '<div class="submission-empty">No game submissions match the current filters.</div>';
+  return;
+}
+const pendingItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'pending');
+const approvedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'approved');
+const rejectedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'rejected');
+const statusFilter = reviewQueueFilters.games.status || 'all';
+const groups = [];
+const summary = `<div class="queue-summary-grid"><div class="profile-detail-card"><div class="profile-detail-label">Pending</div><div class="profile-detail-value">${pendingItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Approved</div><div class="profile-detail-value">${approvedItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Rejected</div><div class="profile-detail-value">${rejectedItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Selected</div><div class="profile-detail-value">${selectedGameSubmissionIds.size}</div></div></div>`;
+const bulkBar = `<div class="bulk-action-bar"><button onclick="setAllReviewQueueSelections('games', true)" style="padding:0.35rem 0.7rem; background:#37474f; color:#fff; border:none; border-radius:0.25rem;">Select Visible</button><button onclick="setAllReviewQueueSelections('games', false)" style="padding:0.35rem 0.7rem; background:#263238; color:#fff; border:none; border-radius:0.25rem;">Clear</button><button onclick="bulkReviewQueueAction('games', 'approve')" style="padding:0.35rem 0.7rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Approve Selected</button><button onclick="bulkReviewQueueAction('games', 'reject')" style="padding:0.35rem 0.7rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Reject Selected</button><button onclick="bulkReviewQueueAction('games', 'delete')" style="padding:0.35rem 0.7rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete Selected</button></div>`;
+if (statusFilter === 'all' || statusFilter === 'pending') groups.push(renderReviewGroup('Pending', pendingItems, 'No pending game submissions.', (item) => renderGameSubmissionCard(item, true)));
+if (statusFilter === 'all' || statusFilter === 'approved') groups.push(renderReviewGroup('Approved', approvedItems, 'No approved game submissions.', (item) => renderGameSubmissionCard(item, false, true)));
+if (statusFilter === 'all' || statusFilter === 'rejected') groups.push(renderReviewGroup('Rejected', rejectedItems, 'No rejected game submissions.', (item) => renderGameSubmissionCard(item, false, true)));
+container.innerHTML = `${summary}${bulkBar}${groups.join('')}`;
+}
+
+function renderCaseSuggestionCard(item, showActions, allowDelete = false) {
+const safeId = encodeURIComponent(item.id || '');
+const status = normalizeReviewStatus(item.status);
+const reviewer = sanitizeNullableText(item.reviewedBy, '');
+const reviewMeta = reviewer ? `${status} by ${reviewer}` : status;
+const raritySummary = GENERAL_SHOP_RARITY_CONFIG.map((entry) => `${entry.shortLabel} ${((item.raritySuggestions && item.raritySuggestions[entry.id]) || []).length}`).join(' • ');
+const dropBlocks = (item.dropItems || []).map((drop) => {
+  const rarity = getGeneralShopRarityConfig(drop.rarity);
+  const previewVisual = sanitizeProfileBanner(((drop.images || [])[0]) || getDefaultCaseSuggestionVisualByRarity(rarity.id));
+  const imageCount = (drop.images || []).length;
+  return `<div style="padding:0.45rem; border-radius:0.55rem; background:#151d28; border:1px solid rgba(255,255,255,0.06); display:grid; gap:0.4rem;"><div style="height:7.2rem; border-radius:0.55rem; border:2px solid ${escapeHtml(rarity.color)}; ${getGeneralShopVisualStyleText(previewVisual)}; background-color:#0f1620;"></div><div style="font-size:0.72rem; font-weight:700; color:${escapeHtml(rarity.color)};">${escapeHtml(rarity.label)}${imageCount ? ` • ${imageCount} photo${imageCount === 1 ? '' : 's'}` : ''}</div><div style="color:#dce6f2; font-size:0.82rem; font-weight:700;">${escapeHtml(drop.name || 'Untitled Drop')}</div></div>`;
+}).join('');
+const conversionMeta = item.generatedCaseId ? `<div style="font-size:0.76rem; color:#9fe3a5;">Draft case created: ${escapeHtml(item.generatedCaseId)} • ${item.generatedDropIds.length} draft drop${item.generatedDropIds.length === 1 ? '' : 's'}</div>` : '';
+return `<div class="admin-compact-card"><div style="display:grid; gap:0.5rem;"><div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;"><div style="min-width:0;"><div style="font-weight:bold; color:#f6c453;">${escapeHtml(item.caseName || 'Untitled Case')}</div><div style="color:#90a4ae; font-size:0.76rem; margin-top:0.2rem;">${escapeHtml(reviewMeta)} • by ${escapeHtml(item.submittedByName || item.submittedBy || 'unknown')}</div>${item.theme ? `<div style="color:#ddd; font-size:0.82rem; margin-top:0.35rem;">${escapeHtml(item.theme)}</div>` : ''}${item.notes ? `<div style="color:#b0bec5; font-size:0.78rem; margin-top:0.3rem;">Notes: ${escapeHtml(item.notes)}</div>` : ''}</div><div style="font-size:0.76rem; color:#9fb0c2; white-space:nowrap;">${escapeHtml(raritySummary)}</div></div>${conversionMeta}<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(11rem, 1fr)); gap:0.45rem;">${dropBlocks || '<div style="padding:0.55rem; border-radius:0.45rem; background:#151d28; color:#9fb0c2;">No drops attached.</div>'}</div>${status === 'rejected' && item.reviewReason ? `<div style="color:#ffcc80; font-size:0.78rem;">Reason: ${escapeHtml(item.reviewReason)}</div>` : ''}${(showActions || allowDelete) ? `<div class="admin-compact-actions">${showActions ? `<button onclick="reviewCaseSuggestion('${safeId}','approve')" style="padding:0.3rem 0.55rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Approve</button><button onclick="reviewCaseSuggestion('${safeId}','reject')" style="padding:0.3rem 0.55rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Reject</button>` : ''}${allowDelete ? `<button onclick="deleteCaseSuggestion('${safeId}')" style="padding:0.3rem 0.55rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}</div>` : ''}</div></div>`;
+}
+
+function renderCaseSuggestionQueue() {
+const container = document.getElementById('admin-case-suggestions');
+if (!container) return;
+updateReviewQueueBadges();
+syncReviewQueueFilterInputs();
+if (!canReviewSubmissions(currentChatUser)) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+if (caseSuggestionsLoading && !caseSuggestionsCache.length) {
+  container.innerHTML = '<div class="submission-empty">Loading case suggestions...</div>';
+  return;
+}
+if (!caseSuggestionsCache.length) {
+  container.innerHTML = '<div class="submission-empty">No case suggestions yet.</div>';
+  return;
+}
+const filteredItems = filterReviewQueueItems('cases', caseSuggestionsCache);
+if (!filteredItems.length) {
+  container.innerHTML = '<div class="submission-empty">No case suggestions match the current filters.</div>';
+  return;
+}
+const pendingItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'pending');
+const approvedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'approved');
+const rejectedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'rejected');
+const statusFilter = reviewQueueFilters.cases.status || 'all';
+const summary = `<div class="queue-summary-grid"><div class="profile-detail-card"><div class="profile-detail-label">Pending</div><div class="profile-detail-value">${pendingItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Approved</div><div class="profile-detail-value">${approvedItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Rejected</div><div class="profile-detail-value">${rejectedItems.length}</div></div></div>`;
+const groups = [];
+if (statusFilter === 'all' || statusFilter === 'pending') groups.push(renderReviewGroup('Pending', pendingItems, 'No pending case suggestions.', (item) => renderCaseSuggestionCard(item, true)));
+if (statusFilter === 'all' || statusFilter === 'approved') groups.push(renderReviewGroup('Approved', approvedItems, 'No approved case suggestions.', (item) => renderCaseSuggestionCard(item, false, true)));
+if (statusFilter === 'all' || statusFilter === 'rejected') groups.push(renderReviewGroup('Rejected', rejectedItems, 'No rejected case suggestions.', (item) => renderCaseSuggestionCard(item, false, true)));
+container.innerHTML = `${summary}${groups.join('')}`;
+}
+
+async function loadCaseSuggestionsOnce(force = false) {
+const container = document.getElementById('admin-case-suggestions');
+if (force) caseSuggestionsLoaded = false;
+if (caseSuggestionsLoading) return;
+caseSuggestionsLoading = true;
+if (container && canReviewSubmissions(currentChatUser) && !caseSuggestionsLoaded) {
+  container.innerHTML = '<div class="submission-empty">Loading case suggestions...</div>';
+}
+try {
+  const snapshot = await getCaseSuggestionsCollection().orderBy('submittedAt', 'desc').limit(80).get();
+  caseSuggestionsCache = snapshot.docs.map((doc) => normalizeCaseSuggestionData(doc.id, doc.data() || {}));
+  caseSuggestionsLoaded = true;
+  updateReviewQueueBadges();
+  renderCaseSuggestionQueue();
+} catch (err) {
+  updateReviewQueueBadges();
+  if (container && canReviewSubmissions(currentChatUser)) {
+    container.innerHTML = '<div class="submission-empty">Could not load case suggestions from Firestore.</div>';
+  }
+} finally {
+  caseSuggestionsLoading = false;
+}
+}
+
+function listenForCaseSuggestions() {
+renderCaseSuggestionQueue();
+try {
+  if (caseSuggestionsUnsub) caseSuggestionsUnsub();
+  caseSuggestionsUnsub = getCaseSuggestionsCollection()
+    .orderBy('submittedAt', 'desc')
+    .limit(80)
+    .onSnapshot((snapshot) => {
+      caseSuggestionsCache = snapshot.docs.map((doc) => normalizeCaseSuggestionData(doc.id, doc.data() || {}));
+      caseSuggestionsLoaded = true;
+      updateReviewQueueBadges();
+      renderCaseSuggestionQueue();
+    }, () => {
+      loadCaseSuggestionsOnce();
+    });
+} catch (_) {
+  loadCaseSuggestionsOnce();
+}
+}
+
+function listenForGameSubmissions() {
+renderSubmissionQueue();
+try {
+  const db = getAdminDb();
+  if (communitySubmissionsUnsub) communitySubmissionsUnsub();
+  communitySubmissionsUnsub = db.collection(GAME_SUBMISSIONS_COLLECTION)
+    .orderBy('submittedAt', 'desc')
+    .limit(80)
+    .onSnapshot((snapshot) => {
+      communityGameSubmissionsCache = snapshot.docs.map((doc) => {
+        const data = doc.data() || {};
+        return {
+          id: doc.id,
+          ...data,
+          submittedAtMs: data.submittedAt && typeof data.submittedAt.toDate === 'function' ? data.submittedAt.toDate().getTime() : (data.submittedAtMs || 0),
+          approvedAtMs: data.approvedAt && typeof data.approvedAt.toDate === 'function' ? data.approvedAt.toDate().getTime() : (data.approvedAtMs || 0)
+        };
+      });
+      gameSubmissionsLoaded = true;
+      updateReviewQueueBadges();
+      renderGameStorefront();
+      renderAdminGameBioManager();
+      renderSubmissionQueue();
+    });
+} catch (_) {
+  loadGameSubmissionsOnce();
+}
+}
+
+async function loadLoginRequestsOnce(force = false) {
+const container = document.getElementById('admin-login-requests');
+if (force) loginRequestsLoaded = false;
+if (loginRequestsLoading) return;
+loginRequestsLoading = true;
+if (container && canManageLoginRequests(currentChatUser) && !loginRequestsLoaded) {
+  container.innerHTML = '<div class="submission-empty">Loading login requests...</div>';
+}
+try {
+  const snapshot = await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION)
+    .orderBy('submittedAt', 'desc')
+    .limit(80)
+    .get();
+  loginRequestsCache = snapshot.docs.map((doc) => {
+    const data = doc.data() || {};
+    return {
+      id: doc.id,
+      username: normalizeUsername(doc.id),
+      password: sanitizeNullableText(data.password, ''),
+      notes: sanitizeNullableText(data.notes, ''),
+      status: normalizeReviewStatus(data.status),
+      reviewReason: sanitizeNullableText(data.reviewReason, ''),
+      reviewedBy: sanitizeNullableText(data.reviewedBy, ''),
+      submittedAtMs: data.submittedAt && typeof data.submittedAt.toDate === 'function' ? data.submittedAt.toDate().getTime() : (data.submittedAtMs || 0)
+    };
+  });
+  loginRequestsLoaded = true;
+  updateReviewQueueBadges();
+  renderLoginRequestQueue();
+} catch (err) {
+  updateReviewQueueBadges();
+  if (container && canManageLoginRequests(currentChatUser)) {
+    container.innerHTML = '<div class="submission-empty">Could not load login requests from Firestore.</div>';
+  }
+} finally {
+  loginRequestsLoading = false;
+}
+}
+
+function renderLoginRequestQueue() {
+const container = document.getElementById('admin-login-requests');
+if (!container) return;
+updateReviewQueueBadges();
+syncReviewQueueFilterInputs();
+if (!canManageLoginRequests(currentChatUser)) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+if (loginRequestsLoading && !loginRequestsCache.length) {
+  container.innerHTML = '<div class="submission-empty">Loading login requests...</div>';
+  return;
+}
+if (!loginRequestsCache.length) {
+  container.innerHTML = '<div class="submission-empty">No login requests yet.</div>';
+  return;
+}
+const filteredItems = filterReviewQueueItems('logins', loginRequestsCache);
+if (!filteredItems.length) {
+  container.innerHTML = '<div class="submission-empty">No login requests match the current filters.</div>';
+  return;
+}
+const pendingItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'pending');
+const approvedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'approved');
+const rejectedItems = filteredItems.filter((item) => normalizeReviewStatus(item.status) === 'rejected');
+const statusFilter = reviewQueueFilters.logins.status || 'all';
+const groups = [];
+const summary = `<div class="queue-summary-grid"><div class="profile-detail-card"><div class="profile-detail-label">Pending</div><div class="profile-detail-value">${pendingItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Approved</div><div class="profile-detail-value">${approvedItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Rejected</div><div class="profile-detail-value">${rejectedItems.length}</div></div><div class="profile-detail-card"><div class="profile-detail-label">Selected</div><div class="profile-detail-value">${selectedLoginRequestIds.size}</div></div></div>`;
+const bulkBar = `<div class="bulk-action-bar"><button onclick="setAllReviewQueueSelections('logins', true)" style="padding:0.35rem 0.7rem; background:#37474f; color:#fff; border:none; border-radius:0.25rem;">Select Visible</button><button onclick="setAllReviewQueueSelections('logins', false)" style="padding:0.35rem 0.7rem; background:#263238; color:#fff; border:none; border-radius:0.25rem;">Clear</button><button onclick="bulkReviewQueueAction('logins', 'approve')" style="padding:0.35rem 0.7rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem;">Approve Selected</button><button onclick="bulkReviewQueueAction('logins', 'reject')" style="padding:0.35rem 0.7rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Reject Selected</button><button onclick="bulkReviewQueueAction('logins', 'delete')" style="padding:0.35rem 0.7rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Delete Selected</button></div>`;
+if (statusFilter === 'all' || statusFilter === 'pending') groups.push(renderReviewGroup('Pending', pendingItems, 'No pending login requests.', (item) => renderLoginRequestCard(item, true)));
+if (statusFilter === 'all' || statusFilter === 'approved') groups.push(renderReviewGroup('Approved', approvedItems, 'No approved login requests.', (item) => renderLoginRequestCard(item, false, true)));
+if (statusFilter === 'all' || statusFilter === 'rejected') groups.push(renderReviewGroup('Rejected', rejectedItems, 'No rejected login requests.', (item) => renderLoginRequestCard(item, false, true)));
+container.innerHTML = `${summary}${bulkBar}${groups.join('')}`;
+}
+
+function listenForLoginRequests() {
+renderLoginRequestQueue();
+try {
+  if (loginRequestsUnsub) loginRequestsUnsub();
+  loginRequestsUnsub = getAdminDb().collection(LOGIN_REQUESTS_COLLECTION)
+    .orderBy('submittedAt', 'desc')
+    .limit(80)
+    .onSnapshot((snapshot) => {
+      loginRequestsCache = snapshot.docs.map((doc) => {
+        const data = doc.data() || {};
+        return {
+          id: doc.id,
+          username: normalizeUsername(doc.id),
+          password: sanitizeNullableText(data.password, ''),
+          notes: sanitizeNullableText(data.notes, ''),
+          status: normalizeReviewStatus(data.status),
+          reviewReason: sanitizeNullableText(data.reviewReason, ''),
+          reviewedBy: sanitizeNullableText(data.reviewedBy, ''),
+          submittedAtMs: data.submittedAt && typeof data.submittedAt.toDate === 'function' ? data.submittedAt.toDate().getTime() : (data.submittedAtMs || 0)
+        };
+      });
+      loginRequestsLoaded = true;
+      updateReviewQueueBadges();
+      renderLoginRequestQueue();
+    });
+} catch (_) {
+  loadLoginRequestsOnce();
+}
+}
+
+async function submitLoginRequest() {
+const usernameEl = document.getElementById('login-request-username');
+const passwordEl = document.getElementById('login-request-password');
+const notesEl = document.getElementById('login-request-notes');
+const statusEl = document.getElementById('login-request-status');
+if (statusEl) statusEl.classList.remove('has-error', 'has-success');
+const username = normalizeUsername(usernameEl ? usernameEl.value : '');
+const password = sanitizeNullableText(passwordEl && passwordEl.value, '').slice(0, 64);
+const notes = sanitizeNullableText(notesEl && notesEl.value, '').slice(0, 220);
+if (!username || !password) {
+  if (statusEl) {
+    statusEl.textContent = 'Enter both a username and password.';
+    statusEl.classList.add('has-error');
+  }
+  return;
+}
+if (isProtectedUsername(username)) {
+  if (statusEl) {
+    statusEl.textContent = 'That username is unavailable.';
+    statusEl.classList.add('has-error');
+  }
+  return;
+}
+try {
+  const db = getAdminDb();
+  const existing = await db.collection(LOGIN_REQUESTS_COLLECTION).doc(username).get();
+  const existingData = existing.exists ? (existing.data() || {}) : {};
+  if (normalizeReviewStatus(existingData.status) === 'approved') {
+    if (statusEl) {
+      statusEl.textContent = 'That username is already approved.';
+      statusEl.classList.add('has-error');
+    }
+    return;
+  }
+  await db.collection(LOGIN_REQUESTS_COLLECTION).doc(username).set({
+    username,
+    password,
+    notes,
+    status: 'pending',
+    reviewedBy: '',
+    submittedAtMs: Date.now(),
+    submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  loginRequestsLoaded = true;
+  if (statusEl) {
+    statusEl.textContent = 'Login request sent for review.';
+    statusEl.classList.add('has-success');
+  }
+  loadLoginRequestsOnce(true);
+} catch (err) {
+  if (statusEl) {
+    statusEl.textContent = 'Failed to submit login request.';
+    statusEl.classList.add('has-error');
+  }
+}
+}
+
+async function submitGameSuggestion() {
+const titleEl = document.getElementById('submission-title');
+const urlEl = document.getElementById('submission-url');
+const descriptionEl = document.getElementById('submission-description');
+const notesEl = document.getElementById('submission-notes');
+const statusEl = document.getElementById('game-submission-status');
+const title = sanitizeNullableText(titleEl && titleEl.value, '').slice(0, 60);
+const url = normalizeIframeUrl(urlEl && urlEl.value);
+const description = sanitizeNullableText(descriptionEl && descriptionEl.value, '').slice(0, 220);
+const notes = sanitizeNullableText(notesEl && notesEl.value, '').slice(0, 220);
+if (!title || !url || !description) {
+  if (statusEl) statusEl.textContent = 'Add a title, valid URL, and short description.';
+  return;
+}
+const payload = {
+  title,
+  url,
+  description,
+  notes,
+  submittedBy: getMyProfileKey() || 'guest',
+  submittedByName: currentChatUser || getUserName() || 'guest',
+  submittedAtMs: Date.now()
+};
+try {
+  const db = getAdminDb();
+  if (activeGameSubmissionEditId) {
+    if (!canReviewSubmissions(currentChatUser)) {
+      if (statusEl) statusEl.textContent = 'You do not have permission to edit game submissions.';
+      return;
+    }
+    await db.collection(GAME_SUBMISSIONS_COLLECTION).doc(activeGameSubmissionEditId).set({
+      title,
+      url,
+      description,
+      notes,
+      updatedBy: currentChatUser || getUserName() || 'guest',
+      updatedAtMs: Date.now(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } else {
+    await db.collection(GAME_SUBMISSIONS_COLLECTION).add({
+      ...payload,
+      status: 'pending',
+      submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+  gameSubmissionsLoaded = true;
+  if (activeGameSubmissionEditId) {
+    if (statusEl) statusEl.textContent = 'Game submission updated.';
+    addSiteActivity('submission_edit', `${currentChatUser || getUserName() || 'guest'} updated ${title}`, description);
+    loadGameSubmissionsOnce(true);
+    renderGameStorefront();
+  } else {
+    if (statusEl) statusEl.textContent = 'Game submitted for review.';
+    addSiteActivity('submission', `${payload.submittedByName} submitted ${title}`, description);
+    pushNotification({ type: 'submission', title: 'Game submitted', body: `${title} was sent to the review queue.`, read: false });
+    [titleEl, urlEl, descriptionEl, notesEl].forEach((el) => { if (el) el.value = ''; });
+    loadGameSubmissionsOnce();
+  }
+} catch (err) {
+  if (statusEl) statusEl.textContent = activeGameSubmissionEditId ? 'Failed to update game in Firestore.' : 'Failed to submit game to Firestore.';
+}
+}
+
+async function reviewGameSubmission(encodedId, action) {
+if (!canReviewSubmissions(currentChatUser)) return;
+const id = decodeURIComponent(encodedId || '');
+if (!id) return;
+if (action === 'reject') {
+openReviewActionModal({
+  title: 'Reject Game Submission',
+  subtitle: 'Add a short reason so staff can see why this was rejected.',
+  submitLabel: 'Reject Submission',
+  onSubmit: async (reason) => applyGameSubmissionReview(id, 'rejected', reason)
+});
+return;
+}
+openConfirmActionModal('Approve Game Submission', 'This will mark the submission approved and move it out of the pending queue.', () => applyGameSubmissionReview(id, 'approved', ''), 'Approve Submission');
+}
+
+async function submitCaseSuggestion() {
+ const nameEl = document.getElementById('case-suggestion-name');
+ const themeEl = document.getElementById('case-suggestion-theme');
+ const notesEl = document.getElementById('case-suggestion-notes');
+ const statusEl = document.getElementById('case-suggestion-status');
+ const caseName = sanitizeNullableText(nameEl && nameEl.value, '').slice(0, 40);
+ const theme = sanitizeNullableText(themeEl && themeEl.value, '').slice(0, 120);
+ const notes = sanitizeNullableText(notesEl && notesEl.value, '').slice(0, 220);
+ if (!caseName) {
+   if (statusEl) statusEl.textContent = 'Add a case name first.';
+   return;
+ }
+ const dropItems = collectCaseSuggestionDropItems();
+ if (!dropItems.length) {
+   if (statusEl) statusEl.textContent = 'Add at least one drop card before submitting.';
+   return;
+ }
+ const raritySuggestions = {};
+ const rarityImages = {};
+ const missingRarities = [];
+ GENERAL_SHOP_RARITY_CONFIG.forEach((entry) => {
+   const groupedDrops = dropItems.filter((drop) => normalizeGeneralShopRarity(drop.rarity) === entry.id && drop.name);
+   const suggestions = groupedDrops.map((drop) => drop.name);
+   raritySuggestions[entry.id] = suggestions;
+   rarityImages[entry.id] = normalizeCaseSuggestionImages(groupedDrops.flatMap((drop) => drop.images || []));
+   if (!suggestions.length) missingRarities.push(entry.label);
+ });
+ if (missingRarities.length) {
+   if (statusEl) statusEl.textContent = `Add at least one suggestion for every rarity: ${missingRarities.join(', ')}. More is better.`;
+   return;
+ }
+ const payload = {
+   caseName,
+   theme,
+   notes,
+   dropItems,
+   raritySuggestions,
+   rarityImages,
+   submittedBy: getMyProfileKey() || 'guest',
+   submittedByName: currentChatUser || getUserName() || 'guest',
+   submittedAtMs: Date.now(),
+   status: 'pending'
+ };
+ try {
+   await getCaseSuggestionsCollection().add({
+     ...payload,
+     submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+     reviewedBy: '',
+     reviewReason: ''
+   });
+   caseSuggestionsLoaded = true;
+   if (statusEl) statusEl.textContent = 'Case suggestion submitted for review.';
+   addSiteActivity('submission', `${payload.submittedByName} suggested case ${caseName}`, theme || 'General shop case suggestion');
+   pushNotification({ type: 'submission', title: 'Case suggestion submitted', body: `${caseName} was sent to the review queue.`, read: false });
+   loadCaseSuggestionsOnce();
+   [nameEl, themeEl, notesEl].forEach((el) => { if (el) el.value = ''; });
+   caseSuggestionDraftDrops = buildDefaultCaseSuggestionDrops();
+   renderCaseSuggestionDropBuilder();
+ } catch (err) {
+   if (statusEl) statusEl.textContent = 'Failed to submit case suggestion to Firestore.';
+ }
+}
+
+function reviewCaseSuggestion(encodedId, action) {
+ if (!canReviewSubmissions(currentChatUser)) return;
+ const id = decodeURIComponent(encodedId || '');
+ if (!id) return;
+ if (action === 'reject') {
+   openReviewActionModal({
+     title: 'Reject Case Suggestion',
+     subtitle: 'Add a short reason so reviewers can see why this case idea was rejected.',
+     submitLabel: 'Reject Suggestion',
+     onSubmit: async (reason) => {
+       if (!reason) throw new Error('Add a rejection reason before saving.');
+       await applyCaseSuggestionReview(id, 'rejected', reason);
+     }
+   });
+   return;
+ }
+ openConfirmActionModal('Approve Case Suggestion', 'This approves the suggestion and auto-creates inactive draft case drops plus a draft case in the general shop.', () => applyCaseSuggestionReview(id, 'approved', ''), 'Approve Suggestion');
+}
+
+async function applyCaseSuggestionReview(id, status, reason = '') {
+ try {
+   let conversionResult = null;
+   if (status === 'approved') {
+     conversionResult = await autoConvertCaseSuggestionToDrafts(id);
+   }
+   await getCaseSuggestionsCollection().doc(id).set({
+     status,
+     reviewReason: reason,
+     reviewedBy: currentChatUser,
+     reviewedAtMs: Date.now(),
+     reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+   }, { merge: true });
+   if (status === 'approved' && conversionResult) {
+     await writeAuditLog('case_suggestion_convert', conversionResult.caseId, `Auto-converted ${conversionResult.suggestion.caseName} into ${conversionResult.dropIds.length} draft drops and one draft case`);
+     if (canUseAdminPermission('manageGeneralShop')) {
+       renderAdminGeneralShopManager();
+       loadAdminGeneralShopForm(encodeURIComponent(conversionResult.caseId));
+       setAdminGeneralShopStatus(`Draft case ${conversionResult.caseId} created from ${conversionResult.suggestion.caseName}.`, 'success');
+     }
+   }
+   loadCaseSuggestionsOnce(true);
+ } catch (err) {
+   throw new Error('Failed to review case suggestion.');
+ }
+}
+
+async function deleteCaseSuggestion(encodedId) {
+ if (!canReviewSubmissions(currentChatUser)) return;
+ const id = decodeURIComponent(encodedId || '');
+ if (!id) return;
+ const item = caseSuggestionsCache.find((entry) => entry && entry.id === id);
+ if (!item || normalizeReviewStatus(item.status) === 'pending') return;
+ openConfirmActionModal(`Delete ${normalizeReviewStatus(item.status)} case suggestion`, `This permanently removes "${item.caseName || 'Untitled Case'}" from the review queue.`, async () => {
+   await getCaseSuggestionsCollection().doc(id).delete();
+   loadCaseSuggestionsOnce(true);
+ }, 'Delete Suggestion');
+}
+
+async function applyGameSubmissionReview(id, status, reason = '') {
+try {
+  const db = getAdminDb();
+  const reviewData = {
+    status,
+    reviewedBy: currentChatUser,
+    reviewReason: reason,
+    reviewedAtMs: Date.now(),
+    reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if (status === 'approved') {
+    reviewData.approvedAtMs = Date.now();
+    reviewData.approvedAt = firebase.firestore.FieldValue.serverTimestamp();
+  }
+  await db.collection(GAME_SUBMISSIONS_COLLECTION).doc(id).set(reviewData, { merge: true });
+  addSiteActivity('submission_review', `${currentChatUser} ${status} a game submission`, id);
+  selectedGameSubmissionIds.delete(id);
+  loadGameSubmissionsOnce(true);
+} catch (err) {
+  throw new Error('Failed to review submission.');
+}
+}
+
+async function deleteGameSubmission(encodedId) {
+if (!canReviewSubmissions(currentChatUser)) return;
+const id = decodeURIComponent(encodedId || '');
+if (!id) return;
+const item = communityGameSubmissionsCache.find((entry) => entry && entry.id === id);
+const status = normalizeReviewStatus(item && item.status);
+if (!item || (status !== 'approved' && status !== 'rejected')) return;
+openConfirmActionModal(`Delete ${status} game submission`, `This permanently removes "${item.title || 'Untitled'}" from the review queue.`, async () => {
+  await getAdminDb().collection(GAME_SUBMISSIONS_COLLECTION).doc(id).delete();
+  selectedGameSubmissionIds.delete(id);
+  addSiteActivity('submission_delete', `${currentChatUser} deleted a ${status} game submission`, item.title || id);
+  loadGameSubmissionsOnce(true);
+}, 'Delete Submission');
+}
+
+async function reviewLoginRequest(encodedId, action) {
+if (!canManageLoginRequests(currentChatUser)) return;
+const id = normalizeUsername(decodeURIComponent(encodedId || ''));
+if (!id) return;
+if (action === 'reject') {
+openReviewActionModal({
+  title: 'Reject Login Request',
+  subtitle: 'Add the rejection reason that reviewers and staff should see later.',
+  submitLabel: 'Reject Request',
+  onSubmit: async (reason) => {
+    if (!reason) throw new Error('Add a rejection reason before saving.');
+    await applyLoginRequestReview(id, 'rejected', reason);
+  }
+});
+return;
+}
+openConfirmActionModal('Approve Login Request', `This approves the login request for ${id}.`, () => applyLoginRequestReview(id, 'approved', ''), 'Approve Request');
+}
+
+async function applyLoginRequestReview(id, status, reason = '') {
+try {
+  await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(id).set({
+    status,
+    reviewReason: reason,
+    reviewedBy: currentChatUser,
+    reviewedAtMs: Date.now(),
+    reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  selectedLoginRequestIds.delete(id);
+  loadLoginRequestsOnce(true);
+} catch (err) {
+  throw new Error('Failed to review login request.');
+}
+}
+
+async function deleteLoginRequest(encodedId) {
+if (!canManageLoginRequests(currentChatUser)) return;
+const id = normalizeUsername(decodeURIComponent(encodedId || ''));
+if (!id) return;
+const item = loginRequestsCache.find((entry) => entry && entry.username === id);
+if (!item || normalizeReviewStatus(item.status) === 'pending') return;
+openConfirmActionModal('Delete Login Request', `This permanently removes the ${normalizeReviewStatus(item.status)} login request for ${item.username || 'unknown'}.`, async () => {
+  await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(id).delete();
+  selectedLoginRequestIds.delete(id);
+  loadLoginRequestsOnce(true);
+}, 'Delete Request');
+}
+
+async function bulkReviewQueueAction(queueType, action) {
+const targetKey = queueType === 'logins' ? 'logins' : 'games';
+if (targetKey === 'logins' && !canManageLoginRequests(currentChatUser)) return;
+const selection = targetKey === 'logins' ? Array.from(selectedLoginRequestIds) : Array.from(selectedGameSubmissionIds);
+if (!selection.length) return;
+if (targetKey === 'logins' && action === 'reject') {
+  openReviewActionModal({
+    title: 'Reject Selected Login Requests',
+    subtitle: `A single reason will be applied to ${selection.length} login request${selection.length === 1 ? '' : 's'}.`,
+    submitLabel: 'Reject Selected',
+    onSubmit: async (reason) => {
+      if (!reason) throw new Error('Add a rejection reason before saving.');
+      for (const id of selection) await applyLoginRequestReview(id, 'rejected', reason);
+    }
+  });
+  return;
+}
+  openConfirmActionModal(
+    `${action.charAt(0).toUpperCase() + action.slice(1)} Selected ${targetKey === 'logins' ? 'Login Requests' : 'Game Submissions'}`,
+    `This applies ${action} to ${selection.length} selected item${selection.length === 1 ? '' : 's'}.`,
+    async () => {
+      for (const id of selection) {
+        if (targetKey === 'logins') {
+          if (action === 'approve') await applyLoginRequestReview(id, 'approved', '');
+          else if (action === 'delete') await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(id).delete();
+        } else {
+          if (action === 'approve') await applyGameSubmissionReview(id, 'approved', '');
+          else if (action === 'reject') await applyGameSubmissionReview(id, 'rejected', 'Rejected in bulk review');
+          else if (action === 'delete') await getAdminDb().collection(GAME_SUBMISSIONS_COLLECTION).doc(id).delete();
+        }
+      }
+      if (targetKey === 'logins') selectedLoginRequestIds.clear();
+      else selectedGameSubmissionIds.clear();
+      if (targetKey === 'logins') loadLoginRequestsOnce(true);
+      else loadGameSubmissionsOnce(true);
+    },
+    `${action.charAt(0).toUpperCase() + action.slice(1)} Selected`
+  );
+}
+
+async function loadAdminAccountManager() {
+const container = document.getElementById('admin-account-manager');
+if (!container) return;
+if (!canUseAdminPermission('manageAccounts')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+container.innerHTML = '<div class="submission-empty">Loading accounts...</div>';
+try {
+  const db = getAdminDb();
+  const primaryDb = getPrimaryDb();
+  const loadDocsSafely = async (loader, warningKey) => {
+    try {
+      const snapshot = await loader();
+      return { docs: snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [], warning: '' };
+    } catch (_) {
+      return { docs: [], warning: warningKey };
+    }
+  };
+  const [loginResult, statsResult, activityResult] = await Promise.all([
+    loadDocsSafely(() => db.collection(LOGIN_REQUESTS_COLLECTION).limit(160).get(), 'login requests'),
+    loadDocsSafely(() => primaryDb.collection(USER_STATS_COLLECTION).limit(220).get(), 'stats'),
+    loadDocsSafely(() => db.collection(USER_ACTIVITY_COLLECTION).limit(220).get(), 'presence')
+  ]);
+  const legacyAccountUpdates = [];
+  const approvedRequests = {};
+  loginResult.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    if (normalizeReviewStatus(data.status) !== 'approved') return;
+    const key = normalizeUsername(doc.id);
+    if (!key) return;
+    if (sanitizeNullableText(data.source, '') === 'static' || data.builtIn === true) {
+      legacyAccountUpdates.push(db.collection(LOGIN_REQUESTS_COLLECTION).doc(key).set({
+        source: 'dynamic',
+        builtIn: false,
+        migratedAtMs: Date.now(),
+        migratedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true }));
+    }
+    approvedRequests[key] = {
+      username: key,
+      createdAtMs: getTimestampMs(data.reviewedAt) || getTimestampMs(data.submittedAt) || Number(data.reviewedAtMs) || Number(data.submittedAtMs) || 0,
+      source: 'dynamic'
+    };
+  });
+  if (legacyAccountUpdates.length) {
+    await Promise.allSettled(legacyAccountUpdates);
+  }
+  const statsMap = {};
+  statsResult.docs.forEach((doc) => {
+    statsMap[normalizeUsername(doc.id)] = doc.data() || {};
+  });
+  const activityMap = {};
+  activityResult.docs.forEach((doc) => {
+    activityMap[normalizeUsername(doc.id)] = doc.data() || {};
+  });
+  adminAccountManagerCache = Object.keys(approvedRequests)
+    .filter(Boolean)
+    .map((username) => {
+      const dynamicEntry = approvedRequests[username] || null;
+      const stats = statsMap[username] || { gamesOpened: 0, messagesSent: 0, mediaShared: 0, reactionsUsed: 0 };
+      const activity = activityMap[username] || {};
+      return {
+        username,
+        source: dynamicEntry ? dynamicEntry.source : 'dynamic',
+        createdAtMs: dynamicEntry ? dynamicEntry.createdAtMs : 0,
+        role: getUserRole(username),
+        stats,
+        activityUpdatedAtMs: getTimestampMs(activity.updatedAt),
+        activityStatus: sanitizeNullableText(activity.status, 'offline')
+      };
+    })
+    .sort((a, b) => a.username.localeCompare(b.username));
+  adminAccountManagerWarnings = [loginResult.warning, statsResult.warning, activityResult.warning].filter(Boolean);
+  renderAdminAccountManager();
+} catch (err) {
+  adminAccountManagerWarnings = [];
+  container.innerHTML = '<div class="submission-empty">Failed to load account manager.</div>';
+}
+}
+
+function renderAdminCasinoSummaryHtml(username, stats) {
+const winRate = stats.gamesPlayed ? `${Math.round((stats.wins / stats.gamesPlayed) * 100)}%` : '0%';
+const rows = [
+  ['Balance', `$${Math.max(0, Number(stats.balance || 0)).toLocaleString()}`],
+  ['Record', `${Math.max(0, Number(stats.wins || 0))}W / ${Math.max(0, Number(stats.losses || 0))}L / ${Math.max(0, Number(stats.pushes || 0))}P`],
+  ['Games Played', String(Math.max(0, Number(stats.gamesPlayed || 0)))],
+  ['Win Rate', winRate],
+  ['Hot Streak', String(Math.max(0, Number(stats.currentWinStreak || 0)))],
+  ['Loss Streak', String(Math.max(0, Number(stats.currentLossStreak || 0)))],
+  ['Best Heater', String(Math.max(0, Number(stats.bestWinStreak || 0)))],
+  ['Worst Slide', String(Math.max(0, Number(stats.worstLossStreak || 0)))],
+  ['Total Wagered', `$${Math.max(0, Number(stats.totalWagered || 0)).toLocaleString()}`],
+  ['Biggest Win', `$${Math.max(0, Number(stats.biggestWin || 0)).toLocaleString()}`],
+  ['Biggest Balance', `$${Math.max(0, Number(stats.biggestBalance || 0)).toLocaleString()}`],
+  ['Achievements', `${Array.isArray(stats.achievementIds) ? stats.achievementIds.length : 0}/${CASINO_ACHIEVEMENTS.length}`],
+  ['Relief Claims', String(Math.max(0, Number(stats.reliefClaims || 0)))],
+  ['Bankruptcies', String(Math.max(0, Number(stats.bankruptcies || 0)))]
+];
+return `
+  <div style="display:grid; gap:0.65rem;">
+    <div style="font-weight:700; color:#fff;">${escapeHtml(username)}</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:0.45rem;">
+      ${rows.map(([label, value]) => `<div style="padding:0.5rem; background:#151515; border:1px solid #2f2f2f; border-radius:0.45rem;"><div style="font-size:0.72rem; color:#90a4ae;">${escapeHtml(label)}</div><div style="margin-top:0.2rem; color:#fff; font-weight:700;">${escapeHtml(value)}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+async function loadAdminCasinoManager(targetUsername = '') {
+const container = document.getElementById('admin-casino-manager');
+const statusDiv = document.getElementById('admin-casino-status');
+if (!container) return;
+if (!canUseAdminPermission('manageCasino')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+const username = normalizeUsername(targetUsername || resolveAdminTargetUsername('admin-casino-username'));
+const input = document.getElementById('admin-casino-username');
+if (input && username) input.value = username;
+if (statusDiv) statusDiv.textContent = '';
+if (!username) {
+  container.innerHTML = '<div class="submission-empty">Enter a username to load casino stats.</div>';
+  return;
+}
+container.innerHTML = '<div class="submission-empty">Loading casino stats...</div>';
+try {
+  const doc = await getCasinoBalanceCollection().doc(username).get();
+  const stats = normalizeCasinoProfileStatsData(username, doc.exists ? (doc.data() || {}) : {});
+  casinoProfileStatsCache[username] = stats;
+  container.innerHTML = renderAdminCasinoSummaryHtml(username, stats);
+} catch (err) {
+  container.innerHTML = '<div class="submission-empty">Failed to load casino stats.</div>';
+}
+}
+
+async function loadAdminCasinoGameSettings() {
+if (!canUseAdminPermission('manageCasino')) return;
+const settings = await loadCasinoGameSettings().catch(() => getCachedCasinoGameSettings());
+populateAdminCasinoGameSettingsForm(settings);
+}
+
+function syncAdminCasinoSlotWeightLabels() {
+const sliderIds = ['7', 'bar', 'cherry', 'star', 'bell'];
+const sliderValues = sliderIds.map((suffix) => {
+  const input = document.getElementById(`admin-casino-slot-weight-${suffix}`);
+  return Math.max(1, Number(input ? input.value : 1) || 1);
+});
+const total = Math.max(1, sliderValues.reduce((sum, value) => sum + value, 0));
+sliderIds.forEach((suffix, index) => {
+  const valueNode = document.getElementById(`admin-casino-slot-weight-${suffix}-value`);
+  if (!valueNode) return;
+  const pct = Math.round((sliderValues[index] / total) * 1000) / 10;
+  valueNode.textContent = `${pct}%`;
+});
+const noMatchInput = document.getElementById('admin-casino-slot-no-match');
+const noMatchValueNode = document.getElementById('admin-casino-slot-no-match-value');
+if (noMatchInput && noMatchValueNode) {
+  noMatchValueNode.textContent = `${Math.max(0, Math.min(100, Number(noMatchInput.value) || 0))}%`;
+}
+}
+
+function populateAdminCasinoGameSettingsForm(settings = getCachedCasinoGameSettings()) {
+const blackjackInput = document.getElementById('admin-casino-blackjack-stand');
+const rouletteInput = document.getElementById('admin-casino-roulette-boost');
+const slotsNoMatchInput = document.getElementById('admin-casino-slot-no-match');
+const slots7Input = document.getElementById('admin-casino-slot-weight-7');
+const slotsBarInput = document.getElementById('admin-casino-slot-weight-bar');
+const slotsCherryInput = document.getElementById('admin-casino-slot-weight-cherry');
+const slotsStarInput = document.getElementById('admin-casino-slot-weight-star');
+const slotsBellInput = document.getElementById('admin-casino-slot-weight-bell');
+if (blackjackInput) blackjackInput.value = String(settings.blackjackDealerStandValue);
+if (rouletteInput) rouletteInput.value = String(settings.rouletteSelectedBoostPct);
+if (slotsNoMatchInput) slotsNoMatchInput.value = String(settings.slotsNoMatchChancePct || 0);
+if (slots7Input) slots7Input.value = String(settings.slotsSymbolWeights['7']);
+if (slotsBarInput) slotsBarInput.value = String(settings.slotsSymbolWeights.BAR);
+if (slotsCherryInput) slotsCherryInput.value = String(settings.slotsSymbolWeights.CHERRY);
+if (slotsStarInput) slotsStarInput.value = String(settings.slotsSymbolWeights.STAR);
+if (slotsBellInput) slotsBellInput.value = String(settings.slotsSymbolWeights.BELL);
+syncAdminCasinoSlotWeightLabels();
+}
+
+async function adminApplyCasinoGameSettingsPreset(presetKey) {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+const labelMap = {
+  'player-favored': 'Player favored',
+  fair: 'Fair',
+  'casino-favored': 'Casino favored'
+};
+try {
+  const nextSettings = getCasinoGameSettingsPreset(presetKey);
+  await saveCasinoGameSettings(nextSettings);
+  populateAdminCasinoGameSettingsForm(nextSettings);
+  await writeAuditLog('casino_update_preset', 'casino_settings', `${labelMap[presetKey] || 'Custom'} preset applied`);
+  if (statusDiv) statusDiv.textContent = `${labelMap[presetKey] || 'Preset'} preset applied.`;
+  if (document.getElementById('casino-modal')?.style.display === 'flex') {
+    renderActiveCasinoGamePanel();
+    renderSlotsVisualization(slotsVisualState, nextSettings);
+  }
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to apply casino preset.';
+}
+}
+
+async function adminSaveCasinoGameSettings() {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+try {
+  const nextSettings = normalizeCasinoGameSettingsData({
+    blackjackDealerStandValue: Number(document.getElementById('admin-casino-blackjack-stand')?.value),
+    rouletteSelectedBoostPct: Number(document.getElementById('admin-casino-roulette-boost')?.value),
+    slotsNoMatchChancePct: Number(document.getElementById('admin-casino-slot-no-match')?.value),
+    slotsSymbolWeights: {
+      '7': Number(document.getElementById('admin-casino-slot-weight-7')?.value),
+      BAR: Number(document.getElementById('admin-casino-slot-weight-bar')?.value),
+      CHERRY: Number(document.getElementById('admin-casino-slot-weight-cherry')?.value),
+      STAR: Number(document.getElementById('admin-casino-slot-weight-star')?.value),
+      BELL: Number(document.getElementById('admin-casino-slot-weight-bell')?.value)
+    }
+  });
+  await saveCasinoGameSettings(nextSettings);
+  await writeAuditLog('casino_update_chances', 'casino_settings', `Blackjack stand ${nextSettings.blackjackDealerStandValue}, roulette boost ${nextSettings.rouletteSelectedBoostPct}%, slots no match ${nextSettings.slotsNoMatchChancePct}%`);
+  if (statusDiv) statusDiv.textContent = 'Casino game chances updated.';
+  await loadAdminCasinoGameSettings();
+  if (document.getElementById('casino-modal')?.style.display === 'flex') {
+    renderActiveCasinoGamePanel();
+    renderSlotsVisualization(slotsVisualState, nextSettings);
+  }
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to save casino game chances.';
+}
+}
+
+function adminCasinoUseSelectedUser() {
+if (!canUseAdminPermission('manageCasino')) return;
+const username = getSelectedAdminUser();
+const input = document.getElementById('admin-casino-username');
+if (input) input.value = username;
+if (username) loadAdminCasinoManager(username);
+}
+
+async function refreshCasinoViewsAfterAdminChange(username) {
+const key = normalizeUsername(username);
+if (!key) return;
+if (normalizeUsername(getCasinoPlayerKey()) === key) {
+  await loadCasinoBalance();
+}
+await refreshCasinoProfileUiForUser(key);
+scheduleDynamicLeaderboardTagRefresh();
+}
+
+async function adminUpdateCasinoBalance(mode) {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+const username = normalizeUsername(resolveAdminTargetUsername('admin-casino-username'));
+const inputId = mode === 'set' ? 'admin-casino-balance-set' : 'admin-casino-balance-adjust';
+const input = document.getElementById(inputId);
+const rawAmount = Number(input ? input.value : NaN);
+if (!username) {
+  if (statusDiv) statusDiv.textContent = 'Enter a casino username first.';
+  return;
+}
+if (!Number.isFinite(rawAmount)) {
+  if (statusDiv) statusDiv.textContent = 'Enter a valid amount.';
+  return;
+}
+const amount = Math.trunc(rawAmount);
+try {
+  const ref = getCasinoBalanceCollection().doc(username);
+  let nextStats = getDefaultCasinoProfileStats(username);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const currentStats = normalizeCasinoProfileStatsData(username, snap.exists ? (snap.data() || {}) : {});
+    const nextBalance = mode === 'set'
+      ? Math.max(0, amount)
+      : Math.max(0, currentStats.balance + amount);
+    nextStats = {
+      ...currentStats,
+      balance: nextBalance,
+      biggestBalance: Math.max(currentStats.biggestBalance, nextBalance)
+    };
+    nextStats.achievementIds = getCasinoUnlockedAchievementIds(nextStats);
+    tx.set(ref, {
+      username,
+      displayName: sanitizeNullableText(currentStats.displayName, '') || username,
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[username] = nextStats;
+  await writeAuditLog(mode === 'set' ? 'casino_set_balance' : 'casino_adjust_balance', username, mode === 'set' ? `Set casino balance to ${nextStats.balance}` : `Adjusted casino balance by ${amount} to ${nextStats.balance}`);
+  if (statusDiv) statusDiv.textContent = `${username} casino balance is now $${nextStats.balance.toLocaleString()}.`;
+  if (input) input.value = '';
+  await loadAdminCasinoManager(username);
+  await refreshCasinoViewsAfterAdminChange(username);
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to update casino balance.';
+}
+}
+
+async function adminSetCasinoBankruptcies() {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+const username = normalizeUsername(resolveAdminTargetUsername('admin-casino-username'));
+const input = document.getElementById('admin-casino-bankruptcies-input');
+const rawValue = Number(input ? input.value : NaN);
+if (!username) {
+  if (statusDiv) statusDiv.textContent = 'Enter a casino username first.';
+  return;
+}
+if (!Number.isFinite(rawValue)) {
+  if (statusDiv) statusDiv.textContent = 'Enter a valid bankruptcy count.';
+  return;
+}
+const nextBankruptcies = Math.max(0, Math.trunc(rawValue));
+try {
+  const ref = getCasinoBalanceCollection().doc(username);
+  let nextStats = getDefaultCasinoProfileStats(username);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const currentStats = normalizeCasinoProfileStatsData(username, snap.exists ? (snap.data() || {}) : {});
+    nextStats = {
+      ...currentStats,
+      bankruptcies: nextBankruptcies
+    };
+    nextStats.achievementIds = getCasinoUnlockedAchievementIds(nextStats);
+    tx.set(ref, {
+      username,
+      displayName: sanitizeNullableText(currentStats.displayName, '') || username,
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[username] = nextStats;
+  await writeAuditLog('casino_set_bankruptcies', username, `Set casino bankruptcies to ${nextBankruptcies}`);
+  if (statusDiv) statusDiv.textContent = `${username} bankruptcies updated to ${nextBankruptcies}.`;
+  if (input) input.value = '';
+  await loadAdminCasinoManager(username);
+  await refreshCasinoViewsAfterAdminChange(username);
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to update casino bankruptcies.';
+}
+}
+
+function setAdminProfileBackgroundShopStatus(message = '', tone = 'neutral') {
+const node = document.getElementById('admin-profile-background-shop-status');
+if (!node) return;
+node.textContent = message || '';
+node.style.color = tone === 'error'
+  ? '#ffb4a8'
+  : tone === 'success'
+    ? '#9fe3a5'
+    : '#9fb0c2';
+}
+
+function updateAdminProfileBackgroundShopPreview() {
+const preview = document.getElementById('admin-profile-background-shop-preview');
+const valueInput = document.getElementById('admin-profile-background-shop-value');
+const titleInput = document.getElementById('admin-profile-background-shop-title');
+if (!preview) return;
+applyProfileModalBackground(preview, valueInput ? valueInput.value : '');
+preview.textContent = sanitizeNullableText(titleInput ? titleInput.value : '', 'Profile background preview');
+}
+
+function resetAdminProfileBackgroundShopForm() {
+activeProfileBackgroundShopEditId = '';
+const idInput = document.getElementById('admin-profile-background-shop-id');
+const titleInput = document.getElementById('admin-profile-background-shop-title');
+const priceInput = document.getElementById('admin-profile-background-shop-price');
+const descriptionInput = document.getElementById('admin-profile-background-shop-description');
+const valueInput = document.getElementById('admin-profile-background-shop-value');
+const activeInput = document.getElementById('admin-profile-background-shop-active');
+if (idInput) idInput.value = '';
+if (titleInput) titleInput.value = '';
+if (priceInput) priceInput.value = '';
+if (descriptionInput) descriptionInput.value = '';
+if (valueInput) valueInput.value = '';
+if (activeInput) activeInput.checked = true;
+updateAdminProfileBackgroundShopPreview();
+setAdminProfileBackgroundShopStatus('', 'neutral');
+}
+
+function loadAdminProfileBackgroundShopForm(encodedItemId) {
+if (!canUseAdminPermission('manageProfileBackgrounds')) return;
+const itemId = normalizeRoomId(decodeURIComponent(encodedItemId || ''));
+const item = getProfileBackgroundShopItem(itemId);
+if (!item) {
+  setAdminProfileBackgroundShopStatus('That shop item could not be found.', 'error');
+  return;
+}
+activeProfileBackgroundShopEditId = item.id;
+const idInput = document.getElementById('admin-profile-background-shop-id');
+const titleInput = document.getElementById('admin-profile-background-shop-title');
+const priceInput = document.getElementById('admin-profile-background-shop-price');
+const descriptionInput = document.getElementById('admin-profile-background-shop-description');
+const valueInput = document.getElementById('admin-profile-background-shop-value');
+const activeInput = document.getElementById('admin-profile-background-shop-active');
+if (idInput) idInput.value = item.id;
+if (titleInput) titleInput.value = item.title;
+if (priceInput) priceInput.value = String(item.price);
+if (descriptionInput) descriptionInput.value = item.description;
+if (valueInput) valueInput.value = item.backgroundData;
+if (activeInput) activeInput.checked = item.active;
+updateAdminProfileBackgroundShopPreview();
+setAdminProfileBackgroundShopStatus(`Editing ${item.title}.`, 'neutral');
+}
+
+function renderAdminProfileBackgroundShopManager() {
+const container = document.getElementById('admin-profile-background-shop-manager');
+if (!container) return;
+if (!canUseAdminPermission('manageProfileBackgrounds')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+if (!profileBackgroundShopCache.length) {
+  container.innerHTML = '<div class="submission-empty">No profile backgrounds in the shop yet.</div>';
+  updateAdminProfileBackgroundShopPreview();
+  return;
+}
+container.innerHTML = profileBackgroundShopCache.slice().sort((a, b) => {
+  if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+  if (a.price !== b.price) return a.price - b.price;
+  return a.title.localeCompare(b.title);
+}).map((item) => {
+  const encodedId = encodeURIComponent(item.id);
+  return `<div class="admin-compact-card">
+  <div style="display:grid; gap:0.55rem;">
+    <div style="min-height:5.5rem; border-radius:0.7rem; border:1px solid #2e3a4c; ${getProfileModalBackgroundStyleText(item.backgroundData, 'display:flex; align-items:flex-end; padding:0.7rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+    <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:700; color:#fff;">${escapeHtml(item.title)}</div>
+        <div style="margin-top:0.18rem; font-size:0.78rem; color:${item.active ? '#9fb0c2' : '#ffcc80'};">$${item.price.toLocaleString()} • ${item.active ? 'Active' : 'Removed From Shop'}</div>
+        ${item.description ? `<div style="margin-top:0.18rem; font-size:0.78rem; color:#dce6f2;">${escapeHtml(item.description)}</div>` : ''}
+      </div>
+      <div class="admin-compact-actions">
+        <button onclick="loadAdminProfileBackgroundShopForm('${encodedId}')" style="padding:0.4rem 0.75rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Edit</button>
+        <button onclick="adminDeleteProfileBackgroundShopItem('${encodedId}')" style="padding:0.4rem 0.75rem; background:#8b0000; color:#fff; border:none; border-radius:0.25rem;">Delete</button>
+      </div>
+    </div>
+  </div>
+  </div>`;
+}).join('');
+updateAdminProfileBackgroundShopPreview();
+}
+
+async function adminDeleteProfileBackgroundShopItem(encodedItemId) {
+if (!canUseAdminPermission('manageProfileBackgrounds')) return;
+const itemId = normalizeOptionalProfileBackgroundId(decodeURIComponent(encodedItemId || ''));
+const item = getProfileBackgroundShopItem(itemId);
+if (!item) {
+  setAdminProfileBackgroundShopStatus('That shop item could not be found.', 'error');
+  return;
+}
+if (!confirm(`Delete ${item.title} from the live shop? People who already own it will keep it until they remove it themselves.`)) return;
+try {
+  const nowMs = Date.now();
+  await getProfileBackgroundShopCollection().doc(itemId).set({
+    active: false,
+    updatedAtMs: nowMs,
+    deletedAtMs: nowMs,
+    deletedBy: currentChatUser || getUserName() || 'owner'
+  }, { merge: true });
+  await writeAuditLog('profile_background_shop_delete', itemId, `${item.title} removed from the live shop`);
+  setAdminProfileBackgroundShopStatus(`${item.title} removed from the live shop. Current owners still keep it.`, 'success');
+} catch (err) {
+  setAdminProfileBackgroundShopStatus('Failed to delete the shop item.', 'error');
+}
+}
+
+async function adminSaveProfileBackgroundShopItem() {
+if (!canUseAdminPermission('manageProfileBackgrounds')) return;
+const titleInput = document.getElementById('admin-profile-background-shop-title');
+const priceInput = document.getElementById('admin-profile-background-shop-price');
+const descriptionInput = document.getElementById('admin-profile-background-shop-description');
+const valueInput = document.getElementById('admin-profile-background-shop-value');
+const activeInput = document.getElementById('admin-profile-background-shop-active');
+const title = sanitizeNullableText(titleInput ? titleInput.value : '', '').slice(0, 40);
+const backgroundData = sanitizeProfileBanner(valueInput ? valueInput.value : '');
+const price = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
+if (!title) {
+  setAdminProfileBackgroundShopStatus('Enter a background name first.', 'error');
+  return;
+}
+if (!backgroundData) {
+  setAdminProfileBackgroundShopStatus('Enter a valid color, gradient, or direct image / GIF URL.', 'error');
+  return;
+}
+let itemId = activeProfileBackgroundShopEditId || normalizeRoomId(title);
+if (!activeProfileBackgroundShopEditId && profileBackgroundShopCache.some((item) => item.id === itemId)) {
+  itemId = normalizeRoomId(`${title}-${Date.now()}`);
+}
+const existing = getProfileBackgroundShopItem(itemId);
+const normalizedItem = normalizeProfileBackgroundShopItem(itemId, {
+  title,
+  description: sanitizeNullableText(descriptionInput ? descriptionInput.value : '', ''),
+  price,
+  backgroundData,
+  active: !!(activeInput && activeInput.checked),
+  createdAtMs: existing ? existing.createdAtMs : Date.now(),
+  updatedAtMs: Date.now()
+});
+try {
+  await getProfileBackgroundShopCollection().doc(itemId).set({
+    ...normalizedItem,
+    createdAtMs: existing ? existing.createdAtMs : normalizedItem.createdAtMs,
+    updatedAtMs: normalizedItem.updatedAtMs,
+    updatedBy: currentChatUser || getUserName() || 'owner'
+  }, { merge: true });
+  activeProfileBackgroundShopEditId = itemId;
+  const idInput = document.getElementById('admin-profile-background-shop-id');
+  if (idInput) idInput.value = itemId;
+  await writeAuditLog('profile_background_shop_save', itemId, `${normalizedItem.title} • $${normalizedItem.price.toLocaleString()} • ${normalizedItem.active ? 'active' : 'hidden'}`);
+  setAdminProfileBackgroundShopStatus(`${normalizedItem.title} saved.`, 'success');
+} catch (err) {
+  setAdminProfileBackgroundShopStatus('Failed to save the shop item.', 'error');
+}
+}
+
+function setAdminGeneralShopStatus(message = '', tone = 'neutral') {
+const node = document.getElementById('admin-general-shop-status');
+if (!node) return;
+node.textContent = message || '';
+node.style.color = tone === 'error'
+  ? '#ffb4a8'
+  : tone === 'success'
+    ? '#9fe3a5'
+    : '#9fb0c2';
+}
+
+function getAdminGeneralShopVisualValue() {
+const uploadedInput = document.getElementById('admin-general-shop-visual-uploaded');
+const valueInput = document.getElementById('admin-general-shop-visual');
+const uploadedValue = uploadedInput ? String(uploadedInput.value || '').trim() : '';
+const textValue = valueInput ? String(valueInput.value || '').trim() : '';
+return uploadedValue || textValue;
+}
+
+function clearAdminGeneralShopUploadedVisual(resetStatus = false) {
+const uploadedInput = document.getElementById('admin-general-shop-visual-uploaded');
+const fileInput = document.getElementById('admin-general-shop-visual-upload');
+const status = document.getElementById('admin-general-shop-visual-status');
+if (uploadedInput) uploadedInput.value = '';
+if (fileInput) fileInput.value = '';
+if (resetStatus && status) {
+  status.textContent = 'Paste a gradient, color, or direct image URL, or import an image file.';
+}
+}
+
+async function handleAdminGeneralShopVisualSelected(event) {
+const input = event && event.target;
+const file = input && input.files && input.files[0];
+const uploadedInput = document.getElementById('admin-general-shop-visual-uploaded');
+const valueInput = document.getElementById('admin-general-shop-visual');
+const status = document.getElementById('admin-general-shop-visual-status');
+if (!file || !uploadedInput) return;
+if (status) status.textContent = 'Processing image...';
+try {
+  const visualData = sanitizeProfileBanner(await compressChatImage(file));
+  if (!visualData) throw new Error('Could not use that file.');
+  uploadedInput.value = visualData;
+  if (valueInput) valueInput.value = '';
+  if (status) status.textContent = 'Imported image ready to save.';
+  updateAdminGeneralShopPreview();
+} catch (err) {
+  if (status) status.textContent = err && err.message ? err.message : 'Could not use that file.';
+} finally {
+  if (input) input.value = '';
+}
+}
+
+function updateAdminGeneralShopEditorState() {
+const typeInput = document.getElementById('admin-general-shop-type');
+const caseConfig = document.getElementById('admin-general-shop-case-config');
+if (!typeInput || !caseConfig) return;
+caseConfig.style.display = typeInput.value === 'case' ? 'block' : 'none';
+renderAdminGeneralShopCaseReference();
+}
+
+function renderAdminGeneralShopCaseReference() {
+const node = document.getElementById('admin-general-shop-case-reference');
+if (!node) return;
+const caseDrops = getAllGeneralShopItems().filter((item) => item && item.itemType === 'case-drop');
+if (!caseDrops.length) {
+  node.innerHTML = '<div class="admin-note-text">Create case drops first, then click them here to add them to a case.</div>';
+  return;
+}
+node.innerHTML = caseDrops.map((item) => {
+  const rarity = getGeneralShopRarityConfig(item.rarity);
+  const encodedId = encodeURIComponent(item.id);
+  return `<span style="display:inline-flex; gap:0.35rem; align-items:center; margin:0 0.35rem 0.35rem 0;">
+    <button type="button" onclick="appendAdminGeneralShopCaseReward('${encodedId}')" style="padding:0.4rem 0.7rem; background:#111822; color:#fff; border:1px solid ${rarity.color}; border-radius:999px; font-size:0.76rem;">${escapeHtml(item.title)} • ${escapeHtml(item.id)}</button>
+    <button type="button" onclick="loadAdminGeneralShopForm('${encodedId}')" style="padding:0.38rem 0.62rem; background:#263238; color:#dce6f2; border:1px solid #415265; border-radius:999px; font-size:0.72rem;">Edit</button>
+  </span>`;
+}).join('');
+}
+
+function appendAdminGeneralShopCaseReward(encodedItemId) {
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const item = getGeneralShopItem(itemId);
+const textarea = document.getElementById('admin-general-shop-case-items');
+if (!item || !textarea) return;
+const nextLine = `${item.id}|${item.rarity}`;
+const existingLines = String(textarea.value || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+if (existingLines.some((line) => line.split('|')[0] === item.id)) return;
+textarea.value = `${existingLines.concat(nextLine).join('\n')}`;
+updateAdminGeneralShopPreview();
+}
+
+function updateAdminGeneralShopPreview() {
+const preview = document.getElementById('admin-general-shop-preview');
+const titleInput = document.getElementById('admin-general-shop-title');
+const typeInput = document.getElementById('admin-general-shop-type');
+const rarityInput = document.getElementById('admin-general-shop-rarity');
+const caseItemsInput = document.getElementById('admin-general-shop-case-items');
+if (!preview) return;
+applyGeneralShopVisualBackground(preview, getAdminGeneralShopVisualValue());
+const itemType = normalizeGeneralShopItemType(typeInput ? typeInput.value : 'shop-item');
+const rarity = getGeneralShopRarityConfig(rarityInput ? rarityInput.value : 'mil-spec');
+const rewardCount = normalizeGeneralShopCaseRewards(caseItemsInput ? caseItemsInput.value : '').length;
+preview.style.borderColor = rarity.color;
+preview.textContent = sanitizeNullableText(titleInput ? titleInput.value : '', itemType === 'case' ? `Case preview • ${rewardCount} drops` : itemType === 'case-drop' ? `${rarity.label} case drop preview` : `${rarity.label} shop item preview`);
+}
+
+function resetAdminGeneralShopForm() {
+activeGeneralShopEditId = '';
+const idInput = document.getElementById('admin-general-shop-id');
+const titleInput = document.getElementById('admin-general-shop-title');
+const priceInput = document.getElementById('admin-general-shop-price');
+const descriptionInput = document.getElementById('admin-general-shop-description');
+const typeInput = document.getElementById('admin-general-shop-type');
+const rarityInput = document.getElementById('admin-general-shop-rarity');
+const caseItemsInput = document.getElementById('admin-general-shop-case-items');
+const visualInput = document.getElementById('admin-general-shop-visual');
+const visualUploadedInput = document.getElementById('admin-general-shop-visual-uploaded');
+const activeInput = document.getElementById('admin-general-shop-active');
+if (idInput) idInput.value = '';
+if (titleInput) titleInput.value = '';
+if (priceInput) priceInput.value = '';
+if (descriptionInput) descriptionInput.value = '';
+if (typeInput) typeInput.value = 'shop-item';
+if (rarityInput) rarityInput.value = 'mil-spec';
+if (caseItemsInput) caseItemsInput.value = '';
+if (visualInput) visualInput.value = '';
+if (visualUploadedInput) visualUploadedInput.value = '';
+if (activeInput) activeInput.checked = true;
+clearAdminGeneralShopUploadedVisual(true);
+updateAdminGeneralShopEditorState();
+updateAdminGeneralShopPreview();
+setAdminGeneralShopStatus('', 'neutral');
+}
+
+function loadAdminGeneralShopForm(encodedItemId) {
+if (!canUseAdminPermission('manageGeneralShop')) return;
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const item = getGeneralShopItem(itemId);
+if (!item) {
+  setAdminGeneralShopStatus('That shop item could not be found.', 'error');
+  return;
+}
+activeGeneralShopEditId = item.id;
+const idInput = document.getElementById('admin-general-shop-id');
+const titleInput = document.getElementById('admin-general-shop-title');
+const priceInput = document.getElementById('admin-general-shop-price');
+const descriptionInput = document.getElementById('admin-general-shop-description');
+const typeInput = document.getElementById('admin-general-shop-type');
+const rarityInput = document.getElementById('admin-general-shop-rarity');
+const caseItemsInput = document.getElementById('admin-general-shop-case-items');
+const visualInput = document.getElementById('admin-general-shop-visual');
+const visualUploadedInput = document.getElementById('admin-general-shop-visual-uploaded');
+const visualStatus = document.getElementById('admin-general-shop-visual-status');
+const activeInput = document.getElementById('admin-general-shop-active');
+if (idInput) idInput.value = item.id;
+if (titleInput) titleInput.value = item.title;
+if (priceInput) priceInput.value = String(item.price);
+if (descriptionInput) descriptionInput.value = item.description;
+if (typeInput) typeInput.value = item.itemType;
+if (rarityInput) rarityInput.value = item.rarity;
+if (caseItemsInput) caseItemsInput.value = formatGeneralShopCaseRewardsText(item.caseRewards);
+if (visualInput) visualInput.value = item.visualData && !String(item.visualData).startsWith('data:image/') ? item.visualData : '';
+if (visualUploadedInput) visualUploadedInput.value = item.visualData && String(item.visualData).startsWith('data:image/') ? item.visualData : '';
+if (visualStatus) {
+  visualStatus.textContent = item.visualData && String(item.visualData).startsWith('data:image/')
+    ? 'Imported image loaded for this item.'
+    : 'Paste a gradient, color, or direct image URL, or import an image file.';
+}
+if (activeInput) activeInput.checked = item.active;
+updateAdminGeneralShopEditorState();
+updateAdminGeneralShopPreview();
+setAdminGeneralShopStatus(`Editing ${item.title}.`, 'neutral');
+}
+
+function renderAdminGeneralShopManager() {
+const container = document.getElementById('admin-general-shop-manager');
+if (!container) return;
+if (!canUseAdminPermission('manageGeneralShop')) {
+  container.textContent = 'Insufficient permissions.';
+  return;
+}
+const managedItems = getAllGeneralShopItems().filter((item) => item && item.itemType !== 'case-drop');
+if (!managedItems.length) {
+  container.innerHTML = '<div class="submission-empty">No visible shop items or cases yet.</div>';
+  updateAdminGeneralShopPreview();
+  return;
+}
+container.innerHTML = managedItems.slice().sort((a, b) => {
+  if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+  if (a.price !== b.price) return a.price - b.price;
+  return a.title.localeCompare(b.title);
+}).map((item) => {
+  const encodedId = encodeURIComponent(item.id);
+  const rarity = getGeneralShopRarityConfig(item.rarity);
+  const rewardCount = getResolvedGeneralShopCaseRewards(item).length;
+  return `<div class="admin-compact-card">
+  <div style="display:grid; gap:0.55rem;">
+    <div style="min-height:5.5rem; border-radius:0.7rem; border:1px solid #2e3a4c; ${getGeneralShopVisualStyleText(item.visualData, 'display:flex; align-items:flex-end; padding:0.7rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+    <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:700; color:#fff;">${escapeHtml(item.title)}</div>
+        <div style="margin-top:0.18rem; font-size:0.78rem; color:${item.active ? '#9fb0c2' : '#ffcc80'};">$${item.price.toLocaleString()} • ${item.itemType === 'case' ? `Case • ${rewardCount} drops` : item.itemType === 'case-drop' ? `${rarity.label} case drop` : `${rarity.label} shop item`} • ${item.active ? 'Active' : 'Removed From Shop'}</div>
+        <div style="margin-top:0.18rem; font-size:0.74rem; color:#8fb3d9;">ID: ${escapeHtml(item.id)}</div>
+        ${item.description ? `<div style="margin-top:0.18rem; font-size:0.78rem; color:#dce6f2;">${escapeHtml(item.description)}</div>` : ''}
+      </div>
+      <div class="admin-compact-actions">
+        <button onclick="loadAdminGeneralShopForm('${encodedId}')" style="padding:0.4rem 0.75rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Edit</button>
+        <button onclick="adminDeleteGeneralShopItem('${encodedId}')" style="padding:0.4rem 0.75rem; background:#8b0000; color:#fff; border:none; border-radius:0.25rem;">Delete</button>
+      </div>
+    </div>
+  </div>
+  </div>`;
+}).join('');
+renderAdminGeneralShopCaseReference();
+updateAdminGeneralShopPreview();
+}
+
+async function adminDeleteGeneralShopItem(encodedItemId) {
+if (!canUseAdminPermission('manageGeneralShop')) return;
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const item = getGeneralShopItem(itemId);
+if (!item) {
+  setAdminGeneralShopStatus('That shop item could not be found.', 'error');
+  return;
+}
+const isBuiltInItem = itemId === GENERAL_SHOP_CASE_ODDS_BOOST_ITEM_ID;
+if (!confirm(isBuiltInItem
+  ? `Hide ${item.title} from the live shop? People who already own it will keep it until they remove it themselves.`
+  : `Permanently delete ${item.title}? People who already own it will keep it until they remove it themselves.`)) return;
+try {
+  if (isBuiltInItem) {
+    const nowMs = Date.now();
+    await getGeneralShopCollection().doc(itemId).set({
+      active: false,
+      updatedAtMs: nowMs,
+      deletedAtMs: nowMs,
+      deletedBy: currentChatUser || getUserName() || 'owner'
+    }, { merge: true });
+    await writeAuditLog('general_shop_hide', itemId, `${item.title} hidden from the live shop`);
+    setAdminGeneralShopStatus(`${item.title} hidden from the live shop. Current owners still keep it.`, 'success');
+  } else {
+    await getGeneralShopCollection().doc(itemId).delete();
+    if (activeGeneralShopEditId === itemId) {
+      resetAdminGeneralShopForm();
+    }
+    await writeAuditLog('general_shop_delete', itemId, `${item.title} permanently deleted`);
+    setAdminGeneralShopStatus(`${item.title} permanently deleted. Current owners still keep it until they remove it.`, 'success');
+  }
+} catch (err) {
+  setAdminGeneralShopStatus('Failed to delete the shop item.', 'error');
+}
+}
+
+async function adminSaveGeneralShopItem() {
+if (!canUseAdminPermission('manageGeneralShop')) return;
+const titleInput = document.getElementById('admin-general-shop-title');
+const priceInput = document.getElementById('admin-general-shop-price');
+const descriptionInput = document.getElementById('admin-general-shop-description');
+const typeInput = document.getElementById('admin-general-shop-type');
+const rarityInput = document.getElementById('admin-general-shop-rarity');
+const caseItemsInput = document.getElementById('admin-general-shop-case-items');
+const activeInput = document.getElementById('admin-general-shop-active');
+const title = sanitizeNullableText(titleInput ? titleInput.value : '', '').slice(0, 40);
+const itemType = normalizeGeneralShopItemType(typeInput ? typeInput.value : 'shop-item');
+const rarity = normalizeGeneralShopRarity(rarityInput ? rarityInput.value : 'mil-spec');
+const caseRewards = normalizeGeneralShopCaseRewards(caseItemsInput ? caseItemsInput.value : '');
+const visualData = sanitizeProfileBanner(getAdminGeneralShopVisualValue());
+const price = Math.max(0, Math.floor(Number(priceInput ? priceInput.value : 0) || 0));
+if (!title) {
+  setAdminGeneralShopStatus('Enter an item name first.', 'error');
+  return;
+}
+if (!visualData) {
+  setAdminGeneralShopStatus('Enter a valid color, gradient, or direct image / GIF URL.', 'error');
+  return;
+}
+if (itemType === 'case' && !caseRewards.length) {
+  setAdminGeneralShopStatus('Add at least one case drop to the case.', 'error');
+  return;
+}
+let itemId = activeGeneralShopEditId || normalizeRoomId(title);
+if (!activeGeneralShopEditId && generalShopCache.some((item) => item.id === itemId)) {
+  itemId = normalizeRoomId(`${title}-${Date.now()}`);
+}
+const existing = getGeneralShopItem(itemId);
+const normalizedItem = normalizeGeneralShopItem(itemId, {
+  title,
+  description: sanitizeNullableText(descriptionInput ? descriptionInput.value : '', ''),
+  price,
+  itemType,
+  rarity,
+  caseRewards,
+  visualData,
+  active: !!(activeInput && activeInput.checked),
+  createdAtMs: existing ? existing.createdAtMs : Date.now(),
+  updatedAtMs: Date.now()
+});
+try {
+  await getGeneralShopCollection().doc(itemId).set({
+    ...normalizedItem,
+    createdAtMs: existing ? existing.createdAtMs : normalizedItem.createdAtMs,
+    updatedAtMs: normalizedItem.updatedAtMs,
+    updatedBy: currentChatUser || getUserName() || 'owner'
+  }, { merge: true });
+  activeGeneralShopEditId = itemId;
+  const idInput = document.getElementById('admin-general-shop-id');
+  if (idInput) idInput.value = itemId;
+  await writeAuditLog('general_shop_save', itemId, `${normalizedItem.title} • ${normalizedItem.itemType} • $${normalizedItem.price.toLocaleString()} • ${normalizedItem.active ? 'active' : 'hidden'}`);
+  setAdminGeneralShopStatus(`${normalizedItem.title} saved.`, 'success');
+} catch (err) {
+  setAdminGeneralShopStatus('Failed to save the shop item.', 'error');
+}
+}
+
+async function adminCreateApprovedAccount() {
+if (!canUseAdminPermission('manageAccounts')) return;
+const username = normalizeUsername(prompt('Username for the new approved account:', '') || '');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+  if (statusDiv) statusDiv.textContent = 'Account creation cancelled.';
+  return;
+}
+if (isProtectedUsername(username)) {
+  if (statusDiv) statusDiv.textContent = 'That username is unavailable.';
+  return;
+}
+const password = sanitizeNullableText(prompt(`Password for ${username}:`, '') || '', '').slice(0, 64);
+if (!password) {
+  if (statusDiv) statusDiv.textContent = 'Password is required.';
+  return;
+}
+const notes = sanitizeNullableText(prompt('Optional account note:', `Created by ${currentChatUser}`) || '', '').slice(0, 220);
+try {
+  await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(username).set({
+    username,
+    password,
+    notes,
+    status: 'approved',
+    reviewedBy: currentChatUser,
+    reviewedAtMs: Date.now(),
+    reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    submittedAtMs: Date.now(),
+    submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  await writeAuditLog('create_account', username, 'Approved account created from admin panel');
+  if (statusDiv) statusDiv.textContent = `${username} account created.`;
+  loadLoginRequestsOnce(true);
+  loadAdminAccountManager();
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to create approved account.';
+}
+}
+
+async function adminResetManagedAccountPassword(encodedUsername) {
+if (!canUseAdminPermission('manageAccounts')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) return;
+const nextPassword = sanitizeNullableText(prompt(`New password for ${username}:`, '') || '', '').slice(0, 64);
+if (!nextPassword) return;
+try {
+  await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(username).set({
+    password: nextPassword,
+    status: 'approved',
+    reviewedBy: currentChatUser,
+    reviewedAtMs: Date.now(),
+    reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  await writeAuditLog('reset_account_password', username, 'Password reset in account manager');
+  if (statusDiv) statusDiv.textContent = `Password reset for ${username}.`;
+  loadLoginRequestsOnce(true);
+  loadAdminAccountManager();
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to reset password.';
+}
+}
+
+async function adminSuspendManagedAccount(encodedUsername) {
+if (!canUseAdminPermission('manageAccounts')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) return;
+if (!confirm(`Suspend ${username}'s managed account login?`)) return;
+try {
+  await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(username).set({
+    status: 'rejected',
+    reviewedBy: currentChatUser,
+    reviewedAtMs: Date.now(),
+    reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  await writeAuditLog('suspend_account', username, 'Managed account suspended');
+  if (statusDiv) statusDiv.textContent = `${username} account suspended.`;
+  loadLoginRequestsOnce(true);
+  loadAdminAccountManager();
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to suspend account.';
+}
+}
+
+async function adminDeleteManagedAccount(encodedUsername) {
+if (!canUseAdminPermission('manageAccounts')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) return;
+if (!confirm(`Delete ${username}'s managed account document?`)) return;
+try {
+  await getAdminDb().collection(LOGIN_REQUESTS_COLLECTION).doc(username).delete();
+  await writeAuditLog('delete_account', username, 'Managed account deleted from account manager');
+  if (statusDiv) statusDiv.textContent = `${username} account deleted.`;
+  loadLoginRequestsOnce(true);
+  loadAdminAccountManager();
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to delete account.';
+}
+}
+
+async function loadProfileDetails(username) {
+const key = normalizeUsername(username);
+if (!key) return getProfileDefaults('');
+try {
+  if (chatInitialized) {
+    const db = getAdminDb();
+    const [doc] = await Promise.all([
+      db.collection(USER_PROFILES_COLLECTION).doc(key).get(),
+      loadCasinoProfileStats(key)
+    ]);
+    if (doc.exists) {
+      userProfileCache[key] = buildProfileCacheEntry(key, doc.data() || {});
+    }
+  }
+} catch (_) {}
+return getCachedProfile(key);
+}
+
+function setProfileBackgroundShopStatus(message = '', tone = 'neutral') {
+profileBackgroundShopStatus = { message, tone };
+const node = document.getElementById('profile-background-shop-status');
+if (!node) return;
+node.textContent = message || '';
+node.style.color = tone === 'error'
+  ? '#ffb4a8'
+  : tone === 'success'
+    ? '#9fe3a5'
+    : '#9fb0c2';
+}
+
+function renderProfileBackgroundShopSection(profileUserKey, casinoStats) {
+const section = document.getElementById('profile-background-shop-section');
+if (!section) return;
+const isOwnProfile = profileUserKey && profileUserKey === getMyProfileKey();
+if (!isOwnProfile) {
+  section.style.display = 'none';
+  section.innerHTML = '';
+  return;
+}
+const ownedIds = new Set(sanitizeOwnedProfileBackgroundIds(casinoStats && casinoStats.ownedProfileBackgroundIds));
+const selectedId = normalizeOptionalProfileBackgroundId(casinoStats && casinoStats.selectedProfileBackgroundId || '');
+const items = getRenderableProfileBackgroundShopItems(casinoStats);
+section.style.display = 'block';
+section.innerHTML = `
+  <div class="profile-section-title">Profile Background Shop</div>
+  <div style="font-size:0.82rem; color:#9fb0c2;">Buy full-profile backgrounds with casino cash, then equip them on your profile.</div>
+  <div style="margin-top:0.55rem; font-size:0.84rem; color:#dce6f2;">Balance: <strong>$${Math.max(0, Number(casinoStats && casinoStats.balance || 0)).toLocaleString()}</strong></div>
+  <div style="display:grid; gap:0.6rem; margin-top:0.75rem;">
+    <div style="padding:0.75rem; border-radius:0.75rem; background:#151a22; border:1px solid #2a3440; display:grid; gap:0.55rem;">
+      <div style="min-height:5.5rem; border-radius:0.7rem; border:1px solid rgba(255,255,255,0.08); ${getProfileModalBackgroundStyleText('', 'display:flex; align-items:flex-end; padding:0.7rem; box-sizing:border-box; color:#fff; font-weight:700;')}">Default profile background</div>
+      <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:center; flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:700; color:#fff;">Default</div>
+          <div style="font-size:0.78rem; color:#9fb0c2;">Use the standard site profile panel look.</div>
+        </div>
+        <button onclick="equipProfileBackgroundShopItem('')" style="padding:0.45rem 0.8rem; border:none; border-radius:0.45rem; background:${selectedId ? '#455a64' : '#2e7d32'}; color:#fff; font-weight:700;">${selectedId ? 'Use Default' : 'Equipped'}</button>
+      </div>
+    </div>
+    ${items.length ? items.map((item) => {
+      const owned = ownedIds.has(item.id);
+      const equipped = selectedId === item.id;
+      const encodedId = encodeURIComponent(item.id);
+      const buttonLabel = equipped ? 'Equipped' : (owned ? 'Apply' : `Buy $${item.price.toLocaleString()}`);
+      const buttonAction = owned ? `equipProfileBackgroundShopItem('${encodedId}')` : `buyProfileBackgroundShopItem('${encodedId}')`;
+      const buttonColor = equipped ? '#2e7d32' : owned ? '#1565c0' : '#6a1b9a';
+      const availabilityLabel = item.active ? 'For sale' : 'Owned legacy item';
+      return `<div style="padding:0.75rem; border-radius:0.75rem; background:#151a22; border:1px solid #2a3440; display:grid; gap:0.55rem;">
+        <div style="min-height:5.5rem; border-radius:0.7rem; border:1px solid rgba(255,255,255,0.08); ${getProfileModalBackgroundStyleText(item.backgroundData, 'display:flex; align-items:flex-end; padding:0.7rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+        <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:700; color:#fff;">${escapeHtml(item.title)}</div>
+            <div style="margin-top:0.18rem; font-size:0.78rem; color:#9fb0c2;">${escapeHtml(item.description || 'Profile-wide background skin.')}</div>
+            <div style="margin-top:0.18rem; font-size:0.76rem; color:${item.active ? '#9fb0c2' : '#ffcc80'};">${escapeHtml(availabilityLabel)}${owned ? ' • Owned' : ''}</div>
+          </div>
+          <div style="display:flex; gap:0.45rem; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            <button onclick="${buttonAction}" style="padding:0.45rem 0.8rem; border:none; border-radius:0.45rem; background:${buttonColor}; color:#fff; font-weight:700;" ${equipped ? 'disabled' : ''}>${escapeHtml(buttonLabel)}</button>
+            ${owned ? `<button onclick="deleteOwnedProfileBackgroundShopItem('${encodedId}')" style="padding:0.45rem 0.8rem; border:none; border-radius:0.45rem; background:#5d4037; color:#fff; font-weight:700;">Delete</button>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('') : '<div style="padding:0.8rem; border-radius:0.7rem; background:#151a22; border:1px solid #2a3440; color:#9fb0c2;">No shop items yet.</div>'}
+  </div>
+  <div id="profile-background-shop-status" style="margin-top:0.65rem; min-height:1.1rem; font-size:0.8rem;"></div>`;
+setProfileBackgroundShopStatus(profileBackgroundShopStatus.message, profileBackgroundShopStatus.tone);
+}
+
+async function buyProfileBackgroundShopItem(encodedItemId) {
+const itemId = normalizeOptionalProfileBackgroundId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setProfileBackgroundShopStatus('You must be logged in to buy a background.', 'error');
+  return;
+}
+const item = getProfileBackgroundShopItem(itemId);
+if (!item || !item.active) {
+  setProfileBackgroundShopStatus('That background is no longer for sale.', 'error');
+  return;
+}
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  const itemRef = getProfileBackgroundShopCollection().doc(itemId);
+  const displayName = getCasinoPlayerDisplayName();
+  let nextStats = getDefaultCasinoProfileStats(user);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const [balanceSnap, itemSnap] = await Promise.all([tx.get(balanceRef), tx.get(itemRef)]);
+    if (!itemSnap.exists) throw new Error('That background is no longer for sale.');
+    const currentItem = normalizeProfileBackgroundShopItem(itemSnap.id, itemSnap.data() || {});
+    if (!currentItem.active) throw new Error('That background is no longer for sale.');
+    const currentStats = normalizeCasinoProfileStatsData(user, balanceSnap.exists ? (balanceSnap.data() || {}) : {});
+    if (currentStats.ownedProfileBackgroundIds.includes(currentItem.id)) {
+      nextStats = { ...currentStats, selectedProfileBackgroundId: currentItem.id };
+    } else {
+      if (currentStats.balance < currentItem.price) {
+        throw new Error(`You need $${(currentItem.price - currentStats.balance).toLocaleString()} more casino cash.`);
+      }
+      nextStats = {
+        ...currentStats,
+        balance: currentStats.balance - currentItem.price,
+        ownedProfileBackgroundIds: sanitizeOwnedProfileBackgroundIds([...currentStats.ownedProfileBackgroundIds, currentItem.id]),
+        selectedProfileBackgroundId: currentItem.id
+      };
+    }
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((balanceSnap.exists ? (balanceSnap.data() || {}).displayName : '') || displayName, user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await publishCasinoActivity({
+    type: 'shop',
+    title: `${displayName} bought a profile background`,
+    body: `${item.title} equipped for $${item.price.toLocaleString()}.`,
+    by: user
+  });
+  await loadCasinoBalance().catch(() => {});
+  await refreshCasinoProfileUiForUser(user);
+  scheduleDynamicLeaderboardTagRefresh();
+  setProfileBackgroundShopStatus(`${item.title} purchased and equipped.`, 'success');
+} catch (err) {
+  setProfileBackgroundShopStatus(err && err.message ? err.message : 'Could not buy that background.', 'error');
+}
+}
+
+async function equipProfileBackgroundShopItem(encodedItemId) {
+const itemId = normalizeOptionalProfileBackgroundId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setProfileBackgroundShopStatus('You must be logged in to change your profile background.', 'error');
+  return;
+}
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  let nextStats = getDefaultCasinoProfileStats(user);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(balanceRef);
+    const currentStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+    if (itemId && !currentStats.ownedProfileBackgroundIds.includes(itemId)) {
+      throw new Error('You do not own that background yet.');
+    }
+    nextStats = {
+      ...currentStats,
+      selectedProfileBackgroundId: itemId
+    };
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((snap.exists ? (snap.data() || {}).displayName : '') || getCasinoPlayerDisplayName(), user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await refreshCasinoProfileUiForUser(user);
+  setProfileBackgroundShopStatus(itemId ? 'Profile background equipped.' : 'Profile background reset to default.', 'success');
+} catch (err) {
+  setProfileBackgroundShopStatus(err && err.message ? err.message : 'Could not change your profile background.', 'error');
+}
+}
+
+async function deleteOwnedProfileBackgroundShopItem(encodedItemId) {
+const itemId = normalizeOptionalProfileBackgroundId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setProfileBackgroundShopStatus('You must be logged in to delete a background.', 'error');
+  return;
+}
+if (!itemId) {
+  setProfileBackgroundShopStatus('Default cannot be deleted from your account.', 'error');
+  return;
+}
+const item = getProfileBackgroundShopItem(itemId);
+const label = item ? item.title : 'this background';
+if (!confirm(`Delete ${label} from your account? This does not refund casino cash.`)) return;
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  let nextStats = getDefaultCasinoProfileStats(user);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(balanceRef);
+    const currentStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+    if (!currentStats.ownedProfileBackgroundIds.includes(itemId)) {
+      throw new Error('You do not own that background.');
+    }
+    nextStats = {
+      ...currentStats,
+      ownedProfileBackgroundIds: currentStats.ownedProfileBackgroundIds.filter((ownedId) => ownedId !== itemId),
+      selectedProfileBackgroundId: currentStats.selectedProfileBackgroundId === itemId ? '' : currentStats.selectedProfileBackgroundId
+    };
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((snap.exists ? (snap.data() || {}).displayName : '') || getCasinoPlayerDisplayName(), user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await refreshCasinoProfileUiForUser(user);
+  renderProfileBackgroundShopSection(user, nextStats);
+  setProfileBackgroundShopStatus(`${label} removed from your account.`, 'success');
+} catch (err) {
+  setProfileBackgroundShopStatus(err && err.message ? err.message : 'Could not delete that background from your account.', 'error');
+}
+}
+
+function setGeneralShopStatus(message = '', tone = 'neutral') {
+generalShopStatus = { message, tone };
+const node = document.getElementById('general-shop-status');
+if (!node) return;
+node.textContent = message || '';
+node.style.color = tone === 'error'
+  ? '#ffb4a8'
+  : tone === 'success'
+    ? '#9fe3a5'
+    : '#9fb0c2';
+}
+
+function setGeneralShopInventoryStatus(message = '', tone = 'neutral') {
+generalShopInventoryStatus = { message, tone };
+const node = document.getElementById('general-shop-inventory-status');
+if (!node) return;
+node.textContent = message || '';
+node.style.color = tone === 'error'
+  ? '#ffb4a8'
+  : tone === 'success'
+    ? '#9fe3a5'
+    : '#9fb0c2';
+}
+
+function setGeneralShopInventoryItemSort(value) {
+const nextValue = String(value || '').trim().toLowerCase() === 'rarity' ? 'rarity' : 'owned';
+generalShopInventoryItemSort = nextValue;
+renderGeneralShopInventoryModal();
+}
+
+async function setSelectedGeneralShopFeaturedItem(encodedItemId) {
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setGeneralShopInventoryStatus('You must be logged in to set a best drop.', 'error');
+  return;
+}
+const item = getGeneralShopItem(itemId);
+if (!item || item.itemType !== 'case-drop') {
+  setGeneralShopInventoryStatus('That case drop could not be featured.', 'error');
+  return;
+}
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  let nextStats = getDefaultCasinoProfileStats(user);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(balanceRef);
+    const currentStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+    if (!currentStats.ownedGeneralShopItemIds.includes(itemId)) {
+      throw new Error('You do not own that case drop.');
+    }
+    nextStats = {
+      ...currentStats,
+      selectedGeneralShopFeaturedItemId: itemId
+    };
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((snap.exists ? (snap.data() || {}).displayName : '') || getCasinoPlayerDisplayName(), user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await refreshCasinoProfileUiForUser(user);
+  renderGeneralShopInventoryModal();
+  setGeneralShopInventoryStatus(`${item.title} is now your best drop on your profile.`, 'success');
+} catch (err) {
+  setGeneralShopInventoryStatus(err && err.message ? err.message : 'Could not set that best drop.', 'error');
+}
+}
+
+function resetGeneralShopCaseOpeningState() {
+generalShopCaseOpeningState = {
+  caseId: '',
+  caseTitle: '',
+  reel: [],
+  activeIndex: 0,
+  rewardItemId: '',
+  rewardTitle: '',
+  rewardRarity: 'mil-spec',
+  opening: false,
+  completed: false,
+  goldReveal: false,
+  goldRevealStage: 0,
+  revealActualReward: false
+};
+}
+
+function renderGeneralShopRarityBadge(rarity) {
+const config = getGeneralShopRarityConfig(rarity);
+return `<span style="display:inline-flex; align-items:center; padding:0.22rem 0.52rem; border-radius:999px; font-size:0.64rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; background:rgba(12,18,28,0.74); border:1px solid ${config.color}; color:${config.color};">${escapeHtml(config.label)}</span>`;
+}
+
+function getGeneralShopCaseOpeningEntryPresentation(entry, state) {
+const rarity = getGeneralShopRarityConfig(entry && entry.rarity);
+const maskGold = rarity.id === 'special';
+return {
+  rarity,
+  title: maskGold ? 'Rare Special Item' : (entry && entry.item ? entry.item.title : 'Drop'),
+  visualData: maskGold ? 'linear-gradient(135deg, #3c2704 0%, #8f5f0f 45%, #f6c453 100%)' : (entry && entry.item ? entry.item.visualData : ''),
+  masked: maskGold
+};
+}
+
+function renderGeneralShopCaseOpeningPanel() {
+const state = generalShopCaseOpeningState;
+if (!state.caseId) {
+  return `<div class="store-shelf">
+    <div class="store-shelf-header">
+      <div>
+        <div class="store-shelf-title">Case Opener</div>
+        <div class="store-shelf-subtitle">Open a case below to spin through the drops. Odds are tuned slightly higher than standard CS2 rarity rates.</div>
+      </div>
+      <div class="store-shelf-subtitle">${escapeHtml(getGeneralShopOddsSummaryTextForStats(getCasinoPlayerKey() ? getCachedCasinoProfileStats(getCasinoPlayerKey()) : getDefaultCasinoProfileStats('')))}</div>
+    </div>
+    <div class="submission-empty">Pick a case in your inventory to start the spin.</div>
+  </div>`;
+}
+const reel = Array.isArray(state.reel) ? state.reel : [];
+const startIndex = Math.max(0, state.activeIndex - 3);
+const visible = reel.slice(startIndex, startIndex + 7);
+const rewardMeta = getGeneralShopRarityConfig(state.rewardRarity);
+const isGoldReveal = !!state.completed && state.rewardRarity === 'special';
+const goldRevealStage = Math.max(0, Number(state.goldRevealStage || 0));
+const goldGlow = isGoldReveal ? Math.min(0.22 + (goldRevealStage * 0.08), 0.54) : 0;
+const rewardDisplayTitle = state.rewardRarity === 'special' && !state.revealActualReward ? 'Rare Special Item' : (state.rewardTitle || 'Unknown');
+const statusLabel = state.opening ? 'Spinning' : isGoldReveal ? (state.revealActualReward ? 'Gold Revealed' : 'Gold Reveal') : state.completed ? 'Finished' : 'Ready';
+const progressStage = state.opening ? Math.min(3, Math.max(1, Math.ceil(((state.activeIndex + 1) / Math.max(1, reel.length || 1)) * 3))) : isGoldReveal ? (state.revealActualReward ? 5 : 4) : state.completed ? 5 : 1;
+return `<div class="store-shelf">
+  <div class="store-shelf-header">
+    <div>
+      <div class="store-shelf-title">Opening ${escapeHtml(state.caseTitle || 'Case')}</div>
+      <div class="store-shelf-subtitle">${state.opening ? 'Spinning through the case drops...' : (isGoldReveal ? (state.revealActualReward ? `Gold drop hit: ${escapeHtml(rewardDisplayTitle)}.` : 'Gold drop hit.') : (state.completed ? `Won ${escapeHtml(rewardDisplayTitle || 'an item')}.` : 'Ready to spin.'))}</div>
+    </div>
+    <div class="store-shelf-subtitle">${escapeHtml(getGeneralShopOddsSummaryTextForStats(getCasinoPlayerKey() ? getCachedCasinoProfileStats(getCasinoPlayerKey()) : getDefaultCasinoProfileStats('')))}</div>
+  </div>
+  <div class="case-opener-shell" style="border:1px solid ${isGoldReveal ? 'rgba(246,196,83,0.56)' : 'rgba(108,138,177,0.2)'}; background:${isGoldReveal ? 'linear-gradient(180deg, rgba(54,36,6,0.98), rgba(20,14,4,1))' : 'linear-gradient(180deg, rgba(12,18,28,0.96), rgba(7,10,16,0.98))'}; box-shadow:${isGoldReveal ? `0 0 0 1px rgba(246,196,83,0.12), 0 0 42px rgba(246,196,83,${goldGlow}), inset 0 0 48px rgba(246,196,83,0.08)` : 'none'};">
+    <div class="case-opener-topline">
+      <div class="store-summary-row">
+        <span class="case-opener-status-pill" style="border-color:${isGoldReveal ? 'rgba(246,196,83,0.55)' : 'rgba(130, 164, 204, 0.28)'}; color:${isGoldReveal ? '#ffe082' : '#dce7f5'};">${escapeHtml(statusLabel)}</span>
+        <span class="store-summary-pill">Target: ${escapeHtml(rewardMeta.label)}</span>
+      </div>
+      <div class="store-summary-pill">Center line decides the stop</div>
+    </div>
+    <div class="case-opener-progress">
+      ${[1, 2, 3, 4, 5].map((step) => `<span class="${step <= progressStage ? (isGoldReveal && step >= 4 ? 'is-gold' : 'is-active') : ''}"></span>`).join('')}
+    </div>
+    ${isGoldReveal ? `<div style="position:absolute; inset:-18% -10%; background:radial-gradient(circle at center, rgba(246,196,83,${goldGlow}) 0%, rgba(246,196,83,0.14) 25%, rgba(246,196,83,0.03) 44%, rgba(0,0,0,0) 70%); pointer-events:none;"></div>
+    <div style="position:absolute; inset:0; background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,245,204,${Math.min(0.07 + (goldRevealStage * 0.03), 0.2)}) 50%, rgba(255,255,255,0) 100%); pointer-events:none;"></div>
+    <div style="position:relative; margin-bottom:0.9rem; padding:0.75rem 0.95rem; border-radius:0.9rem; border:1px solid rgba(246,196,83,0.45); background:linear-gradient(135deg, rgba(246,196,83,0.2), rgba(154,93,12,0.35)); display:flex; justify-content:space-between; gap:0.8rem; align-items:center; flex-wrap:wrap; box-shadow:0 10px 30px rgba(0,0,0,0.28);">
+      <div style="font-size:1rem; font-weight:900; letter-spacing:0.14em; text-transform:uppercase; color:#fff2b3;">Gold Drop Unboxed</div>
+      <div style="font-size:0.86rem; font-weight:800; color:#ffe082;">Special opening triggered</div>
+    </div>` : ''}
+    <div style="position:absolute; left:50%; top:0.5rem; bottom:0.5rem; width:3px; transform:translateX(-50%); background:linear-gradient(180deg, rgba(246,196,83,0.1), rgba(246,196,83,0.9), rgba(246,196,83,0.1)); box-shadow:0 0 18px rgba(246,196,83,0.45); border-radius:999px;"></div>
+    <div class="case-opener-reel">
+      ${visible.map((entry, visibleIndex) => {
+        const absoluteIndex = startIndex + visibleIndex;
+        const presentation = getGeneralShopCaseOpeningEntryPresentation(entry, state);
+        const rarity = presentation.rarity;
+        const isActive = absoluteIndex === state.activeIndex;
+        const winningGold = isGoldReveal && isActive && rarity.id === 'special';
+        const revealWinningGold = !!(winningGold && state.revealActualReward && entry && entry.item && entry.item.id === state.rewardItemId);
+        const displayTitle = revealWinningGold ? entry.item.title : presentation.title;
+        const displayVisualData = revealWinningGold ? entry.item.visualData : presentation.visualData;
+        return `<div style="min-height:10.5rem; border-radius:0.9rem; border:2px solid ${winningGold ? '#ffe082' : (isActive ? '#f6c453' : rarity.color)}; background:${winningGold ? 'linear-gradient(180deg, rgba(72,48,8,0.98), rgba(17,12,4,0.98))' : 'linear-gradient(180deg, rgba(17,24,36,0.98), rgba(9,12,18,0.98))'}; padding:0.55rem; display:grid; gap:0.5rem; box-shadow:${winningGold ? `0 0 0 2px rgba(255,224,130,0.36), 0 0 34px rgba(246,196,83,${Math.min(0.32 + goldGlow, 0.62)}), 0 18px 28px rgba(0,0,0,0.4)` : (isActive ? '0 0 0 2px rgba(246,196,83,0.24), 0 18px 28px rgba(0,0,0,0.35)' : '0 10px 22px rgba(0,0,0,0.22)')}; transform:${winningGold ? 'translateY(-5px) scale(1.03)' : (isActive ? 'translateY(-3px) scale(1.01)' : 'none')}; transition:transform 120ms ease, box-shadow 120ms ease; position:relative; overflow:hidden;">
+          ${winningGold ? `<div style="position:absolute; inset:0; background:radial-gradient(circle at center, rgba(255,236,179,0.18) 0%, rgba(255,236,179,0.04) 32%, rgba(0,0,0,0) 64%); pointer-events:none;"></div>` : ''}
+          <div style="min-height:6rem; border-radius:0.75rem; border:1px solid rgba(255,255,255,0.08); ${getGeneralShopVisualStyleText(displayVisualData, 'display:flex; align-items:flex-end; padding:0.65rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(displayTitle)}</div>
+          <div style="display:grid; gap:0.35rem;">
+            <div style="font-weight:700; color:#fff; font-size:0.82rem;">${escapeHtml(displayTitle)}</div>
+            <div>${renderGeneralShopRarityBadge(rarity.id)}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="case-opener-foot">
+    <div style="font-size:0.84rem; color:${isGoldReveal ? '#ffe082' : '#9fb0c2'};">${isGoldReveal ? 'Gold reveal active. Center line locked on the special drop.' : 'Center line shows the winning stop.'}</div>
+    <div style="font-size:${isGoldReveal ? '1rem' : '0.88rem'}; color:${rewardMeta.color}; font-weight:800; letter-spacing:${isGoldReveal ? '0.04em' : 'normal'}; text-transform:${isGoldReveal ? 'uppercase' : 'none'};">${state.completed ? `${isGoldReveal ? 'Gold Reward' : 'Reward'}: ${escapeHtml(rewardDisplayTitle)} • ${escapeHtml(rewardMeta.label)}` : (state.opening ? 'Opening...' : 'Waiting')}</div>
+  </div>
+  </div>`;
+}
+
+function renderGeneralShopModal() {
+const container = document.getElementById('general-shop-content');
+if (!container) return;
+const user = getCasinoPlayerKey();
+const stats = user ? getCachedCasinoProfileStats(user) : getDefaultCasinoProfileStats('');
+const balance = Math.max(0, Number(stats && stats.balance || 0));
+const ownedItems = getOwnedGeneralShopItems(stats);
+const items = getRenderableGeneralShopItems(stats).filter((item) => item.active);
+const cases = getRenderableGeneralShopCases(stats).filter((item) => item.active);
+const ownedIds = new Set(sanitizeOwnedGeneralShopItemIds(stats && stats.ownedGeneralShopItemIds));
+const caseCounts = getOwnedGeneralShopCaseCounts(stats);
+container.innerHTML = `
+  <div class="store-shelf">
+    <div class="store-shelf-header">
+      <div>
+        <div class="store-shelf-title">Shop</div>
+        <div class="store-shelf-subtitle">Buy live shop items and cases with casino cash. Case drops stay hidden from the live shop and only come from cases.</div>
+      </div>
+      <div class="store-summary-row">
+        ${user ? `<span class="store-summary-pill">Balance $${balance.toLocaleString()}</span><span class="store-summary-pill">Items ${ownedItems.length}</span><span class="store-summary-pill">Cases ${Object.values(caseCounts).reduce((sum, count) => sum + count, 0)}</span>` : '<span class="store-summary-pill">Sign in to buy and keep items on your account</span>'}
+        <button type="button" onclick="openGeneralShopInventoryModal()" style="padding:0.55rem 0.8rem; background:#263238; color:#fff; border:none; border-radius:0.65rem;">Open Inventory</button>
+      </div>
+    </div>
+    <div class="store-shelf-subtitle">Odds: ${escapeHtml(getGeneralShopOddsSummaryTextForStats(stats))}</div>
+  </div>
+  <div class="store-shelf">
+    <div class="store-shelf-header">
+      <div>
+        <div class="store-shelf-title">Cases</div>
+        <div class="store-shelf-subtitle">Buy sealed cases, then open them from the inventory button.</div>
+      </div>
+      <div class="store-shelf-subtitle">${cases.length} live case${cases.length === 1 ? '' : 's'}</div>
+    </div>
+    <div class="store-mini-grid">
+      ${cases.length ? cases.map((item) => {
+        const encodedId = encodeURIComponent(item.id);
+        const ownedCount = Math.max(0, Number(caseCounts[item.id] || 0));
+        const rewardCount = getResolvedGeneralShopCaseRewards(item).length;
+        return `<div class="store-mini-card">
+          <div class="store-visual-banner" style="${getGeneralShopVisualStyleText(item.visualData, 'display:flex; align-items:flex-end; padding:0.75rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-title">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-meta">${escapeHtml(item.description || 'Open it from your inventory for a random drop.')}</div>
+          <div class="store-mini-card-meta" style="color:#93a9c1;">$${item.price.toLocaleString()} • ${rewardCount} possible drop${rewardCount === 1 ? '' : 's'}${ownedCount ? ` • Owned x${ownedCount}` : ''}</div>
+          ${renderGeneralShopCaseContentsPreview(item)}
+          <div class="store-mini-card-actions">
+            <button onclick="buyGeneralShopItem('${encodedId}')" style="background:${user ? '#1565c0' : '#455a64'}; color:#fff; border:none; border-radius:0.55rem;">${user ? `Buy Case $${item.price.toLocaleString()}` : 'Sign In to Buy'}</button>
+          </div>
+        </div>`;
+      }).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">No cases are live yet.</div>'}
+    </div>
+  </div>
+  <div class="store-shelf">
+    <div class="store-shelf-header">
+      <div>
+        <div class="store-shelf-title">Shop Items</div>
+        <div class="store-shelf-subtitle">Visible items that can be bought directly from the live shop.</div>
+      </div>
+      <div class="store-shelf-subtitle">${items.length} live shop item${items.length === 1 ? '' : 's'}</div>
+    </div>
+    <div class="store-mini-grid">
+      ${items.length ? items.map((item) => {
+        const owned = ownedIds.has(item.id);
+        const encodedId = encodeURIComponent(item.id);
+        const primaryLabel = owned ? (item.active ? 'Owned' : 'Owned Legacy') : (user ? `Buy $${item.price.toLocaleString()}` : 'Sign In to Buy');
+        const rarity = getGeneralShopRarityConfig(item.rarity);
+        const availabilityLabel = item.active ? `${rarity.label} • For sale` : 'Legacy owned item';
+        const primaryColor = owned ? '#2e7d32' : user ? '#6a1b9a' : '#455a64';
+        return `<div class="store-mini-card">
+          <div class="store-visual-banner" style="${getGeneralShopVisualStyleText(item.visualData, 'display:flex; align-items:flex-end; padding:0.75rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-title">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-meta">${escapeHtml(item.description || 'Live shop item.')}</div>
+          <div class="store-mini-card-meta" style="color:${item.active ? '#93a9c1' : '#ffcc80'};">$${item.price.toLocaleString()} • ${escapeHtml(availabilityLabel)}${owned ? ' • Owned' : ''}</div>
+          <div class="store-mini-card-actions">
+            <button onclick="buyGeneralShopItem('${encodedId}')" style="background:${primaryColor}; color:#fff; border:none; border-radius:0.55rem;" ${owned ? 'disabled' : ''}>${escapeHtml(primaryLabel)}</button>
+          </div>
+        </div>`;
+      }).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">No general shop items are live yet.</div>'}
+    </div>
+  </div>`;
+setGeneralShopStatus(generalShopStatus.message, generalShopStatus.tone);
+}
+
+function renderGeneralShopInventoryModal() {
+const container = document.getElementById('general-shop-inventory-content');
+if (!container) return;
+const user = getCasinoPlayerKey();
+const stats = user ? getCachedCasinoProfileStats(user) : getDefaultCasinoProfileStats('');
+const caseCounts = getOwnedGeneralShopCaseCounts(stats);
+const cases = getOwnedGeneralShopCases(stats);
+const ownedItems = getSortedOwnedGeneralShopItemEntries(stats);
+const selectedFeaturedItemId = normalizeOptionalGeneralShopItemId(stats && stats.selectedGeneralShopFeaturedItemId || '');
+container.innerHTML = `${renderGeneralShopCaseOpeningPanel()}
+  <div class="store-shelf">
+    <div class="store-shelf-header">
+      <div>
+        <div class="store-shelf-title">Cases</div>
+        <div class="store-shelf-subtitle">Cases sit in your inventory until you open them.</div>
+      </div>
+      <div class="store-summary-row">${user ? `<span class="store-summary-pill">${Object.values(caseCounts).reduce((sum, count) => sum + count, 0)} case${Object.values(caseCounts).reduce((sum, count) => sum + count, 0) === 1 ? '' : 's'}</span>` : '<span class="store-summary-pill">Sign in to access inventory</span>'}</div>
+    </div>
+    <div class="store-mini-grid">
+      ${user ? (cases.length ? cases.map((item) => {
+        const encodedId = encodeURIComponent(item.id);
+        const count = Math.max(0, Number(caseCounts[item.id] || 0));
+        const rewardCount = getResolvedGeneralShopCaseRewards(item).length;
+        return `<div class="store-mini-card">
+          <div class="store-visual-banner" style="${getGeneralShopVisualStyleText(item.visualData, 'display:flex; align-items:flex-end; padding:0.75rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-title">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-meta">${escapeHtml(item.description || 'Open this case for a random drop.')}</div>
+          <div class="store-mini-card-meta" style="color:${item.active ? '#93a9c1' : '#ffcc80'};">${count} in inventory • ${rewardCount} possible drop${rewardCount === 1 ? '' : 's'}</div>
+          ${renderGeneralShopCaseContentsPreview(item)}
+          <div class="store-mini-card-actions">
+            <button type="button" onclick="openGeneralShopCase('${encodedId}')" style="background:${(generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) ? '#455a64' : '#1565c0'}; color:#fff; border:none; border-radius:0.55rem;" ${(generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) ? 'disabled' : ''}>${(generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) ? 'Opening...' : 'Open Case'}</button>
+          </div>
+        </div>`;
+      }).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">You do not have any cases yet.</div>') : '<div class="submission-empty" style="grid-column:1 / -1;">Sign in to access your inventory.</div>'}
+    </div>
+  </div>
+  <div class="store-shelf">
+    <div class="store-shelf-header">
+      <div>
+        <div class="store-shelf-title">Items And Case Drops</div>
+        <div class="store-shelf-subtitle">Shop items and case drops stay here until you delete them.</div>
+      </div>
+      <div class="store-summary-row">${user ? `<span class="store-summary-pill">${ownedItems.length} owned item${ownedItems.length === 1 ? '' : 's'}</span><label class="store-summary-pill" style="gap:0.5rem;"><span>Sort</span><select onchange="setGeneralShopInventoryItemSort(this.value)" style="background:#0e1521; color:#e7eef8; border:1px solid rgba(97,121,150,0.35); border-radius:999px; padding:0.22rem 0.45rem;"><option value="owned" ${generalShopInventoryItemSort === 'owned' ? 'selected' : ''}>Owned Order</option><option value="rarity" ${generalShopInventoryItemSort === 'rarity' ? 'selected' : ''}>Rarity</option></select></label>` : '<span class="store-summary-pill">Sign in to access inventory</span>'}</div>
+    </div>
+    <div class="store-mini-grid">
+      ${user ? (ownedItems.length ? ownedItems.map((entry) => {
+        const item = entry.item;
+        const encodedId = encodeURIComponent(entry.itemId);
+        const rarity = getGeneralShopRarityConfig(item.rarity);
+        const caseDropSalePrice = Math.max(0, Math.floor(Number(entry.saleValue) || 0));
+        const featured = item.itemType === 'case-drop' && selectedFeaturedItemId === entry.itemId;
+        return `<div class="store-mini-card">
+          <div class="store-visual-banner" style="${getGeneralShopVisualStyleText(item.visualData, 'display:flex; align-items:flex-end; padding:0.75rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-title">${escapeHtml(item.title)}</div>
+          <div class="store-mini-card-meta">${escapeHtml(item.description || (item.itemType === 'case-drop' ? 'Case reward drop.' : 'Shop item.'))}</div>
+          <div class="store-mini-card-meta" style="color:${item.active ? '#93a9c1' : '#ffcc80'};">${escapeHtml(rarity.label)}${item.itemType === 'case-drop' ? ` • Owned case drop • Sell for $${caseDropSalePrice.toLocaleString()}${featured ? ' • Best Drop' : ''}` : ' • Owned shop item'}${item.active ? '' : ' • Legacy item removed from the live shop'}</div>
+          <div class="store-mini-card-actions">
+            ${item.itemType === 'case-drop'
+              ? `<button type="button" onclick="sellOwnedGeneralShopCaseDrop('${encodedId}')" style="background:#2e7d32; color:#fff; border:none; border-radius:0.55rem;">Sell $${caseDropSalePrice.toLocaleString()}</button><button type="button" onclick="openTradeOfferPrompt('${encodedId}')" style="background:#6a1b9a; color:#fff; border:none; border-radius:0.55rem;">Trade</button><button type="button" onclick="setSelectedGeneralShopFeaturedItem('${encodedId}')" style="background:${featured ? '#c28b18' : '#37474f'}; color:#fff; border:none; border-radius:0.55rem;">${featured ? 'Best Drop' : 'Set Best Drop'}</button>`
+              : `<button type="button" onclick="deleteOwnedGeneralShopItem('${encodedId}')" style="background:#5d4037; color:#fff; border:none; border-radius:0.55rem;">Delete</button>`}
+          </div>
+        </div>`;
+      }).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">You do not own any items or case drops yet.</div>') : '<div class="submission-empty" style="grid-column:1 / -1;">Sign in to access your inventory.</div>'}
+    </div>
+  </div>`;
+setGeneralShopInventoryStatus(generalShopInventoryStatus.message, generalShopInventoryStatus.tone);
+}
+
+async function buyGeneralShopItem(encodedItemId) {
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setGeneralShopStatus('You must be logged in to buy a shop item.', 'error');
+  return;
+}
+const item = getGeneralShopItem(itemId);
+if (!item || !item.active) {
+  setGeneralShopStatus('That shop item is no longer for sale.', 'error');
+  return;
+}
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  const itemRef = getGeneralShopCollection().doc(itemId);
+  const displayName = getCasinoPlayerDisplayName();
+  const fallbackItem = getGeneralShopItem(itemId);
+  let nextStats = getDefaultCasinoProfileStats(user);
+  let purchasedNew = false;
+  await getCasinoDb().runTransaction(async (tx) => {
+    const [balanceSnap, itemSnap] = await Promise.all([tx.get(balanceRef), tx.get(itemRef)]);
+    if (!itemSnap.exists && (!fallbackItem || !fallbackItem.active)) throw new Error('That shop item is no longer for sale.');
+    const currentItem = itemSnap.exists ? normalizeGeneralShopItem(itemSnap.id, itemSnap.data() || {}) : fallbackItem;
+    if (!currentItem.active) throw new Error('That shop item is no longer for sale.');
+    const currentStats = normalizeCasinoProfileStatsData(user, balanceSnap.exists ? (balanceSnap.data() || {}) : {});
+    if (currentItem.itemType === 'case') {
+      if (currentStats.balance < currentItem.price) {
+        throw new Error(`You need $${(currentItem.price - currentStats.balance).toLocaleString()} more casino cash.`);
+      }
+      purchasedNew = true;
+      nextStats = {
+        ...currentStats,
+        balance: currentStats.balance - currentItem.price,
+        ownedGeneralShopCaseCounts: {
+          ...getOwnedGeneralShopCaseCounts(currentStats),
+          [currentItem.id]: getOwnedGeneralShopCaseCount(currentStats, currentItem.id) + 1
+        }
+      };
+    } else if (currentStats.ownedGeneralShopItemIds.includes(currentItem.id)) {
+      nextStats = currentStats;
+    } else {
+      if (currentStats.balance < currentItem.price) {
+        throw new Error(`You need $${(currentItem.price - currentStats.balance).toLocaleString()} more casino cash.`);
+      }
+      purchasedNew = true;
+      const nextOwnedItemIds = currentStats.ownedGeneralShopItemIds.concat(currentItem.id);
+      nextStats = {
+        ...currentStats,
+        balance: currentStats.balance - currentItem.price,
+        ownedGeneralShopItemIds: sanitizeOwnedGeneralShopItemIds(nextOwnedItemIds),
+        ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextOwnedItemIds, (currentStats.ownedGeneralShopItemSaleValues || []).concat(0))
+      };
+    }
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((balanceSnap.exists ? (balanceSnap.data() || {}).displayName : '') || displayName, user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await loadCasinoBalance().catch(() => {});
+  await refreshCasinoProfileUiForUser(user);
+  scheduleDynamicLeaderboardTagRefresh();
+  if (purchasedNew) {
+    await addCasinoInventoryHistory({
+      type: item.itemType === 'case' ? 'buy_case' : 'buy_item',
+      actor: user,
+      itemId: item.id,
+      itemTitle: item.title,
+      itemType: item.itemType,
+      rarity: item.rarity,
+      value: item.price,
+      amount: item.itemType === 'case' ? getOwnedGeneralShopCaseCount(nextStats, item.id) : 1
+    });
+    await publishCasinoActivity({
+      type: 'shop',
+      title: `${displayName} bought a ${item.itemType === 'case' ? 'case' : 'shop item'}`,
+      body: `${item.title} added to their inventory for $${item.price.toLocaleString()}.`,
+      by: user
+    });
+    pushNotification({ type: 'shop', title: 'Purchase complete', body: `${item.title} added to your inventory.`, read: false, action: { kind: 'hub', tab: 'history' } });
+    setGeneralShopStatus(`${item.title} added to your inventory.`, 'success');
+    setGeneralShopInventoryStatus(`${item.title} added to your inventory.`, 'success');
+  } else {
+    setGeneralShopStatus(`${item.title} is already in your inventory.`, 'success');
+    setGeneralShopInventoryStatus(`${item.title} is already in your inventory.`, 'success');
+  }
+  renderGeneralShopModal();
+  if (document.getElementById('general-shop-inventory-modal')?.style.display === 'flex') {
+    renderGeneralShopInventoryModal();
+  }
+} catch (err) {
+  setGeneralShopStatus(err && err.message ? err.message : 'Could not buy that shop item.', 'error');
+  setGeneralShopInventoryStatus(err && err.message ? err.message : 'Could not buy that shop item.', 'error');
+}
+}
+
+async function animateGeneralShopCaseOpening(caseItem, rewardInfo) {
+const { reel, finalIndex } = buildGeneralShopCaseOpeningReel(caseItem, rewardInfo);
+generalShopCaseOpeningState = {
+  caseId: caseItem.id,
+  caseTitle: caseItem.title,
+  reel,
+  activeIndex: 0,
+  rewardItemId: rewardInfo.item.id,
+  rewardTitle: rewardInfo.item.title,
+  rewardRarity: rewardInfo.rarity,
+  opening: true,
+  completed: false,
+  goldReveal: false,
+  goldRevealStage: 0,
+  revealActualReward: rewardInfo.rarity !== 'special'
+};
+renderGeneralShopInventoryModal();
+for (let step = 0; step <= finalIndex; step += 1) {
+  generalShopCaseOpeningState = {
+    ...generalShopCaseOpeningState,
+    activeIndex: step,
+    opening: true,
+    completed: false
+  };
+  renderGeneralShopInventoryModal();
+  await waitForMs(Math.min(220, 42 + Math.floor((step / Math.max(1, finalIndex)) * 170)));
+}
+generalShopCaseOpeningState = {
+  ...generalShopCaseOpeningState,
+  activeIndex: finalIndex,
+  opening: false,
+  completed: true,
+  goldReveal: false,
+  goldRevealStage: 0,
+  revealActualReward: rewardInfo.rarity !== 'special'
+};
+renderGeneralShopInventoryModal();
+if (rewardInfo.rarity === 'special') {
+  for (let stage = 1; stage <= 4; stage += 1) {
+    generalShopCaseOpeningState = {
+      ...generalShopCaseOpeningState,
+      goldReveal: true,
+      goldRevealStage: stage
+    };
+    renderGeneralShopInventoryModal();
+    await waitForMs(stage === 1 ? 260 : 180);
+  }
+  generalShopCaseOpeningState = {
+    ...generalShopCaseOpeningState,
+    revealActualReward: true
+  };
+  renderGeneralShopInventoryModal();
+  await waitForMs(700);
+}
+}
+
+async function openGeneralShopCase(encodedItemId) {
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setGeneralShopInventoryStatus('You must be logged in to open a case.', 'error');
+  return;
+}
+if (generalShopCaseOpeningState.opening || generalShopCaseOpenRequestInFlight) return;
+const caseItem = getGeneralShopItem(itemId);
+if (!caseItem || caseItem.itemType !== 'case') {
+  setGeneralShopInventoryStatus('That case could not be found.', 'error');
+  return;
+}
+generalShopCaseOpenRequestInFlight = true;
+renderGeneralShopInventoryModal();
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  const displayName = getCasinoPlayerDisplayName();
+  const preSnap = await balanceRef.get();
+  const currentStats = normalizeCasinoProfileStatsData(user, preSnap.exists ? (preSnap.data() || {}) : {});
+  const rewardInfo = pickGeneralShopCaseReward(caseItem, currentStats);
+  if (!rewardInfo || !rewardInfo.item) {
+    throw new Error('This case has no valid case drops yet.');
+  }
+  const rewardSaleValue = getGeneralShopCaseDropSaleValue(caseItem, rewardInfo.item);
+  let nextStats = getDefaultCasinoProfileStats(user);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(balanceRef);
+    const liveStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+    const currentCount = getOwnedGeneralShopCaseCount(liveStats, caseItem.id);
+    if (currentCount < 1) {
+      throw new Error('You do not have that case in your inventory.');
+    }
+    const nextCaseCounts = { ...getOwnedGeneralShopCaseCounts(liveStats) };
+    if (currentCount <= 1) {
+      delete nextCaseCounts[caseItem.id];
+    } else {
+      nextCaseCounts[caseItem.id] = currentCount - 1;
+    }
+    const nextOwnedItemIds = liveStats.ownedGeneralShopItemIds.concat(rewardInfo.item.id);
+    const currentBestDrop = getAllTimeBestGeneralShopDropRecord(liveStats);
+    const currentBestDropValue = Math.max(0, Number(currentBestDrop && currentBestDrop.value || 0));
+    const currentBestDropRarity = getGeneralShopRaritySortValue(currentBestDrop && currentBestDrop.rarity || 'mil-spec');
+    const rewardDropRarity = getGeneralShopRaritySortValue(rewardInfo.item.rarity);
+    const shouldUpdateBestDrop = !currentBestDrop
+      || rewardSaleValue > currentBestDropValue
+      || (rewardSaleValue === currentBestDropValue && rewardDropRarity > currentBestDropRarity)
+      || (rewardSaleValue === currentBestDropValue && rewardDropRarity === currentBestDropRarity && rewardInfo.item.title.localeCompare(currentBestDrop.title) < 0);
+    nextStats = {
+      ...liveStats,
+      ownedGeneralShopCaseCounts: nextCaseCounts,
+      ownedGeneralShopItemIds: sanitizeOwnedGeneralShopItemIds(nextOwnedItemIds),
+      ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextOwnedItemIds, (liveStats.ownedGeneralShopItemSaleValues || []).concat(rewardSaleValue)),
+      allTimeBestGeneralShopDropItemId: shouldUpdateBestDrop ? rewardInfo.item.id : liveStats.allTimeBestGeneralShopDropItemId,
+      allTimeBestGeneralShopDropTitle: shouldUpdateBestDrop ? rewardInfo.item.title : liveStats.allTimeBestGeneralShopDropTitle,
+      allTimeBestGeneralShopDropRarity: shouldUpdateBestDrop ? normalizeGeneralShopRarity(rewardInfo.item.rarity) : normalizeGeneralShopRarity(liveStats.allTimeBestGeneralShopDropRarity),
+      allTimeBestGeneralShopDropValue: shouldUpdateBestDrop ? rewardSaleValue : Math.max(0, Number(liveStats.allTimeBestGeneralShopDropValue || 0))
+    };
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((snap.exists ? (snap.data() || {}).displayName : '') || displayName, user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await loadCasinoBalance().catch(() => {});
+  renderGeneralShopInventoryModal();
+  await animateGeneralShopCaseOpening(caseItem, rewardInfo).catch(() => {});
+  await addCasinoInventoryHistory({
+    type: 'open_case',
+    actor: user,
+    itemId: rewardInfo.item.id,
+    itemTitle: rewardInfo.item.title,
+    itemType: rewardInfo.item.itemType,
+    caseId: caseItem.id,
+    caseTitle: caseItem.title,
+    rarity: rewardInfo.item.rarity,
+    value: rewardSaleValue,
+    amount: getOwnedGeneralShopCaseCount(nextStats, caseItem.id)
+  });
+  pushNotification({ type: 'case', title: 'Case opened', body: `${caseItem.title} gave you ${rewardInfo.item.title}.`, read: false, action: { kind: 'hub', tab: 'cases' } });
+  await publishCasinoActivity({
+    type: 'shop',
+    title: `${displayName} opened ${caseItem.title}`,
+    body: `Won ${rewardInfo.item.title} (${getGeneralShopRarityConfig(rewardInfo.rarity).label}).`,
+    by: user
+  });
+  await refreshCasinoProfileUiForUser(user);
+  renderGeneralShopModal();
+  renderGeneralShopInventoryModal();
+  setGeneralShopInventoryStatus(`You opened ${caseItem.title} and got ${rewardInfo.rarity === 'special' ? `GOLD: ${rewardInfo.item.title}` : rewardInfo.item.title}.`, 'success');
+} catch (err) {
+  setGeneralShopInventoryStatus(err && err.message ? err.message : 'Could not open that case.', 'error');
+} finally {
+  generalShopCaseOpenRequestInFlight = false;
+  renderGeneralShopInventoryModal();
+}
+}
+
+async function deleteOwnedGeneralShopItem(encodedItemId) {
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setGeneralShopStatus('You must be logged in to delete a shop item.', 'error');
+  setGeneralShopInventoryStatus('You must be logged in to delete a shop item.', 'error');
+  return;
+}
+if (!itemId) {
+  setGeneralShopStatus('That shop item could not be found.', 'error');
+  setGeneralShopInventoryStatus('That shop item could not be found.', 'error');
+  return;
+}
+const item = getGeneralShopItem(itemId);
+const label = item ? item.title : 'this shop item';
+if (!confirm(`Delete ${label} from your account? This does not refund casino cash.`)) return;
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  let nextStats = getDefaultCasinoProfileStats(user);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(balanceRef);
+    const currentStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+    if (!currentStats.ownedGeneralShopItemIds.includes(itemId)) {
+      throw new Error('You do not own that shop item.');
+    }
+    const nextOwnedItemIds = currentStats.ownedGeneralShopItemIds.slice();
+    const ownedIndex = nextOwnedItemIds.indexOf(itemId);
+    if (ownedIndex < 0) {
+      throw new Error('You do not own that shop item.');
+    }
+    nextOwnedItemIds.splice(ownedIndex, 1);
+    const nextOwnedItemSaleValues = sanitizeOwnedGeneralShopItemSaleValues(currentStats.ownedGeneralShopItemIds, currentStats.ownedGeneralShopItemSaleValues).slice();
+    nextOwnedItemSaleValues.splice(ownedIndex, 1);
+    const nextFeaturedItemId = currentStats.selectedGeneralShopFeaturedItemId === itemId && !nextOwnedItemIds.includes(itemId)
+      ? ''
+      : normalizeOptionalGeneralShopItemId(currentStats.selectedGeneralShopFeaturedItemId || '');
+    nextStats = {
+      ...currentStats,
+      ownedGeneralShopItemIds: nextOwnedItemIds,
+      ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextOwnedItemIds, nextOwnedItemSaleValues),
+      selectedGeneralShopFeaturedItemId: nextFeaturedItemId
+    };
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((snap.exists ? (snap.data() || {}).displayName : '') || getCasinoPlayerDisplayName(), user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await refreshCasinoProfileUiForUser(user);
+  await addCasinoInventoryHistory({
+    type: 'delete_item',
+    actor: user,
+    itemId,
+    itemTitle: label,
+    itemType: item && item.itemType === 'case-drop' ? 'case-drop' : 'shop-item'
+  });
+  renderGeneralShopModal();
+  renderGeneralShopInventoryModal();
+  setGeneralShopStatus(`${label} removed from your account.`, 'success');
+  setGeneralShopInventoryStatus(`${label} removed from your account.`, 'success');
+} catch (err) {
+  setGeneralShopStatus(err && err.message ? err.message : 'Could not delete that shop item from your account.', 'error');
+  setGeneralShopInventoryStatus(err && err.message ? err.message : 'Could not delete that shop item from your account.', 'error');
+}
+}
+
+async function sellOwnedGeneralShopCaseDrop(encodedItemId) {
+const itemId = normalizeOptionalGeneralShopItemId(decodeURIComponent(encodedItemId || ''));
+const user = getCasinoPlayerKey();
+if (!user) {
+  setGeneralShopStatus('You must be logged in to sell a case drop.', 'error');
+  setGeneralShopInventoryStatus('You must be logged in to sell a case drop.', 'error');
+  return;
+}
+const item = getGeneralShopItem(itemId);
+if (!item || item.itemType !== 'case-drop') {
+  setGeneralShopStatus('That case drop could not be found.', 'error');
+  setGeneralShopInventoryStatus('That case drop could not be found.', 'error');
+  return;
+}
+const currentStats = getCachedCasinoProfileStats(user);
+const currentOwnedItemIds = sanitizeOwnedGeneralShopItemIds(currentStats && currentStats.ownedGeneralShopItemIds);
+const currentSaleValues = getOwnedGeneralShopItemEntries(currentStats).map((entry) => ({ itemId: entry.itemId, saleValue: entry.saleValue }));
+const currentOwnedIndex = currentOwnedItemIds.indexOf(itemId);
+const salePrice = Math.max(0, Math.floor(Number(currentOwnedIndex >= 0 && currentSaleValues[currentOwnedIndex] ? currentSaleValues[currentOwnedIndex].saleValue : 0) || 0));
+if (!confirm(`Sell ${item.title} for $${salePrice.toLocaleString()}?`)) return;
+try {
+  const balanceRef = getCasinoBalanceCollection().doc(user);
+  let nextStats = getDefaultCasinoProfileStats(user);
+  await getCasinoDb().runTransaction(async (tx) => {
+    const snap = await tx.get(balanceRef);
+    const currentStats = normalizeCasinoProfileStatsData(user, snap.exists ? (snap.data() || {}) : {});
+    const nextOwnedItemIds = currentStats.ownedGeneralShopItemIds.slice();
+    const ownedIndex = nextOwnedItemIds.indexOf(itemId);
+    if (ownedIndex < 0) {
+      throw new Error('You do not own that case drop.');
+    }
+    nextOwnedItemIds.splice(ownedIndex, 1);
+    const nextOwnedItemSaleValues = sanitizeOwnedGeneralShopItemSaleValues(currentStats.ownedGeneralShopItemIds, currentStats.ownedGeneralShopItemSaleValues).slice();
+    const resolvedSalePrice = Math.max(0, Math.floor(Number((getOwnedGeneralShopItemEntries(currentStats)[ownedIndex] || {}).saleValue || 0)));
+    nextOwnedItemSaleValues.splice(ownedIndex, 1);
+    const nextBalance = currentStats.balance + resolvedSalePrice;
+    const nextFeaturedItemId = currentStats.selectedGeneralShopFeaturedItemId === itemId && !nextOwnedItemIds.includes(itemId)
+      ? ''
+      : normalizeOptionalGeneralShopItemId(currentStats.selectedGeneralShopFeaturedItemId || '');
+    nextStats = {
+      ...currentStats,
+      balance: nextBalance,
+      biggestBalance: Math.max(currentStats.biggestBalance, nextBalance),
+      ownedGeneralShopItemIds: nextOwnedItemIds,
+      ownedGeneralShopItemSaleValues: sanitizeOwnedGeneralShopItemSaleValues(nextOwnedItemIds, nextOwnedItemSaleValues),
+      selectedGeneralShopFeaturedItemId: nextFeaturedItemId
+    };
+    tx.set(balanceRef, {
+      username: user,
+      displayName: sanitizeNullableText((snap.exists ? (snap.data() || {}).displayName : '') || getCasinoPlayerDisplayName(), user),
+      ...nextStats,
+      updatedAtMs: Date.now()
+    }, { merge: true });
+  });
+  casinoProfileStatsCache[user] = nextStats;
+  await loadCasinoBalance().catch(() => {});
+  await refreshCasinoProfileUiForUser(user);
+  scheduleDynamicLeaderboardTagRefresh();
+  await publishCasinoActivity({
+    type: 'shop',
+    title: `${getCasinoPlayerDisplayName()} sold a case drop`,
+    body: `${item.title} sold for $${salePrice.toLocaleString()}.`,
+    by: user
+  });
+  await addCasinoInventoryHistory({ type: 'sell_case_drop', actor: user, itemId: item.id, itemTitle: item.title, itemType: item.itemType, rarity: item.rarity, value: salePrice });
+  pushNotification({ type: 'shop', title: 'Case drop sold', body: `${item.title} sold for $${salePrice.toLocaleString()}.`, read: false, action: { kind: 'hub', tab: 'history' } });
+  renderGeneralShopModal();
+  renderGeneralShopInventoryModal();
+  setGeneralShopStatus(`${item.title} sold for $${salePrice.toLocaleString()}.`, 'success');
+  setGeneralShopInventoryStatus(`${item.title} sold for $${salePrice.toLocaleString()}.`, 'success');
+} catch (err) {
+  setGeneralShopStatus(err && err.message ? err.message : 'Could not sell that case drop.', 'error');
+  setGeneralShopInventoryStatus(err && err.message ? err.message : 'Could not sell that case drop.', 'error');
+}
+}
+
+function renderProfileIdentity(profileUserKey, stats, profile) {
+const badgesEl = document.getElementById('profile-badges');
+const detailListEl = document.getElementById('profile-detail-list');
+const featuredDropEl = document.getElementById('profile-featured-drop');
+const editPanelEl = document.getElementById('profile-edit-panel');
+const editBtn = document.getElementById('profile-edit-btn');
+const saveBtn = document.getElementById('profile-save-btn');
+if (!badgesEl || !detailListEl || !featuredDropEl || !editPanelEl || !editBtn || !saveBtn) return;
+const badges = getProfileBadges(profileUserKey, stats, profile);
+const favoriteGameName = sanitizeNullableText(profile.favoriteGameName, '') || 'None set';
+const joinedLabel = sanitizeNullableText(profile.joinLabel, '') || 'Unknown';
+const mutualFriends = profileUserKey && myFriends.has(profileUserKey) ? 1 : 0;
+const casinoStats = getCachedCasinoProfileStats(profileUserKey);
+const casinoGamesPlayed = Math.max(0, Number(casinoStats.gamesPlayed || 0));
+const casinoWins = Math.max(0, Number(casinoStats.wins || 0));
+const casinoLosses = Math.max(0, Number(casinoStats.losses || 0));
+const casinoPushes = Math.max(0, Number(casinoStats.pushes || 0));
+const casinoWinRate = casinoGamesPlayed ? `${Math.round((casinoWins / casinoGamesPlayed) * 100)}%` : '0%';
+const casinoAchievementsUnlocked = Array.isArray(casinoStats.achievementIds) ? casinoStats.achievementIds.length : 0;
+const equippedProfileBackground = getProfileBackgroundShopItem(casinoStats.selectedProfileBackgroundId);
+const featuredDrop = getSelectedGeneralShopFeaturedItem(casinoStats);
+const featuredDropRarity = featuredDrop ? getGeneralShopRarityConfig(featuredDrop.rarity) : null;
+const equippedRewardTitle = getEquippedProfileRewardTitle(profileUserKey, stats, casinoStats, profile);
+const equippedRewardCosmetic = getEquippedProfileRewardCosmetic(profileUserKey, stats, casinoStats, profile);
+const statusQuote = sanitizeNullableText(profile.statusQuote, '');
+badgesEl.innerHTML = badges.length ? badges.map((badge) => `<span class="profile-badge">${escapeHtml(badge.icon)} ${escapeHtml(badge.label)}</span>`).join('') : '<span style="color:#888; font-size:0.84rem;">No badges yet.</span>';
+detailListEl.innerHTML = [
+  ['Title', equippedRewardTitle || 'None equipped'],
+  ['Accent', equippedRewardCosmetic ? equippedRewardCosmetic.label : 'None equipped'],
+  ['Bio', profile.bio || 'No bio yet'],
+  ['Quote', statusQuote || 'No quote set'],
+  ['Favorite Game', favoriteGameName],
+  ['Joined', joinedLabel],
+  ['Profile Background', equippedProfileBackground ? equippedProfileBackground.title : 'Default'],
+  ['Best Drop', featuredDrop ? featuredDrop.title : 'None selected'],
+  ['Shop Items', String(sanitizeOwnedGeneralShopItemIds(casinoStats.ownedGeneralShopItemIds).length)],
+  ['Shop Cases', String(Object.values(getOwnedGeneralShopCaseCounts(casinoStats)).reduce((sum, count) => sum + count, 0))],
+  ['Mutual Friends', String(mutualFriends)],
+  ['Casino Balance', `$${Math.max(0, Number(casinoStats.balance || 0)).toLocaleString()}`],
+  ['Casino Record', `${casinoWins}W / ${casinoLosses}L / ${casinoPushes}P`],
+  ['Casino Win Rate', casinoWinRate],
+  ['Casino Games', String(casinoGamesPlayed)],
+  ['Current Hot Streak', String(Math.max(0, Number(casinoStats.currentWinStreak || 0)))],
+  ['Current Loss Streak', String(Math.max(0, Number(casinoStats.currentLossStreak || 0)))],
+  ['Best Heater', String(Math.max(0, Number(casinoStats.bestWinStreak || 0)))],
+  ['Worst Slide', String(Math.max(0, Number(casinoStats.worstLossStreak || 0)))],
+  ['Biggest Win', `$${Math.max(0, Number(casinoStats.biggestWin || 0)).toLocaleString()}`],
+  ['Biggest Balance', `$${Math.max(0, Number(casinoStats.biggestBalance || 0)).toLocaleString()}`],
+  ['Total Wagered', `$${Math.max(0, Number(casinoStats.totalWagered || 0)).toLocaleString()}`],
+  ['Casino Achievements', `${casinoAchievementsUnlocked}/${CASINO_ACHIEVEMENTS.length}`],
+  ['Relief Claims', String(Math.max(0, Number(casinoStats.reliefClaims || 0)))],
+  ['Bankruptcies', String(casinoStats.bankruptcies || 0)]
+].map(([label, value]) => `<div class="profile-detail-card"><div class="profile-detail-label">${escapeHtml(label)}</div><div class="profile-detail-value">${escapeHtml(value)}</div></div>`).join('');
+if (featuredDrop) {
+  featuredDropEl.style.display = 'block';
+  featuredDropEl.innerHTML = `<div class="profile-featured-drop-card"><div class="profile-featured-drop-visual" style="${getGeneralShopVisualStyleText(featuredDrop.visualData, 'display:flex; align-items:flex-end; padding:0.85rem; box-sizing:border-box;')}"><span style="display:inline-flex; align-items:center; gap:0.35rem; font-weight:700; color:#fff; background:rgba(6,10,16,0.72); border:1px solid rgba(255,255,255,0.1); border-radius:999px; padding:0.28rem 0.65rem;">Best Drop</span></div><div class="profile-featured-drop-meta"><div class="profile-featured-drop-title">${escapeHtml(featuredDrop.title)}</div><div class="profile-featured-drop-note" style="color:${escapeHtml(featuredDropRarity ? featuredDropRarity.color : '#dce7f5')};">${escapeHtml(featuredDropRarity ? featuredDropRarity.label : 'Case Drop')}</div><div class="profile-featured-drop-note">${escapeHtml(featuredDrop.description || 'Selected from inventory case drops.')}</div></div></div>`;
+} else {
+  featuredDropEl.style.display = 'none';
+  featuredDropEl.innerHTML = '';
+}
+const isOwnProfile = profileUserKey && profileUserKey === getMyProfileKey();
+editBtn.style.display = isOwnProfile ? 'inline-block' : 'none';
+saveBtn.style.display = isOwnProfile && currentProfileEditorVisible ? 'inline-block' : 'none';
+editPanelEl.style.display = isOwnProfile && currentProfileEditorVisible ? 'grid' : 'none';
+if (isOwnProfile && currentProfileEditorVisible) {
+  pendingProfileAvatarData = pendingProfileAvatarData === null ? sanitizeProfileAvatar(profile.avatarData) : pendingProfileAvatarData;
+  pendingProfileBannerData = pendingProfileBannerData === null ? sanitizeProfileBanner(profile.bannerData) : pendingProfileBannerData;
+  editPanelEl.innerHTML = `
+    <div style="display:flex; gap:0.9rem; align-items:flex-start; flex-wrap:wrap;">
+      <div style="width:5rem; height:5rem; border-radius:1rem; overflow:hidden; border:1px solid #3a3a3a; background:#151515; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <img id="profile-edit-avatar-preview" alt="Profile picture preview" src="${escapeHtml(pendingProfileAvatarData || '')}" style="width:100%; height:100%; object-fit:cover; ${pendingProfileAvatarData ? '' : 'display:none;'}" />
+        <div id="profile-edit-avatar-fallback" style="font-size:1.1rem; color:#90caf9; font-weight:700; ${pendingProfileAvatarData ? 'display:none;' : ''}">No PFP</div>
+      </div>
+      <div style="display:grid; gap:0.45rem; min-width:min(14rem, 100%); flex:1 1 14rem;">
+        <input id="profile-avatar-upload" type="file" accept="image/*,.gif" onchange="handleProfilePictureSelected(event)" />
+        <div style="display:flex; gap:0.45rem; flex-wrap:wrap; align-items:center;">
+          <input id="profile-avatar-url" type="text" placeholder="Paste GIF URL" value="${escapeHtml((pendingProfileAvatarData && !pendingProfileAvatarData.startsWith('data:image/')) ? pendingProfileAvatarData : '')}" style="flex:1 1 12rem; min-width:12rem;" />
+          <button type="button" onclick="applyProfilePictureUrl()" style="padding:0.4rem 0.7rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">Use GIF URL</button>
+        </div>
+        <div style="display:grid; gap:0.45rem;">
+          <input id="profile-gif-search-input" type="text" placeholder="Search GIFs" oninput="onProfileGifSearchInput()" />
+          <div id="profile-gif-grid" class="gif-grid" style="max-height:220px; overflow:auto; background:#101820; border:1px solid #2d3a48; border-radius:0.6rem; padding:0.55rem;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-wrap:wrap;">
+            <button id="profile-gif-prev-btn" type="button" onclick="changeProfileGifPage(-1)" style="padding:0.4rem 0.7rem; background:#37474f; color:#fff; border:none; border-radius:0.35rem;">Previous</button>
+            <div id="profile-gif-page-status" style="font-size:0.78rem; color:#9fb0c2;">Page 1</div>
+            <button id="profile-gif-next-btn" type="button" onclick="changeProfileGifPage(1)" style="padding:0.4rem 0.7rem; background:#37474f; color:#fff; border:none; border-radius:0.35rem;">Next</button>
+          </div>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button type="button" onclick="removeProfilePicture()" style="padding:0.4rem 0.7rem; background:#5d4037; color:#fff; border:none; border-radius:0.35rem;">Remove Picture</button>
+        </div>
+        <div id="profile-avatar-status" style="font-size:0.78rem; color:#9fb0c2;">Use an image upload or paste a direct GIF/Giphy URL for your profile picture.</div>
+      </div>
+    </div>
+    <div style="display:grid; gap:0.55rem; margin-top:0.95rem;">
+      <div id="profile-edit-banner-preview" class="profile-banner" style="height:8.25rem; margin-bottom:0;">
+        <div id="profile-edit-banner-empty" class="profile-banner-empty">No banner selected</div>
+      </div>
+      <input id="profile-banner-upload" type="file" accept="image/*,.gif" onchange="handleProfileBannerSelected(event)" />
+      <div style="display:flex; gap:0.45rem; flex-wrap:wrap; align-items:center;">
+        <input id="profile-banner-url" type="text" placeholder="Paste image or GIF URL for banner" value="${escapeHtml((pendingProfileBannerData && isProfileBannerMedia(pendingProfileBannerData) && !pendingProfileBannerData.startsWith('data:image/')) ? pendingProfileBannerData : '')}" style="flex:1 1 14rem; min-width:14rem;" />
+        <button type="button" onclick="applyProfileBannerUrl()" style="padding:0.4rem 0.7rem; background:#1565c0; color:#fff; border:none; border-radius:0.35rem;">Use Banner URL</button>
+      </div>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <button type="button" onclick="removeProfileBanner()" style="padding:0.4rem 0.7rem; background:#5d4037; color:#fff; border:none; border-radius:0.35rem;">Remove Banner</button>
+      </div>
+      <div id="profile-banner-status" style="font-size:0.78rem; color:#9fb0c2;">Use an image upload or paste a direct image or GIF URL for your banner.</div>
+    </div>
+    <div style="display:grid; gap:0.55rem; margin-top:0.95rem;">
+      <input id="profile-edit-quote" type="text" maxlength="120" placeholder="Profile quote" value="${escapeHtml(profile.statusQuote || '')}" />
+      <select id="profile-edit-title">
+        <option value="">No title</option>
+        ${getUnlockedProfileRewardTitles(stats, casinoStats, profileUserKey).map((title) => `<option value="${escapeHtml(title)}" ${sanitizeNullableText(profile.profileTitle, '') === title ? 'selected' : ''}>${escapeHtml(title)}</option>`).join('')}
+      </select>
+      <select id="profile-edit-accent">
+        <option value="">No accent</option>
+        ${getUnlockedProfileRewardCosmetics(stats, casinoStats, profileUserKey).map((cosmetic) => `<option value="${escapeHtml(cosmetic.id)}" ${sanitizeNullableText(profile.profileAccentId, '') === cosmetic.id ? 'selected' : ''}>${escapeHtml(cosmetic.label)}</option>`).join('')}
+      </select>
+    </div>
+    <textarea id="profile-edit-bio" maxlength="220" placeholder="Short bio">${escapeHtml(profile.bio || '')}</textarea>`;
+  applyProfileBannerBackground(document.getElementById('profile-edit-banner-preview'), pendingProfileBannerData, document.getElementById('profile-edit-banner-empty'));
+  renderProfileGifSearchResults();
+  if (!profileGifResults.length) searchProfileGifs('trending');
+  return;
+}
+pendingProfileAvatarData = null;
+pendingProfileBannerData = null;
+editPanelEl.innerHTML = '';
+}
+
+function renderProfileCasinoInventorySection(profileUserKey, casinoStats) {
+const sectionEl = document.getElementById('profile-casino-inventory-section');
+if (!sectionEl) return;
+const caseCounts = getOwnedGeneralShopCaseCounts(casinoStats);
+const ownedCases = getOwnedGeneralShopCases(casinoStats);
+const ownedItems = getSortedOwnedGeneralShopItemEntries(casinoStats, 'rarity');
+const totalCaseCount = Object.values(caseCounts).reduce((sum, count) => sum + Math.max(0, Number(count || 0)), 0);
+const totalItemCount = ownedItems.length;
+sectionEl.style.display = 'block';
+sectionEl.innerHTML = `
+  <div class="profile-section-title">Casino Inventory</div>
+  <div class="profile-inventory-summary">${escapeHtml(`Viewing @${profileUserKey || 'unknown'}: ${totalItemCount} item${totalItemCount === 1 ? '' : 's'} and ${totalCaseCount} case${totalCaseCount === 1 ? '' : 's'}.`)}</div>
+  <div class="profile-inventory-section-grid">
+    <div class="profile-inventory-group">
+      <div class="profile-inventory-group-title">Cases</div>
+      <div class="store-mini-grid">
+        ${ownedCases.length ? ownedCases.map((item) => {
+          const count = Math.max(0, Number(caseCounts[item.id] || 0));
+          const rewardCount = getResolvedGeneralShopCaseRewards(item).length;
+          return `<div class="store-mini-card">
+            <div class="store-visual-banner" style="${getGeneralShopVisualStyleText(item.visualData, 'display:flex; align-items:flex-end; padding:0.75rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+            <div class="store-mini-card-title">${escapeHtml(item.title)}</div>
+            <div class="store-mini-card-meta">${escapeHtml(item.description || 'Open this case for a random drop.')}</div>
+            <div class="store-mini-card-meta" style="color:${item.active ? '#93a9c1' : '#ffcc80'};">${count} owned • ${rewardCount} possible drop${rewardCount === 1 ? '' : 's'}</div>
+          </div>`;
+        }).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">No cases owned.</div>'}
+      </div>
+    </div>
+    <div class="profile-inventory-group">
+      <div class="profile-inventory-group-title">Items And Case Drops</div>
+      <div class="store-mini-grid">
+        ${ownedItems.length ? ownedItems.map((entry) => {
+          const item = entry.item;
+          const rarity = getGeneralShopRarityConfig(item.rarity);
+          const saleValue = Math.max(0, Math.floor(Number(entry.saleValue || 0)));
+          return `<div class="store-mini-card">
+            <div class="store-visual-banner" style="${getGeneralShopVisualStyleText(item.visualData, 'display:flex; align-items:flex-end; padding:0.75rem; box-sizing:border-box; color:#fff; font-weight:700;')}">${escapeHtml(item.title)}</div>
+            <div class="store-mini-card-title">${escapeHtml(item.title)}</div>
+            <div class="store-mini-card-meta">${escapeHtml(item.description || (item.itemType === 'case-drop' ? 'Case reward drop.' : 'Shop item.'))}</div>
+            <div class="store-mini-card-meta" style="color:${item.active ? '#93a9c1' : '#ffcc80'};">${escapeHtml(rarity.label)}${item.itemType === 'case-drop' ? ` • Case drop • Worth $${saleValue.toLocaleString()}` : ` • Shop item • Worth $${Math.max(0, Number(item.price || 0)).toLocaleString()}`}${item.active ? '' : ' • Legacy item'}</div>
+          </div>`;
+        }).join('') : '<div class="submission-empty" style="grid-column:1 / -1;">No items or case drops owned.</div>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleProfileEditor() {
+currentProfileEditorVisible = !currentProfileEditorVisible;
+if (!currentProfileEditorVisible) {
+  pendingProfileAvatarData = null;
+  pendingProfileBannerData = null;
+}
+renderProfileModal(currentProfileViewUser || getStatsUserKey());
+}
+
+async function handleProfilePictureSelected(event) {
+const input = event && event.target;
+const file = input && input.files && input.files[0];
+const preview = document.getElementById('profile-edit-avatar-preview');
+const fallback = document.getElementById('profile-edit-avatar-fallback');
+const urlInput = document.getElementById('profile-avatar-url');
+const status = document.getElementById('profile-avatar-status');
+if (!file) return;
+if (status) status.textContent = 'Processing picture...';
+try {
+const avatarData = sanitizeProfileAvatar(await compressChatImage(file));
+if (!avatarData) throw new Error('Could not use that image for your profile picture.');
+pendingProfileAvatarData = avatarData;
+if (preview) {
+preview.src = avatarData;
+preview.style.display = 'block';
+}
+if (fallback) fallback.style.display = 'none';
+if (urlInput) urlInput.value = '';
+if (status) status.textContent = 'Profile picture ready to save.';
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Could not use that file.';
+} finally {
+if (input) input.value = '';
+}
+}
+
+async function applyProfilePictureUrl() {
+const input = document.getElementById('profile-avatar-url');
+const preview = document.getElementById('profile-edit-avatar-preview');
+const fallback = document.getElementById('profile-edit-avatar-fallback');
+const status = document.getElementById('profile-avatar-status');
+const rawUrl = normalizeReactionImageUrl(input ? input.value : '');
+if (!rawUrl) {
+if (status) status.textContent = 'Paste a GIF URL first.';
+return;
+}
+if (status) status.textContent = 'Resolving GIF URL...';
+try {
+const resolvedUrl = await resolveReactionImageUrl(rawUrl);
+const avatarData = sanitizeProfileAvatar(resolvedUrl);
+if (!avatarData) {
+throw new Error('Could not use that GIF URL. Try a direct .gif link or a standard Giphy share link.');
+}
+pendingProfileAvatarData = avatarData;
+if (input) input.value = avatarData;
+if (preview) {
+preview.src = avatarData;
+preview.style.display = 'block';
+}
+if (fallback) fallback.style.display = 'none';
+if (status) status.textContent = 'GIF profile picture ready to save.';
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Could not use that GIF URL.';
+}
+}
+
+async function handleProfileBannerSelected(event) {
+const input = event && event.target;
+const file = input && input.files && input.files[0];
+const status = document.getElementById('profile-banner-status');
+const urlInput = document.getElementById('profile-banner-url');
+if (!file) return;
+if (status) status.textContent = 'Processing banner...';
+try {
+  const bannerData = sanitizeProfileBanner(await compressChatImage(file));
+  if (!bannerData) throw new Error('Could not use that file as a banner.');
+  pendingProfileBannerData = bannerData;
+  applyProfileBannerBackground(document.getElementById('profile-edit-banner-preview'), pendingProfileBannerData, document.getElementById('profile-edit-banner-empty'));
+  if (urlInput) urlInput.value = '';
+  if (status) status.textContent = 'Banner ready to save.';
+} catch (err) {
+  if (status) status.textContent = err && err.message ? err.message : 'Could not use that banner file.';
+} finally {
+  if (input) input.value = '';
+}
+}
+
+async function applyProfileBannerUrl() {
+const input = document.getElementById('profile-banner-url');
+const status = document.getElementById('profile-banner-status');
+const rawUrl = normalizeReactionImageUrl(input ? input.value : '');
+if (!rawUrl) {
+  if (status) status.textContent = 'Paste an image or GIF URL first.';
+  return;
+}
+if (status) status.textContent = 'Resolving banner URL...';
+try {
+  const resolvedUrl = await resolveReactionImageUrl(rawUrl);
+  const bannerData = sanitizeProfileBanner(resolvedUrl);
+  if (!bannerData) {
+    throw new Error('Could not use that banner URL. Try a direct image link or a standard Giphy share link.');
+  }
+  pendingProfileBannerData = bannerData;
+  applyProfileBannerBackground(document.getElementById('profile-edit-banner-preview'), pendingProfileBannerData, document.getElementById('profile-edit-banner-empty'));
+  if (input) input.value = bannerData;
+  if (status) status.textContent = 'Banner URL ready to save.';
+} catch (err) {
+  if (status) status.textContent = err && err.message ? err.message : 'Could not use that banner URL.';
+}
+}
+
+function removeProfileBanner() {
+pendingProfileBannerData = '';
+applyProfileBannerBackground(document.getElementById('profile-edit-banner-preview'), pendingProfileBannerData, document.getElementById('profile-edit-banner-empty'));
+const input = document.getElementById('profile-banner-url');
+const status = document.getElementById('profile-banner-status');
+if (input) input.value = '';
+if (status) status.textContent = 'Banner removed. Save to keep this change.';
+}
+
+function onProfileGifSearchInput() {
+clearTimeout(profileGifSearchTimer);
+const input = document.getElementById('profile-gif-search-input');
+const query = input ? input.value.trim() : '';
+profileGifSearchTimer = setTimeout(() => searchProfileGifs(query || 'trending', 0), 350);
+}
+
+function updateProfileGifPagination() {
+const prevBtn = document.getElementById('profile-gif-prev-btn');
+const nextBtn = document.getElementById('profile-gif-next-btn');
+const status = document.getElementById('profile-gif-page-status');
+if (!prevBtn || !nextBtn || !status) return;
+const pageNumber = Math.floor(profileGifOffset / 12) + 1;
+const hasResults = profileGifResults.length > 0;
+const hasPrevious = profileGifOffset > 0;
+const hasNext = profileGifTotalCount > 0
+? profileGifOffset + profileGifResults.length < profileGifTotalCount
+: profileGifResults.length === 12;
+prevBtn.disabled = profileGifLoading || !hasPrevious;
+nextBtn.disabled = profileGifLoading || !hasResults || !hasNext;
+if (profileGifLoading) {
+status.textContent = `Loading page ${pageNumber}...`;
+return;
+}
+if (!hasResults) {
+status.textContent = profileGifQuery === 'trending' ? 'No trending GIFs found' : 'No GIFs found';
+return;
+}
+const totalPages = profileGifTotalCount > 0 ? Math.max(1, Math.ceil(profileGifTotalCount / 12)) : null;
+status.textContent = totalPages ? `Page ${pageNumber} of ${totalPages}` : `Page ${pageNumber}`;
+}
+
+function changeProfileGifPage(direction) {
+if (profileGifLoading) return;
+const nextOffset = Math.max(0, profileGifOffset + direction * 12);
+if (nextOffset === profileGifOffset) return;
+searchProfileGifs(profileGifQuery || 'trending', nextOffset);
+}
+
+function renderProfileGifSearchResults() {
+const grid = document.getElementById('profile-gif-grid');
+if (!grid) return;
+if (!hasGiphySearchConfigured()) {
+grid.innerHTML = '<div style="color:#ffca28;padding:0.75rem;text-align:center;grid-column:1/-1;">GIF search is not configured yet.</div>';
+updateProfileGifPagination();
+return;
+}
+if (!profileGifResults.length) {
+grid.innerHTML = '<div style="color:#999;padding:0.75rem;text-align:center;grid-column:1/-1;">Search for a GIF or load trending results.</div>';
+updateProfileGifPagination();
+return;
+}
+grid.innerHTML = profileGifResults.map((gif, i) => {
+const images = gif.images || {};
+const thumbUrl = (images.fixed_height_small && images.fixed_height_small.url) ||
+                 (images.fixed_height && images.fixed_height.url) || '';
+if (!thumbUrl) return '';
+return `<img class="gif-thumb" src="${escapeHtml(thumbUrl)}" alt="GIF" loading="lazy" onclick="useProfileGifFromIndex(${i})" />`;
+}).join('') || '<div style="color:#999;padding:0.75rem;text-align:center;grid-column:1/-1;">No GIFs found.</div>';
+updateProfileGifPagination();
+}
+
+async function searchProfileGifs(query = 'trending', offset = 0) {
+const grid = document.getElementById('profile-gif-grid');
+if (!grid) return;
+profileGifQuery = (query || 'trending').trim() || 'trending';
+profileGifOffset = Math.max(0, offset);
+if (!hasGiphySearchConfigured()) {
+renderProfileGifSearchResults();
+return;
+}
+profileGifLoading = true;
+updateProfileGifPagination();
+grid.innerHTML = '<div style="color:#999;padding:0.75rem;text-align:center;grid-column:1/-1;">Loading GIFs...</div>';
+try {
+const cleanedQuery = profileGifQuery;
+const isTrending = cleanedQuery === 'trending';
+const endpoint = isTrending
+? `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=12&offset=${profileGifOffset}&rating=g`
+: `https://api.giphy.com/v1/gifs/search?q=${encodeURIComponent(cleanedQuery)}&api_key=${GIPHY_API_KEY}&limit=12&offset=${profileGifOffset}&rating=g`;
+const res = await fetch(endpoint);
+if (!res.ok) throw new Error(`Giphy API error: ${res.status}`);
+const json = await res.json();
+profileGifResults = Array.isArray(json.data) ? json.data : [];
+profileGifTotalCount = Math.max(profileGifResults.length, ((json.pagination && json.pagination.total_count) || 0));
+renderProfileGifSearchResults();
+} catch (err) {
+console.error('Profile GIF search failed:', err);
+profileGifResults = [];
+profileGifTotalCount = 0;
+grid.innerHTML = '<div style="color:#f66;padding:0.75rem;text-align:center;grid-column:1/-1;">Failed to load GIFs.</div>';
+updateProfileGifPagination();
+} finally {
+profileGifLoading = false;
+updateProfileGifPagination();
+}
+}
+
+function useProfileGifFromIndex(index) {
+const gif = profileGifResults[index];
+if (!gif) return;
+const images = gif.images || {};
+const gifUrl = (images.original && images.original.url) ||
+               (images.fixed_height && images.fixed_height.url) || '';
+if (!gifUrl) return;
+pendingProfileAvatarData = sanitizeProfileAvatar(gifUrl);
+const preview = document.getElementById('profile-edit-avatar-preview');
+const fallback = document.getElementById('profile-edit-avatar-fallback');
+const status = document.getElementById('profile-avatar-status');
+const urlInput = document.getElementById('profile-avatar-url');
+if (preview && pendingProfileAvatarData) {
+preview.src = pendingProfileAvatarData;
+preview.style.display = 'block';
+}
+if (fallback) fallback.style.display = 'none';
+if (urlInput) urlInput.value = pendingProfileAvatarData;
+if (status) status.textContent = 'GIF profile picture ready to save.';
+}
+
+function removeProfilePicture() {
+pendingProfileAvatarData = '';
+const preview = document.getElementById('profile-edit-avatar-preview');
+const fallback = document.getElementById('profile-edit-avatar-fallback');
+const urlInput = document.getElementById('profile-avatar-url');
+const status = document.getElementById('profile-avatar-status');
+if (preview) {
+preview.src = '';
+preview.style.display = 'none';
+}
+if (fallback) fallback.style.display = 'block';
+if (urlInput) urlInput.value = '';
+if (status) status.textContent = 'Profile picture removed. Save to keep this change.';
+}
+
+async function saveProfileDetails() {
+const key = getMyProfileKey();
+if (!key || currentProfileViewUser !== key) return;
+const bioEl = document.getElementById('profile-edit-bio');
+const quoteEl = document.getElementById('profile-edit-quote');
+const titleEl = document.getElementById('profile-edit-title');
+const accentEl = document.getElementById('profile-edit-accent');
+const favoriteIds = Array.from(getFavoriteGameIds());
+const primaryFavorite = favoriteIds.length ? getStoreGameById(favoriteIds[0]) : null;
+const nextProfile = {
+  ...getCachedProfile(key),
+  avatarData: sanitizeProfileAvatar(pendingProfileAvatarData === null ? getCachedProfile(key).avatarData : pendingProfileAvatarData),
+  bannerData: sanitizeProfileBanner(pendingProfileBannerData === null ? getCachedProfile(key).bannerData : pendingProfileBannerData),
+  favoriteGameId: primaryFavorite ? primaryFavorite.id : '',
+  favoriteGameName: primaryFavorite ? primaryFavorite.name : '',
+  bio: sanitizeNullableText(bioEl && bioEl.value, '').slice(0, 220),
+  statusQuote: sanitizeNullableText(quoteEl && quoteEl.value, '').slice(0, 120),
+  profileTitle: sanitizeNullableText(titleEl && titleEl.value, '').slice(0, 40),
+  profileAccentId: sanitizeNullableText(accentEl && accentEl.value, '').slice(0, 24),
+  joinLabel: getCachedProfile(key).joinLabel || new Date().toLocaleDateString(),
+  updatedAtMs: Date.now()
+};
+  localProfileCache[key] = nextProfile;
+  saveLocalProfileStore(localProfileCache);
+  userProfileCache[key] = nextProfile;
+  try {
+    if (chatInitialized) {
+      const db = getAdminDb();
+      await db.collection(USER_PROFILES_COLLECTION).doc(key).set({
+        ...nextProfile,
+        statusText: firebase.firestore.FieldValue.delete(),
+        createdAtMs: nextProfile.createdAtMs || Date.now(),
+        updatedAtMs: nextProfile.updatedAtMs,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+  } catch (_) {}
+  currentProfileEditorVisible = false;
+  pendingProfileAvatarData = null;
+  pendingProfileBannerData = null;
+  renderProfileModal(key);
+  addSiteActivity('profile', `${key} updated their profile`, nextProfile.bio || 'Profile details changed');
+  pushNotification({ type: 'profile', title: 'Profile updated', body: 'Your profile details were saved.', read: false });
+}
+
+function bootHighValueFeatureState() {
+loadStoreFilters();
+ loadUiPreferences();
+ loadRoomFavorites();
+ loadRoomReadMarkers();
+ loadGameRatings();
+localProfileCache = getLocalProfileStore();
+loadActiveSiteEvent().then(() => renderAnnouncementBanner()).catch(() => {});
+listenForGeneralShopTrades(getCasinoPlayerKey());
+syncAdminSectionCardStates();
+renderSubmissionQueue();
+renderLoginRequestQueue();
+ applyUiPreferences();
+ renderWhatsNewPanel();
+}
+
+const GAME_THUMBNAIL_POLLS_COLLECTION = 'game_thumbnail_polls';
+const GAME_THUMBNAIL_MAX_WIDTH = 800;
+const GAME_THUMBNAIL_MAX_HEIGHT = 450;
+const GAME_THUMBNAIL_QUALITY = 0.68;
+const GAME_THUMBNAIL_SIZE_LIMIT = 100000;
+const GAME_THUMBNAIL_MAX_CANDIDATES = 6;
+let gameThumbnailPollsCache = {};
+let gameThumbnailPollsUnsub = null;
+let activeGameThumbnailPollId = '';
+
+function getPlayableGames() {
+return games
+.map((game, idx) => ({
+...game,
+index: idx,
+id: `game-${idx + 1}-${normalizeRoomId(game.name || `slot-${idx + 1}`)}`
+}))
+.filter((game) => game.name && game.url);
+}
+
+function getGameById(gameId) {
+return getPlayableGames().find((game) => game.id === gameId) || null;
+}
+
+function getGameSummary(game) {
+const summaries = {
+Slope: 'An endless downhill reflex test with almost no room for mistakes.',
+Minecraft: 'Launch straight into a browser sandbox and start building.',
+'Escape Road': 'High-speed getaway driving with simple controls and fast runs.',
+'Infinite Craft': 'Mix elements until the recipe tree gets completely out of hand.',
+'Getting Over It': 'A precision climbing run where one slip can undo everything.',
+'Buckshot Roulette': 'A tense single-shell horror gamble built around timing and nerve.',
+'Neon Pulse Runner': 'An original neon rhythm runner with jump pads, air orbs, and fast restart loops.',
+'Bendy': 'A first-person horror port built around exploration, ink, and old studio ruins.',
+'Youtube (Unblock All Videos)': 'Watch videos in the same launcher without leaving the site.'
+};
+return summaries[game.name] || `Launch ${game.name} instantly from your library.`;
+}
+
+function buildDefaultGameThumbnailDataUrl(game) {
+const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+<rect width="800" height="450" fill="#000000" />
+</svg>`;
+return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function hasBrokenTemplatePlaceholder(value) {
+const text = typeof value === 'string' ? value.trim() : '';
+if (!text) return false;
+const lower = text.toLowerCase();
+return text.includes('${')
+|| lower.includes('%7b')
+|| lower.includes('%7d')
+|| /escapehtml\s*\(/i.test(text);
+}
+
+function sanitizeRenderableMediaUrl(url) {
+const value = typeof url === 'string' ? url.trim() : '';
+if (!value) return '';
+if (hasBrokenTemplatePlaceholder(value)) return '';
+if (/^data:image\//i.test(value)) return value;
+return isValidReactionImageUrl(value) && isDirectImageUrl(value) ? value : '';
+}
+
+function getGameThumbnailUploadCandidates(state) {
+if (!state || !Array.isArray(state.candidates)) return [];
+return state.candidates.filter((candidate) => candidate
+&& typeof candidate.url === 'string'
+&& sanitizeRenderableMediaUrl(candidate.url)
+&& (candidate.source === 'upload' || candidate.uploadedBy || candidate.uploadedByName));
+}
+
+function compressGameThumbnailImage(file) {
+return new Promise((resolve, reject) => {
+if (!file || !file.type.startsWith('image/')) {
+reject(new Error('Choose an image file to upload.'));
+return;
+}
+
+if (file.size > GAME_THUMBNAIL_SIZE_LIMIT * 10) {
+reject(new Error('Thumbnail file is too large. Choose a smaller image.'));
+return;
+}
+
+const reader = new FileReader();
+reader.onload = () => {
+const image = new Image();
+image.onload = () => {
+let width = image.width;
+let height = image.height;
+const scale = Math.min(
+1,
+GAME_THUMBNAIL_MAX_WIDTH / width,
+GAME_THUMBNAIL_MAX_HEIGHT / height
+);
+
+width = Math.max(1, Math.round(width * scale));
+height = Math.max(1, Math.round(height * scale));
+
+const canvas = document.createElement('canvas');
+canvas.width = width;
+canvas.height = height;
+const context = canvas.getContext('2d');
+
+if (!context) {
+reject(new Error('Could not process thumbnail image.'));
+return;
+}
+
+context.drawImage(image, 0, 0, width, height);
+
+let dataUrl = canvas.toDataURL('image/jpeg', GAME_THUMBNAIL_QUALITY);
+if (dataUrl.length > GAME_THUMBNAIL_SIZE_LIMIT) {
+dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+}
+
+if (dataUrl.length > GAME_THUMBNAIL_SIZE_LIMIT) {
+reject(new Error('Thumbnail is too large after compression. Use a simpler image.'));
+return;
+}
+
+resolve(dataUrl);
+};
+
+image.onerror = () => reject(new Error('Could not read thumbnail image.'));
+const src = typeof reader.result === 'string' ? reader.result : '';
+if (!src) {
+reject(new Error('Could not load thumbnail image.'));
+return;
+}
+image.src = src;
+};
+
+reader.onerror = () => reject(new Error('Could not load thumbnail file.'));
+reader.readAsDataURL(file);
+});
+}
+
+function getGameThumbnailPollState(gameId) {
+return gameThumbnailPollsCache[normalizeUsername(gameId)] || null;
+}
+
+function getGameThumbnailOverride(state) {
+return state && state.overrideThumbnail && sanitizeRenderableMediaUrl(state.overrideThumbnail.url)
+? { ...state.overrideThumbnail, url: sanitizeRenderableMediaUrl(state.overrideThumbnail.url) }
+: null;
+}
+
+function getGameSelectedThumbnail(game) {
+const state = getGameThumbnailPollState(game.id);
+const overrideThumb = getGameThumbnailOverride(state);
+if (overrideThumb) {
+return overrideThumb.url;
+}
+if (state && state.selectedThumbnail && sanitizeRenderableMediaUrl(state.selectedThumbnail.url)) {
+return sanitizeRenderableMediaUrl(state.selectedThumbnail.url);
+}
+return buildDefaultGameThumbnailDataUrl(game);
+}
+
+function getThumbnailVoteCount(state, candidateId) {
+const votes = state && state.votes && Array.isArray(state.votes[candidateId]) ? state.votes[candidateId] : [];
+return votes.length;
+}
+
+function getActiveThumbnailPollCount() {
+return Object.values(gameThumbnailPollsCache).filter((state) => state && state.pollActive).length;
+}
+
+function getTotalThumbnailVoteCount(state) {
+if (!state || !state.votes || typeof state.votes !== 'object') return 0;
+return Object.values(state.votes).reduce((sum, voters) => sum + (Array.isArray(voters) ? voters.length : 0), 0);
+}
+
+function getWinningThumbnailCandidate(game, state) {
+const candidates = getGameThumbnailUploadCandidates(state);
+let winner = candidates[0] || null;
+let highestVotes = -1;
+for (const candidate of candidates) {
+const voteCount = getThumbnailVoteCount(state, candidate.id);
+if (voteCount > highestVotes) {
+highestVotes = voteCount;
+winner = candidate;
+}
+}
+return winner;
+}
+
+function renderGameStorefront() {
+const gameButtons = document.getElementById('game-buttons');
+const meta = document.getElementById('store-library-meta');
+if (!gameButtons) return;
+const allGames = getStoreGames();
+const gamesList = getFilteredStoreGames();
+ const favorites = getFavoriteGameIds();
+syncStoreFilterControls();
+if (meta) {
+ meta.textContent = `${gamesList.length} shown • ${allGames.length} games • ${favorites.size} favorites • ${getActiveThumbnailPollCount()} live thumbnail polls`;
+}
+gameButtons.innerHTML = gamesList.map((game) => {
+const state = getGameThumbnailPollState(game.id) || {};
+const thumb = sanitizeRenderableMediaUrl(game.thumbnailUrl) || getGameSelectedThumbnail(game);
+const overrideThumb = getGameThumbnailOverride(state);
+const hasSelection = !!(state.selectedThumbnail && state.selectedThumbnail.url);
+const pollLabel = overrideThumb ? 'Admin Pick' : (state.pollActive ? 'Poll Live' : (hasSelection ? 'Locked Choice' : ''));
+const pollClass = overrideThumb ? 'game-store-chip' : (state.pollActive ? 'thumbnail-poll-chip is-live' : (hasSelection ? 'game-thumb-win-badge' : 'thumbnail-poll-chip'));
+const subtitle = getGameSubtitle(game);
+const isNew = isGameRecentlyAdded(game);
+ const myRating = getGameRating(game.id);
+ const isFavorite = favorites.has(game.id);
+return `<article class="game-store-card">
+<div class="game-store-thumb">
+<img src="${escapeHtml(thumb)}" alt="${escapeHtml(game.name)} thumbnail" loading="lazy" />
+<div class="game-store-thumb-top">
+${isNew ? '<span class="game-store-chip is-new">New</span>' : ''}
+${pollLabel ? `<span class="${pollClass}">${escapeHtml(pollLabel)}</span>` : ''}
+</div>
+</div>
+<div class="game-store-content">
+<div class="game-store-title-row">
+<h3 class="game-store-title">${escapeHtml(game.name)}</h3>
+</div>
+<p class="game-store-description">${escapeHtml(game.description || getGameSummary(game))}</p>
+<div class="game-store-meta-row"><span>${escapeHtml(subtitle || 'Ready to launch')}</span></div>
+ <div class="game-card-utility-row">
+ <div class="game-rating-row">
+ <button class="${myRating === 'up' ? 'is-selected' : ''}" onclick="setGameRating('${escapeHtml(game.id)}', 'up')">👍</button>
+ <button class="${myRating === 'down' ? 'is-selected' : ''}" onclick="setGameRating('${escapeHtml(game.id)}', 'down')">👎</button>
+ </div>
+ <button class="utility-button game-favorite-btn${isFavorite ? ' is-active' : ''}" onclick="toggleFavoriteGame('${escapeHtml(game.id)}')">${isFavorite ? '★ Favorite' : '☆ Favorite'}</button>
+ </div>
+<div class="game-store-footer">
+<button onclick="openGameById('${escapeHtml(game.id)}')">Play Now</button>
+<button class="secondary-button" onclick="openGameThumbnailPollModal('${game.id}')">${state.pollActive ? 'Vote Thumbnail' : 'Thumbnail Poll'}</button>
+ <button class="utility-button" onclick="openBrokenGameReportModal('${escapeHtml(game.id)}')">Report Broken</button>
+</div>
+</div>
+</article>`;
+}).join('');
+}
+
+function openGameById(gameId) {
+const game = getStoreGameById(gameId);
+if (!game || !game.url) return;
+activeGameId = game.id;
+if (game.source === 'builtin' && typeof game.index === 'number') {
+  openGame(game.index);
+  return;
+}
+  currentGameIdx = null;
+  currentCustomIframeUrl = '';
+  gameIframe.src = game.url;
+  iframeContainer.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  refreshBtn.style.display = 'inline-block';
+  closeBtn.style.display = 'inline-block';
+  incrementUserStat('gamesOpened');
+  incrementGameOpenCount(game.id);
+  recordRecentGame(game);
+  addSiteActivity('game_launch', `${getMyProfileKey() || 'guest'} opened ${game.name}`, getGameSubtitle(game));
+}
+
+function openGameThumbnailPollModal(gameId) {
+activeGameThumbnailPollId = gameId;
+renderGameThumbnailPollModal();
+openModalById('game-thumbnail-poll-modal');
+}
+
+function closeGameThumbnailPollModal() {
+activeGameThumbnailPollId = '';
+const input = document.getElementById('game-thumbnail-upload-input');
+const status = document.getElementById('game-thumbnail-poll-status');
+if (input) input.value = '';
+if (status) status.textContent = '';
+closeModalById('game-thumbnail-poll-modal');
+}
+
+function renderGameThumbnailPollModal() {
+const game = getStoreGameById(activeGameThumbnailPollId);
+const title = document.getElementById('game-thumbnail-poll-title');
+const subtitle = document.getElementById('game-thumbnail-poll-subtitle');
+const selected = document.getElementById('game-thumbnail-poll-selected');
+const uploadWrap = document.getElementById('game-thumbnail-upload-wrap');
+const uploadInput = document.getElementById('game-thumbnail-upload-input');
+const overrideWrap = document.getElementById('game-thumbnail-admin-override-wrap');
+const overrideInput = document.getElementById('game-thumbnail-admin-override-input');
+const candidates = document.getElementById('game-thumbnail-poll-candidates');
+const adminActions = document.getElementById('game-thumbnail-poll-admin-actions');
+const status = document.getElementById('game-thumbnail-poll-status');
+if (!title || !subtitle || !selected || !uploadWrap || !uploadInput || !overrideWrap || !overrideInput || !candidates || !adminActions || !status) return;
+if (!game) {
+title.textContent = 'Thumbnail Poll';
+subtitle.textContent = 'Game not found.';
+selected.textContent = '';
+uploadWrap.style.display = 'none';
+uploadInput.value = '';
+overrideWrap.style.display = 'none';
+overrideInput.value = '';
+adminActions.innerHTML = '';
+candidates.innerHTML = '';
+return;
+}
+const state = getGameThumbnailPollState(game.id) || {};
+const options = getGameThumbnailUploadCandidates(state);
+const overrideThumb = getGameThumbnailOverride(state);
+const selectedThumb = state.selectedThumbnail || null;
+title.textContent = `${game.name} Thumbnail Poll`;
+subtitle.textContent = state.pollActive
+? 'Users can upload thumbnails and vote for the one that should become the permanent card art. It stays locked until an admin starts another poll.'
+: 'No live poll right now. The selected thumbnail stays in place until an admin restarts the poll.';
+selected.textContent = overrideThumb
+? `Admin override active: ${overrideThumb.label || 'Forced thumbnail'}`
+: (selectedThumb
+? `Current chosen thumbnail: ${selectedThumb.label || 'Selected thumbnail'}`
+: (state.pollActive ? 'No thumbnail locked yet. Users can upload thumbnails below.' : 'No thumbnail has been locked yet.'));
+status.textContent = '';
+uploadWrap.style.display = state.pollActive ? 'block' : 'none';
+uploadInput.disabled = !state.pollActive;
+overrideWrap.style.display = canUseAdminPermission('manageGameBios') ? 'block' : 'none';
+overrideInput.value = '';
+adminActions.innerHTML = canUseAdminPermission('manageGameBios')
+? `${state.pollActive && options.length ? `<button onclick="finalizeGameThumbnailPoll('${game.id}')" style="background:#2e7d32; color:#fff;">Finalize Winner</button>` : ''}<button onclick="startGameThumbnailPoll('${game.id}')" style="background:#1565c0; color:#fff;">${state.pollActive ? 'Restart Poll' : 'Start Poll'}</button>`
+: '';
+if (!options.length) {
+candidates.innerHTML = `<div class="overlay-subtle" style="grid-column:1 / -1;">${state.pollActive ? 'No uploaded thumbnails yet. Upload one below to start the vote.' : 'No uploaded thumbnails are saved for this poll yet.'}</div>`;
+return;
+}
+const myVote = state.votes || {};
+candidates.innerHTML = options.map((candidate) => {
+const voteCount = getThumbnailVoteCount(state, candidate.id);
+const voters = Array.isArray(myVote[candidate.id]) ? myVote[candidate.id].map((entry) => sanitizeNullableText(entry, '')).filter(Boolean) : [];
+const hasVoted = voters.includes(currentChatUser);
+const isChosen = !!(selectedThumb && selectedThumb.id === candidate.id && !state.pollActive);
+const uploaderName = candidate.uploadedByName || candidate.uploadedBy || 'user';
+const uploadedAt = candidate.uploadedAtMs ? new Date(candidate.uploadedAtMs).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const candidateTitle = candidate.label || `${uploaderName} upload`;
+const metaText = `Uploaded by ${uploaderName}${uploadedAt ? ` · ${uploadedAt}` : ''}`;
+const buttonLabel = state.pollActive ? (hasVoted ? 'Voted' : 'Vote for this') : (isChosen ? 'Selected thumbnail' : 'Poll closed');
+const safeCandidateUrl = sanitizeRenderableMediaUrl(candidate.url) || buildDefaultGameThumbnailDataUrl({});
+return `<div class="thumbnail-vote-card">
+<div class="thumbnail-vote-image"><img src="${escapeHtml(safeCandidateUrl)}" alt="${escapeHtml(candidateTitle)}" loading="lazy" /></div>
+<div class="thumbnail-vote-content">
+<div style="display:flex; justify-content:space-between; gap:0.5rem; align-items:center;">
+<strong>${escapeHtml(candidateTitle)}</strong>
+${isChosen ? '<span class="game-thumb-win-badge">Winner</span>' : `<span class="thumbnail-poll-chip${state.pollActive ? ' is-live' : ''}">${voteCount} vote${voteCount === 1 ? '' : 's'}</span>`}
+</div>
+<div class="thumbnail-vote-meta">${escapeHtml(metaText)}</div>
+${voters.length ? `<div class="thumbnail-voter-list">Voted by: ${voters.map((voter) => escapeHtml(voter)).join(', ')}</div>` : '<div class="thumbnail-voter-list">No votes yet.</div>'}
+<button onclick="voteForGameThumbnail('${candidate.id}')" ${state.pollActive ? '' : 'disabled'} style="${state.pollActive ? '' : 'opacity:0.55; cursor:not-allowed;'} background:${hasVoted ? '#2e7d32' : '#1565c0'}; color:#fff;">${buttonLabel}</button>
+</div>
+</div>`;
+}).join('');
+}
+
+async function listenForGameThumbnailPolls() {
+try {
+const db = getAdminDb();
+if (gameThumbnailPollsUnsub) gameThumbnailPollsUnsub();
+gameThumbnailPollsUnsub = db.collection(GAME_THUMBNAIL_POLLS_COLLECTION).onSnapshot((snapshot) => {
+const next = {};
+snapshot.forEach((doc) => {
+next[normalizeUsername(doc.id)] = doc.data() || {};
+});
+gameThumbnailPollsCache = next;
+renderGameStorefront();
+if (activeGameThumbnailPollId) renderGameThumbnailPollModal();
+});
+} catch (err) {
+gameThumbnailPollsCache = {};
+renderGameStorefront();
+}
+}
+
+async function startGameThumbnailPoll(gameId) {
+if (!canUseAdminPermission('manageGameBios')) return;
+const game = getStoreGameById(gameId);
+if (!game) return;
+const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(gameId);
+const existing = await ref.get();
+const existingData = existing.exists ? (existing.data() || {}) : {};
+await ref.set({
+gameName: game.name,
+candidates: [],
+pollActive: true,
+votes: {},
+overrideThumbnail: existingData.overrideThumbnail || null,
+selectedThumbnail: existingData.selectedThumbnail || null,
+revision: (parseInt(existingData.revision, 10) || 0) + 1,
+startedBy: currentChatUser,
+startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+});
+}
+
+async function submitAdminGameThumbnailOverride() {
+if (!canUseAdminPermission('manageGameBios') || !activeGameThumbnailPollId) return;
+const status = document.getElementById('game-thumbnail-poll-status');
+const input = document.getElementById('game-thumbnail-admin-override-input');
+if (status) status.textContent = '';
+const file = input && input.files && input.files[0];
+if (!file) {
+if (status) status.textContent = 'Choose an image file to apply as the override.';
+return;
+}
+try {
+if (status) status.textContent = 'Compressing override thumbnail...';
+const compressedThumbnail = await compressGameThumbnailImage(file);
+const game = getStoreGameById(activeGameThumbnailPollId);
+if (!game) throw new Error('Game not found.');
+await getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(game.id).set({
+gameName: game.name,
+overrideThumbnail: {
+id: `override-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+label: `${currentChatUser} override`,
+url: compressedThumbnail,
+uploadedBy: normalizeUsername(currentChatUser),
+uploadedByName: currentChatUser,
+uploadedAtMs: Date.now(),
+source: 'admin-override'
+},
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+await writeAuditLog('set_game_thumbnail_override', game.name || game.id, 'Applied admin thumbnail override');
+if (input) input.value = '';
+if (status) status.textContent = 'Admin thumbnail override applied.';
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Failed to apply override thumbnail.';
+}
+}
+
+async function clearAdminGameThumbnailOverride() {
+if (!canUseAdminPermission('manageGameBios') || !activeGameThumbnailPollId) return;
+const game = getStoreGameById(activeGameThumbnailPollId);
+const status = document.getElementById('game-thumbnail-poll-status');
+if (!game) return;
+try {
+await getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(game.id).set({
+overrideThumbnail: null,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+await writeAuditLog('clear_game_thumbnail_override', game.name || game.id, 'Cleared admin thumbnail override');
+if (status) status.textContent = 'Admin thumbnail override cleared.';
+} catch (err) {
+if (status) status.textContent = 'Failed to clear override thumbnail.';
+}
+}
+
+async function submitGameThumbnailUpload() {
+const status = document.getElementById('game-thumbnail-poll-status');
+const input = document.getElementById('game-thumbnail-upload-input');
+if (status) status.textContent = '';
+if (!currentChatUser) {
+if (status) status.textContent = 'Log in before uploading a thumbnail.';
+return;
+}
+if (!activeGameThumbnailPollId) {
+if (status) status.textContent = 'Open a thumbnail poll first.';
+return;
+}
+const file = input && input.files && input.files[0];
+if (!file) {
+if (status) status.textContent = 'Choose an image file to upload.';
+return;
+}
+
+try {
+if (status) status.textContent = 'Compressing thumbnail...';
+const compressedThumbnail = await compressGameThumbnailImage(file);
+const db = getAdminDb();
+const ref = db.collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(activeGameThumbnailPollId);
+const me = normalizeUsername(currentChatUser);
+const uploadedAtMs = Date.now();
+
+if (status) status.textContent = 'Uploading thumbnail...';
+await db.runTransaction(async (transaction) => {
+const snap = await transaction.get(ref);
+if (!snap.exists) {
+throw new Error('This thumbnail poll does not exist anymore.');
+}
+const data = snap.data() || {};
+if (!data.pollActive) {
+throw new Error('This thumbnail poll is closed.');
+}
+const existingCandidates = getGameThumbnailUploadCandidates(data);
+if (existingCandidates.length >= GAME_THUMBNAIL_MAX_CANDIDATES) {
+throw new Error(`This poll already has ${GAME_THUMBNAIL_MAX_CANDIDATES} uploaded thumbnails.`);
+}
+if (existingCandidates.some((candidate) => normalizeUsername(candidate.uploadedBy || candidate.uploadedByName || '') === me)) {
+throw new Error('You already uploaded a thumbnail for this poll.');
+}
+
+transaction.set(ref, {
+candidates: [...existingCandidates, {
+id: `upload-${uploadedAtMs}-${Math.random().toString(36).slice(2, 8)}`,
+label: `${currentChatUser} upload`,
+url: compressedThumbnail,
+uploadedBy: me,
+uploadedByName: currentChatUser,
+uploadedAtMs,
+source: 'upload'
+}],
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+});
+
+if (input) input.value = '';
+if (status) status.textContent = 'Thumbnail uploaded.';
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Failed to upload thumbnail.';
+}
+}
+
+async function voteForGameThumbnail(candidateId) {
+const status = document.getElementById('game-thumbnail-poll-status');
+const voterKey = normalizeUsername(currentChatUser || getUserName() || '');
+if (status) status.textContent = '';
+if (!voterKey || !activeGameThumbnailPollId) {
+if (status) status.textContent = 'Log in before voting on thumbnails.';
+return;
+}
+const game = getStoreGameById(activeGameThumbnailPollId);
+if (!game) {
+if (status) status.textContent = 'Could not find that game.';
+return;
+}
+const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(game.id);
+try {
+await getAdminDb().runTransaction(async (transaction) => {
+const snap = await transaction.get(ref);
+if (!snap.exists) {
+throw new Error('This thumbnail poll does not exist anymore.');
+}
+const data = snap.data() || {};
+if (!data.pollActive) {
+throw new Error('This thumbnail poll is closed.');
+}
+const options = getGameThumbnailUploadCandidates(data);
+if (!options.some((candidate) => candidate.id === candidateId)) {
+throw new Error('That thumbnail option is no longer available.');
+}
+const nextVotes = data.votes && typeof data.votes === 'object' ? JSON.parse(JSON.stringify(data.votes)) : {};
+options.forEach((candidate) => {
+const existingVoters = Array.isArray(nextVotes[candidate.id]) ? nextVotes[candidate.id].map(normalizeUsername).filter(Boolean) : [];
+nextVotes[candidate.id] = candidate.id === candidateId
+? Array.from(new Set([...existingVoters.filter((entry) => entry !== voterKey), voterKey]))
+: existingVoters.filter((entry) => entry !== voterKey);
+});
+transaction.set(ref, {
+votes: nextVotes,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+});
+if (status) status.textContent = 'Vote saved.';
+renderGameThumbnailPollModal();
+} catch (err) {
+if (status) status.textContent = err && err.message ? err.message : 'Failed to save thumbnail vote.';
+}
+}
+
+async function finalizeGameThumbnailPoll(gameId) {
+if (!canUseAdminPermission('manageGameBios')) return;
+const game = getStoreGameById(gameId);
+if (!game) return;
+const ref = getAdminDb().collection(GAME_THUMBNAIL_POLLS_COLLECTION).doc(gameId);
+const snap = await ref.get();
+if (!snap.exists) return;
+const data = snap.data() || {};
+const winner = getWinningThumbnailCandidate(game, data);
+if (!winner) {
+const status = document.getElementById('game-thumbnail-poll-status');
+if (status) status.textContent = 'No uploaded thumbnails have been submitted yet.';
+return;
+}
+await ref.set({
+pollActive: false,
+selectedThumbnail: winner,
+lockedBy: currentChatUser,
+lockedAt: firebase.firestore.FieldValue.serverTimestamp(),
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+}
+
+window.addEventListener('load', () => {
+renderGameStorefront();
+renderChatRoomToolbarState();
+updateCustomColorInput(getChatColor());
+});
+
+const iframeContainer = document.getElementById('iframe-container');
+const gameIframe = document.getElementById('game-iframe');
+const refreshBtn = document.getElementById('refresh-btn');
+const iframeSiteBtn = document.getElementById('iframe-site-btn');
+const closeBtn = document.getElementById('close-btn');
+const ADMIN_BLOOKET_TOOL_URL = 'https://s3.amazonaws.com/lucidestatic/index.html#/';
+const ADMIN_BLOOKET_SITE_URL = 'https://blooketbot.schoolcheats.net/';
+let currentGameIdx = null;
+let currentCustomIframeUrl = '';
+let currentIframeSiteUrl = '';
+
+function normalizeIframeUrl(value) {
+const raw = String(value || '').trim();
+if (!raw) return '';
+const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+try {
+const parsed = new URL(withProtocol);
+if (!/^https?:$/i.test(parsed.protocol)) return '';
+return parsed.toString();
+} catch (err) {
+return '';
+}
+}
+
+function openCustomUrlModal() {
+const input = document.getElementById('custom-url-input');
+const status = document.getElementById('custom-url-status');
+if (status) status.textContent = '';
+if (input) input.value = currentCustomIframeUrl || '';
+openModalById('custom-url-modal');
+if (input) setTimeout(() => input.focus(), 50);
+}
+
+function closeCustomUrlModal() {
+const status = document.getElementById('custom-url-status');
+if (status) status.textContent = '';
+closeModalById('custom-url-modal');
+}
+
+function openCustomUrlInIframe(url) {
+const nextUrl = normalizeIframeUrl(url);
+if (!nextUrl) return false;
+currentGameIdx = null;
+currentCustomIframeUrl = nextUrl;
+currentIframeSiteUrl = '';
+gameIframe.src = nextUrl;
+iframeContainer.style.display = 'flex';
+document.body.style.overflow = 'hidden';
+refreshBtn.style.display = 'inline-block';
+iframeSiteBtn.style.display = 'none';
+closeBtn.style.display = 'inline-block';
+return true;
+}
+
+function openAdminToolInIframe(url, siteUrl) {
+const opened = openCustomUrlInIframe(url);
+if (!opened) return false;
+currentIframeSiteUrl = normalizeIframeUrl(siteUrl);
+iframeSiteBtn.style.display = currentIframeSiteUrl ? 'inline-block' : 'none';
+return true;
+}
+
+function openIframeSiteLink() {
+if (!currentIframeSiteUrl) return;
+window.open(currentIframeSiteUrl, '_blank', 'noopener,noreferrer');
+}
+
+function openIframeSiteInfo() {
+if (!currentIframeSiteUrl) return;
+const urlEl = document.getElementById('iframe-site-modal-url');
+if (urlEl) {
+urlEl.innerHTML = `<strong>${escapeHtml(currentIframeSiteUrl)}</strong>`;
+}
+openModalById('iframe-site-modal');
+}
+
+function closeIframeSiteInfo() {
+closeModalById('iframe-site-modal');
+}
+
+function submitCustomUrlModal() {
+const input = document.getElementById('custom-url-input');
+const status = document.getElementById('custom-url-status');
+const nextUrl = normalizeIframeUrl(input ? input.value : '');
+if (!nextUrl) {
+if (status) status.textContent = 'Enter a valid http or https URL.';
+return;
+}
+if (!openCustomUrlInIframe(nextUrl)) {
+if (status) status.textContent = 'Could not open that URL.';
+return;
+}
+closeCustomUrlModal();
+}
+
+async function adminOpenBlooketBotTool() {
+if (!canUseAdminPermission('useOwnerTool')) {
+const status = document.getElementById('admin-ban-status');
+if (status) status.textContent = 'You do not have permission to open this tool.';
+return;
+}
+const status = document.getElementById('admin-ban-status');
+if (status) status.textContent = '';
+closeAdminMenu();
+const opened = openAdminToolInIframe(ADMIN_BLOOKET_TOOL_URL, ADMIN_BLOOKET_SITE_URL);
+if (!opened) {
+if (status) status.textContent = 'Could not open the owner tool iframe.';
+openAdminMenu();
+return;
+}
+try {
+await writeAuditLog('open_owner_tool', 'lucidestatic', 'Opened owner-only iframe tool from admin panel');
+} catch (_) {
+}
+if (typeof addSiteActivity === 'function') {
+addSiteActivity('admin_tool_open', `${getMyProfileKey() || 'guest'} opened the owner bot tool`, 'lucidestatic');
+}
+}
+
+function openGame(idx) {
+if (!games[idx] || !games[idx].url) return;
+const playableGame = getPlayableGames().find((game) => game.index === idx) || null;
+currentGameIdx = idx;
+currentCustomIframeUrl = '';
+currentIframeSiteUrl = '';
+gameIframe.src = games[idx].url;
+iframeContainer.style.display = 'flex';
+document.body.style.overflow = 'hidden';
+refreshBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
+iframeSiteBtn.style.display = 'none';
+closeBtn.style.display = games[idx] && games[idx].url ? 'inline-block' : 'none';
+incrementUserStat('gamesOpened');
+if (playableGame) {
+incrementGameOpenCount(playableGame.id);
+recordRecentGame(playableGame);
+addSiteActivity('game_launch', `${getMyProfileKey() || 'guest'} opened ${playableGame.name}`, getGameSubtitle(playableGame));
+}
+}
+
+function closeGame() {
+gameIframe.src = '';
+iframeContainer.style.display = 'none';
+document.body.style.overflow = 'auto';
+currentGameIdx = null;
+currentCustomIframeUrl = '';
+currentIframeSiteUrl = '';
+refreshBtn.style.display = 'none';
+iframeSiteBtn.style.display = 'none';
+closeBtn.style.display = 'none';
+}
+
+function refreshGame() {
+if (currentGameIdx !== null && games[currentGameIdx]) {
+gameIframe.src = games[currentGameIdx].url;
+return;
+}
+if (currentCustomIframeUrl) {
+gameIframe.src = currentCustomIframeUrl;
+}
+}
+
+refreshBtn.onclick = refreshGame;
+closeBtn.onclick = closeGame;
+
+
+function showLoginModal() {
+if (isLoggedIn) {
+showAdminPanel();
+} else {
+document.getElementById('login-modal').classList.add('show');
+document.getElementById('password-input').focus();
+}
+}
+
+function login() {
+const password = document.getElementById('password-input').value;
+if (password === ADMIN_PASSWORD) {
+isLoggedIn = true;
+document.getElementById('login-modal').classList.remove('show');
+document.getElementById('password-input').value = '';
+showAdminPanel();
+} else {
+alert('Incorrect password');
+}
+}
+
+function logout() {
+isLoggedIn = false;
+document.getElementById('admin-panel').classList.remove('show');
+document.getElementById('login-modal').classList.remove('show');
+}
+
+function showAdminPanel() {
+document.getElementById('admin-panel').classList.add('show');
+document.getElementById('admin-current-ip').textContent = currentUserIP || 'Unknown';
+updateBannedIPsList();
+fetchLoggedIPs();
+}
+
+
+
+async function fetchLoggedIPs() {
+const res = await fetch('https://script.google.com/macros/s/AKfycbzmOBgZz57adqQfVIJtRiQHdhmeHfHsw3fJZH0nbHoXR1MKB1QIv1fQ8pMgUnFfQkSy/exec');
+const ipList = await res.json();
+const list = document.getElementById('logged-ips-list');
+list.innerHTML = '';
+ipList.forEach(entry => {
+const ip = entry.ip;
+const name = entry.name || '(No Name)';
+if (!ip) return;
+const item = document.createElement('div');
+item.className = 'ban-item';
+item.innerHTML = `
+          <span>${ip}</span>
+          <span>${name}</span>
+         <button onclick="banIPFromList('${ip}')">Ban</button>
+     `;
+list.appendChild(item);
+});
+}
+
+function banIPFromList(ip) {
+const bannedIPs = getBannedIPs();
+if (!bannedIPs.includes(ip)) {
+bannedIPs.push(ip);
+saveBannedIPs(bannedIPs);
+updateBannedIPsList();
+alert(`IP ${ip} has been banned!`);
+}
+}
+
+
+function getBannedUsers() {
+const stored = localStorage.getItem('bannedUsers');
+return stored ? JSON.parse(stored) : [];
+}
+function saveBannedUsers(users) {
+localStorage.setItem('bannedUsers', JSON.stringify(users));
+}
+function isUserBanned(username) {
+return false; 
+}
+async function banUser() {
+const userInput = document.getElementById('ban-user-input');
+const username = normalizeUsername(userInput.value);
+if (!username) {
+alert('Please enter a username');
+return;
+}
+if (isProtectedUsername(username)) {
+const attemptedBy = normalizeUsername(getUserName() || currentChatUser);
+if (attemptedBy && !isProtectedUsername(attemptedBy)) {
+try {
+await setUserBanStatus(attemptedBy, true, 'Tried to ban kaiden', { bannedBy: 'system' });
+} catch (e) {}
+}
+alert('Kaiden is unbannable and u are a chud for trying. You are now banned. Refreshing in 5 seconds.');
+setTimeout(() => {
+location.reload();
+}, 5000);
+return;
+}
+fetch('https://api.ipify.org?format=json')
+.then(res => res.json())
+.then(async data => {
+await addBan(username, data.ip, 'manual ban');
+userInput.value = '';
+await updateBannedUsersList();
+alert(`User ${username} has been banned globally!`);
+});
+}
+async function unbanUser(username) {
+await setUserBanStatus(username, false, '', { bannedBy: currentChatUser || getUserName() || 'admin' });
+await updateBannedUsersList();
+alert(`User ${username} has been unbanned!`);
+}
+async function updateBannedUsersList() {
+const bannedUsers = await getBannedUsernames();
+const list = document.getElementById('banned-users-list');
+if (bannedUsers.length === 0) {
+list.innerHTML = '<p style="color: #aaa; font-style: italic;">No users banned</p>';
+return;
+}
+list.innerHTML = '';
+bannedUsers.forEach(username => {
+const item = document.createElement('div');
+item.className = 'ban-item';
+item.innerHTML = `
+    <span>${username}</span>
+    <button onclick="unbanUser('${username}')">Unban</button>
+  `;
+list.appendChild(item);
+});
+}
+function clearBannedUsers() {
+(async () => {
+const bannedUsers = await getBannedUsernames();
+await Promise.all(bannedUsers.map((username) => setUserBanStatus(username, false, '', { bannedBy: currentChatUser || getUserName() || 'admin' })));
+await updateBannedUsersList();
+alert('All user bans cleared!');
+})().catch(() => {
+alert('Failed to clear user bans.');
+});
+}
+
+const STATIC_BANNED_USERS = [
+'',
+'',
+
+]
+
+const firebaseConfig = {
+apiKey: "AIzaSyC9SMr54yXr0uk0M7JEeuawj0J98IylU20",
+authDomain: "balright--chat.firebaseapp.com",
+projectId: "balright--chat",
+databaseURL: "https://balright--chat-default-rtdb.firebaseio.com",
+storageBucket: "balright--chat.firebasestorage.app",
+messagingSenderId: "233595240223",
+appId: "1:233595240223:web:8477fa939d4491d375fa2a"
+};                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+
+const adminFirebaseConfig = {
+apiKey: "AIzaSyDYQNtr7l1G35coXkOS0yU1hAN0SaqUwnI",
+authDomain: "balright-admin.firebaseapp.com",
+projectId: "balright-admin",
+storageBucket: "balright-admin.firebasestorage.app",
+messagingSenderId: "217574354625",
+appId: "1:217574354625:web:f7da2650966911a56f2e40"
+};
+
+const archiveFirebaseConfig = {
+apiKey: "AIzaSyD_mTLJiBJUc7OgVKQ4A0vTrJ8b3u2tnlY",
+authDomain: "balright-archive.firebaseapp.com",
+projectId: "balright-archive",
+storageBucket: "balright-archive.firebasestorage.app",
+messagingSenderId: "696203941105",
+appId: "1:696203941105:web:5b8d370ad383537c19c550"
+};
+
+const casinoFirebaseConfig = {
+apiKey: "AIzaSyABMyvYjhr7gvLOrxdDMKUoCuVtfLEBOTg",
+authDomain: "balright-casino.firebaseapp.com",
+projectId: "balright-casino",
+storageBucket: "balright-casino.firebasestorage.app",
+messagingSenderId: "534969019133",
+appId: "1:534969019133:web:e2a4169fd920077816ac94"
+};
+
+const ADMIN_APP_NAME = 'balright-admin';
+const ARCHIVE_APP_NAME = 'balright-archive';
+const CASINO_APP_NAME = 'balright-casino';
+const configuredFirestoreDbs = new WeakSet();
+
+function isFirebaseConfigReady(config) {
+return !!(config && config.apiKey && config.projectId && config.appId);
+}
+
+function ensureFirebaseApp(config, appName) {
+if (!isFirebaseConfigReady(config)) return null;
+const existing = firebase.apps.find(app => app.name === appName);
+if (existing) return existing;
+return firebase.initializeApp(config, appName);
+}
+
+function getDefaultFirebaseApp() {
+const existing = firebase.apps.find(app => app.name === '[DEFAULT]');
+if (existing) return existing;
+if (!isFirebaseConfigReady(firebaseConfig)) return null;
+return firebase.initializeApp(firebaseConfig);
+}
+
+function getPrimaryDb() {
+const defaultApp = getDefaultFirebaseApp();
+const db = defaultApp ? defaultApp.firestore() : firebase.firestore();
+return configureFirestoreTransport(db);
+}
+
+function getPrimaryStorage() {
+const defaultApp = getDefaultFirebaseApp();
+if (!defaultApp || typeof defaultApp.storage !== 'function') return null;
+try {
+return defaultApp.storage();
+} catch (err) {
+return null;
+}
+}
+
+function getAdminDb() {
+const adminApp = ensureFirebaseApp(adminFirebaseConfig, ADMIN_APP_NAME);
+const db = adminApp ? adminApp.firestore() : getPrimaryDb();
+return configureFirestoreTransport(db);
+}
+
+function getArchiveDb() {
+const archiveApp = ensureFirebaseApp(archiveFirebaseConfig, ARCHIVE_APP_NAME);
+return archiveApp ? archiveApp.firestore() : null;
+}
+
+function getCasinoDb() {
+const casinoApp = ensureFirebaseApp(casinoFirebaseConfig, CASINO_APP_NAME);
+const db = casinoApp ? casinoApp.firestore() : getPrimaryDb();
+return configureFirestoreTransport(db);
+}
+
+function isRealtimeDbConfigReady(config) {
+return !!(config && config.apiKey && config.projectId && config.appId && config.databaseURL);
+}
+
+function getPrimaryRealtimeDb() {
+const defaultApp = getDefaultFirebaseApp();
+if (!defaultApp || !isRealtimeDbConfigReady(firebaseConfig) || typeof defaultApp.database !== 'function') return null;
+try {
+return defaultApp.database();
+} catch (err) {
+return null;
+}
+}
+
+function configureFirestoreTransport(db) {
+if (!db || configuredFirestoreDbs.has(db)) return db;
+try {
+db.settings({
+  experimentalAutoDetectLongPolling: true,
+  useFetchStreams: false,
+  merge: true
+});
+} catch (_) {}
+configuredFirestoreDbs.add(db);
+return db;
+}
+
+function getRealtimeTimestampValue() {
+return firebase.database.ServerValue.TIMESTAMP;
+}
+
+function getSafeRealtimeKey(value) {
+return normalizeUsername(value).replace(/[.#$\[\]/]/g, '_');
+}
+
+function renderAdminProjectStatus() {
+const el = document.getElementById('admin-project-status');
+if (!el) return;
+
+const mainReady = isFirebaseConfigReady(firebaseConfig);
+const realtimeReady = isRealtimeDbConfigReady(firebaseConfig);
+const adminReady = isFirebaseConfigReady(adminFirebaseConfig);
+const archiveReady = isFirebaseConfigReady(archiveFirebaseConfig);
+
+el.innerHTML = [
+`<div><strong>Main Chat Project:</strong> ${mainReady ? firebaseConfig.projectId : 'Not configured'}</div>`,
+`<div><strong>Realtime DB:</strong> ${realtimeReady ? 'Configured' : 'Not configured (typing and online presence will stay on Firestore until databaseURL is added)'}</div>`,
+`<div><strong>Admin Project:</strong> ${adminReady ? adminFirebaseConfig.projectId : 'Not configured'}${adminReady ? '' : ' (falling back to main project)'}</div>`,
+`<div><strong>Archive Project:</strong> ${archiveReady ? archiveFirebaseConfig.projectId : 'Not configured'}${archiveReady ? '' : ' (archive backup disabled)'}</div>`
+].join('');
+}
+
+let chatInitialized = false;
+let currentChatUser = '';
+let currentChatColor = '#1565c0';
+let chatRoomToolbarOpen = localStorage.getItem('chatRoomToolbarOpen') !== '0';
+let isChatDragging = false;
+let chatDragOffsetX = 0;
+let chatDragOffsetY = 0;
+let chatUnreadCount = 0;
+let typingTimeout = null;
+let lastTypingWriteMs = 0;
+let typingStateIsTrue = false;
+let typingUsersCache = {};
+let typingUsersRealtimeRef = null;
+let typingUsersRealtimeHandler = null;
+let onlineUsersRealtimeRef = null;
+let onlineUsersRealtimeHandler = null;
+let realtimePresenceHeartbeatInterval = null;
+let currentRoomPinnedMessages = [];
+let globalPinnedMessages = [];
+let pinnedMessageGlobalUnsub = null;
+let pinnedMessageRoomUnsub = null;
+let pinnedMessageRoomListenerId = '';
+const MAX_PINNED_MESSAGES_PER_SCOPE = 8;
+const MAX_VISIBLE_PINNED_MESSAGES = 4;
+let pinnedMessageBarCollapsed = localStorage.getItem('pinnedMessageBarCollapsed') === '1';
+let chatPreFullscreenState = null;
+let lastGlobalAlertKey = localStorage.getItem('lastGlobalAlertKey') || '';
+let roleCache = {};
+let userTagCache = {};
+let currentProfileViewUser = '';
+let dmUnreadCount = 0;
+let dmUnreadListenerUnsub = null;
+let dmKnownIncomingIds = new Set();
+let dmConversationSummaries = [];
+let dmInboxDocs = new Map();
+let dmInboxOutgoingUnsub = null;
+let lastChatNotificationMessageId = '';
+let currentChatRoom = 'general';
+let blockedUsers = new Set();
+let chatMessagesUnsub = null;
+let knownChatMessageIds = new Set();
+let typingUsersLoadedOnce = false;
+let recentCrossRoomTypingNotifications = {};
+let timeoutStatusInterval = null;
+let currentMuteInfo = null;
+let currentTimedBanInfo = null;
+let muteStatusUnsub = null;
+let timedBanStatusUnsub = null;
+let moderationSettings = {
+readOnlyMode: false,
+blockedWords: [],
+announcementText: '',
+announcementEndsAt: null,
+slowModeSeconds: DEFAULT_SLOW_MODE_SECONDS,
+customProfileTags: [],
+rolePermissions: JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMISSIONS))
+};
+const CHAT_IMAGE_MAX_WIDTH = 1280;
+const CHAT_IMAGE_MAX_HEIGHT = 1280;
+const CHAT_IMAGE_QUALITY = 0.82;
+const CHAT_IMAGE_SIZE_LIMIT = 700000;
+const CHAT_VIDEO_INLINE_SIZE_LIMIT = 450000;
+const CHAT_VIDEO_INLINE_DATA_URL_LIMIT = 900000;
+const CHAT_VIDEO_UPLOAD_SIZE_LIMIT = 25000000;
+const CHAT_ROOMS_COLLECTION = 'chat_rooms';
+let chatRoomsCache = {};
+let chatRoomsUnsub = null;
+let activeRoomEditorId = '';
+let chatSlowModeMs = DEFAULT_SLOW_MODE_SECONDS * 1000;
+const GIPHY_API_KEY = 'pvSwWmExkUp8gCMWWKoh8xYzGeexgOTN'; // Restrict this Giphy API key by domain in the Giphy developer console.
+// Note: API keys in client-side code are visible to users. Restrict your Giphy key by domain in the Giphy developer console.
+let lastChatSendAtMs = 0;
+
+function getSlowModeRemainingMs() {
+return Math.max(0, chatSlowModeMs - (Date.now() - lastChatSendAtMs));
+}
+
+function canSendChatNow() {
+const remainingMs = getSlowModeRemainingMs();
+if (remainingMs > 0) {
+const secondsLeft = Math.max(1, Math.ceil(remainingMs / 1000));
+alert(`Slow mode is on. Wait ${secondsLeft}s before sending again.`);
+return false;
+}
+return true;
+}
+
+function getBlockedUsersStorageKey() {
+const me = normalizeUsername(currentChatUser || getUserName() || 'guest');
+return `blockedUsers:${me || 'guest'}`;
+}
+
+function loadBlockedUsers() {
+try {
+const raw = JSON.parse(localStorage.getItem(getBlockedUsersStorageKey()) || '[]');
+blockedUsers = new Set((Array.isArray(raw) ? raw : []).map(normalizeUsername).filter(Boolean));
+} catch (err) {
+blockedUsers = new Set();
+}
+}
+
+function saveBlockedUsers() {
+localStorage.setItem(getBlockedUsersStorageKey(), JSON.stringify(Array.from(blockedUsers)));
+}
+
+function isUserBlocked(username) {
+return blockedUsers.has(normalizeUsername(username));
+}
+
+function getDefaultGeneralRoom() {
+return {
+id: 'general',
+name: 'General',
+description: '',
+isPublic: true,
+createdBy: 'system',
+members: []
+};
+}
+
+function getDefaultAdminRoom() {
+return {
+id: 'admin-room',
+name: 'Admin Room',
+description: 'Staff-only room for moderators, admins, and the owner.',
+isPublic: false,
+createdBy: 'system',
+members: []
+};
+}
+
+function isProtectedRoomId(roomId) {
+const normalizedId = normalizeUsername(roomId);
+return normalizedId === 'general' || normalizedId === 'admin-room';
+}
+
+function sanitizeRoomName(value) {
+return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 32);
+}
+
+function sanitizeRoomDescription(value) {
+return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+function normalizeRoomId(value) {
+const normalized = String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+return (normalized || 'room').slice(0, 36);
+}
+
+function normalizeRoomIcon(value) {
+const raw = String(value || '').trim();
+if (!raw) return '';
+if (hasBrokenTemplatePlaceholder(raw)) return '';
+if (/^data:image\/(gif|png|jpe?g|webp);base64,/i.test(raw)) return raw;
+if (isValidReactionImageUrl(raw) && isDirectImageUrl(raw)) return raw;
+return raw.slice(0, 8);
+}
+
+function isRoomIconMedia(value) {
+const icon = normalizeRoomIcon(value);
+return !!icon && (/^data:image\//i.test(icon) || (isValidReactionImageUrl(icon) && isDirectImageUrl(icon)));
+}
+
+function getRoomOptionIconLabel(icon) {
+const normalizedIcon = normalizeRoomIcon(icon);
+if (!normalizedIcon) return '';
+return isRoomIconMedia(normalizedIcon) ? '🖼 ' : `${normalizedIcon} `;
+}
+
+function renderRoomIconHtml(icon, extraClass = '') {
+const normalizedIcon = normalizeRoomIcon(icon);
+if (!normalizedIcon) return '';
+const className = `room-icon-inline${extraClass ? ` ${extraClass}` : ''}`;
+if (isRoomIconMedia(normalizedIcon)) {
+  return `<span class="${className}"><img src="${escapeHtml(normalizedIcon)}" alt="Room icon" loading="lazy" /></span>`;
+}
+return `<span class="${className}">${escapeHtml(normalizedIcon)}</span>`;
+}
+
+function updateCreateRoomIconPreview(statusText = '') {
+const iconInput = document.getElementById('create-room-icon');
+const preview = document.getElementById('create-room-icon-preview');
+const status = document.getElementById('create-room-icon-status');
+if (!preview) return;
+const icon = normalizeRoomIcon(pendingCreateRoomIconData || (iconInput ? iconInput.value : ''));
+preview.innerHTML = icon ? (isRoomIconMedia(icon)
+  ? `<img src="${escapeHtml(icon)}" alt="Room icon preview" loading="lazy" />`
+  : escapeHtml(icon)) : '🎮';
+if (statusText && status) status.textContent = statusText;
+if (!statusText && status) {
+  status.textContent = icon
+    ? (isRoomIconMedia(icon) ? 'Custom image/GIF icon ready.' : 'Emoji/text room icon ready.')
+    : 'Use an emoji, direct image URL, GIF URL, or upload a file.';
+}
+}
+
+async function applyCreateRoomIconValue() {
+const input = document.getElementById('create-room-icon');
+const status = document.getElementById('create-room-icon-status');
+const rawValue = String(input ? input.value : '').trim();
+if (!rawValue) {
+  pendingCreateRoomIconData = '';
+  updateCreateRoomIconPreview();
+  return;
+}
+if (!isValidReactionImageUrl(rawValue)) {
+  pendingCreateRoomIconData = normalizeRoomIcon(rawValue);
+  updateCreateRoomIconPreview('Room icon updated.');
+  return;
+}
+if (status) status.textContent = 'Resolving room icon URL...';
+try {
+  const resolvedUrl = await resolveReactionImageUrl(rawValue);
+  const nextIcon = normalizeRoomIcon(resolvedUrl || rawValue);
+  if (!nextIcon) throw new Error('Could not use that room icon URL.');
+  pendingCreateRoomIconData = nextIcon;
+  if (input && !nextIcon.startsWith('data:image/')) input.value = nextIcon;
+  updateCreateRoomIconPreview('Room icon URL ready.');
+} catch (err) {
+  if (status) status.textContent = err && err.message ? err.message : 'Could not use that room icon URL.';
+}
+}
+
+async function handleCreateRoomIconSelected(event) {
+const input = event && event.target;
+const file = input && input.files && input.files[0];
+const status = document.getElementById('create-room-icon-status');
+const textInput = document.getElementById('create-room-icon');
+if (!file) return;
+if (status) status.textContent = 'Processing room icon...';
+try {
+  const iconData = normalizeRoomIcon(await compressChatImage(file));
+  if (!iconData) throw new Error('Could not use that file as a room icon.');
+  pendingCreateRoomIconData = iconData;
+  if (textInput) textInput.value = '';
+  updateCreateRoomIconPreview('Room icon file ready.');
+} catch (err) {
+  if (status) status.textContent = err && err.message ? err.message : 'Could not use that room icon file.';
+} finally {
+  if (input) input.value = '';
+}
+}
+
+function normalizeRoomInviteCode(value) {
+return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 24);
+}
+
+function buildRoomInviteCode() {
+return `ROOM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+function normalizeRoomRoleAssignments(raw) {
+const next = {};
+if (!raw || typeof raw !== 'object') return next;
+Object.entries(raw).forEach(([username, role]) => {
+  const key = normalizeUsername(username);
+  const value = sanitizeNullableText(role, '').toLowerCase();
+  if (!key) return;
+  if (value === 'manager' || value === 'poster' || value === 'read-only') {
+    next[key] = value;
+  }
+});
+return next;
+}
+
+function getRoomRole(room, username = currentChatUser) {
+const targetRoom = buildChatRoomConfig(room && room.id ? room.id : 'general', room || {});
+const me = normalizeUsername(username);
+if (!me) return 'guest';
+if (canUseAdminPermission('manageRooms', me) || normalizeUsername(targetRoom.createdBy) === me) return 'manager';
+return targetRoom.roleAssignments[me] || 'member';
+}
+
+function canPostInRoom(room, username = currentChatUser) {
+const role = getRoomRole(room, username);
+return role !== 'read-only';
+}
+
+function isFavoriteRoom(roomId) {
+return roomFavorites.has(normalizeUsername(roomId));
+}
+
+function toggleFavoriteCurrentRoom() {
+const roomId = normalizeUsername(currentChatRoom || 'general');
+if (!roomId || roomId === 'general') return;
+if (roomFavorites.has(roomId)) {
+  roomFavorites.delete(roomId);
+} else {
+  roomFavorites.add(roomId);
+}
+saveRoomFavorites();
+renderChatRoomSummary();
+renderChatRoomOptions();
+}
+
+function syncCreateRoomMembersField() {
+const field = document.getElementById('create-room-members');
+const chips = document.getElementById('create-room-member-chips');
+if (field) field.value = createRoomMemberSelection.join(', ');
+if (chips) {
+  chips.innerHTML = createRoomMemberSelection.map((username) => `<span class="member-chip">${escapeHtml(username)}<button type="button" onclick="removeCreateRoomMember('${encodeURIComponent(username)}')">✕</button></span>`).join('');
+}
+}
+
+function addCreateRoomMember(username) {
+const normalized = normalizeUsername(username);
+if (!normalized || createRoomMemberSelection.includes(normalized)) return;
+createRoomMemberSelection.push(normalized);
+syncCreateRoomMembersField();
+renderCreateRoomMemberSearch();
+}
+
+function removeCreateRoomMember(encodedUsername) {
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+createRoomMemberSelection = createRoomMemberSelection.filter((entry) => entry !== username);
+syncCreateRoomMembersField();
+renderCreateRoomMemberSearch();
+}
+
+function renderCreateRoomMemberSearch() {
+const input = document.getElementById('create-room-member-search');
+const results = document.getElementById('create-room-member-results');
+if (!results) return;
+const query = normalizeUsername(input && input.value || '');
+const options = getKnownUsernames().filter((username) => !createRoomMemberSelection.includes(username) && (!query || username.includes(query))).slice(0, 12);
+results.innerHTML = options.length ? options.map((username) => `<div class="member-search-option"><span>${escapeHtml(username)}</span><button type="button" onclick="addCreateRoomMember('${escapeHtml(username)}')">Add</button></div>`).join('') : '<div class="overlay-subtle">No matching usernames yet.</div>';
+}
+
+function buildChatRoomConfig(roomId, raw = {}) {
+const fallback = getDefaultGeneralRoom();
+const id = normalizeUsername(roomId) || fallback.id;
+const protectedDefaults = id === 'admin-room' ? getDefaultAdminRoom() : fallback;
+return {
+id,
+name: sanitizeRoomName(raw.name || ((id === 'general' || id === 'admin-room') ? protectedDefaults.name : roomId)) || protectedDefaults.name,
+description: sanitizeRoomDescription(raw.description || ((id === 'general' || id === 'admin-room') ? protectedDefaults.description : 'Custom chat room')),
+isPublic: id === 'general' ? true : (id === 'admin-room' ? false : raw.isPublic !== false),
+createdBy: normalizeUsername(raw.createdBy || ''),
+members: Array.isArray(raw.members) ? raw.members.map(normalizeUsername).filter(Boolean) : [],
+icon: normalizeRoomIcon(raw.icon || ''),
+inviteCode: normalizeRoomInviteCode(raw.inviteCode || ''),
+roleAssignments: normalizeRoomRoleAssignments(raw.roleAssignments || {})
+};
+}
+
+function canAccessRoom(room, username = currentChatUser) {
+const targetRoom = buildChatRoomConfig(room && room.id ? room.id : 'general', room || {});
+const me = normalizeUsername(username);
+if (targetRoom.id === 'general') return true;
+if (targetRoom.id === 'admin-room') return canModerate(me);
+if (!doesChatRoomExist(targetRoom.id)) return false;
+if (canUseAdminPermission('manageRooms', me)) return true;
+if (targetRoom.isPublic) return true;
+if (!me) return false;
+return targetRoom.createdBy === me || targetRoom.members.includes(me);
+}
+
+function canManageRoom(room, username = currentChatUser) {
+const targetRoom = buildChatRoomConfig(room && room.id ? room.id : 'general', room || {});
+const me = normalizeUsername(username);
+if (!me) return false;
+if (targetRoom.id === 'general') return getUserRole(me) === 'owner';
+if (targetRoom.id === 'admin-room') return getUserRole(me) === 'owner';
+if (canUseAdminPermission('manageRooms', me)) return true;
+return targetRoom.createdBy === me || targetRoom.roleAssignments[me] === 'manager';
+}
+
+function getAllChatRooms() {
+const merged = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom(), ...chatRoomsCache };
+return Object.values(merged).map((room) => buildChatRoomConfig(room.id, room)).sort((a, b) => {
+if (a.id === 'general') return -1;
+if (b.id === 'general') return 1;
+if (a.id === 'admin-room') return -1;
+if (b.id === 'admin-room') return 1;
+const favoriteDiff = Number(isFavoriteRoom(b.id)) - Number(isFavoriteRoom(a.id));
+if (favoriteDiff) return favoriteDiff;
+return a.name.localeCompare(b.name);
+});
+}
+
+function getAvailableChatRooms(username = currentChatUser) {
+return getAllChatRooms().filter((room) => canAccessRoom(room, username));
+}
+
+function doesChatRoomExist(roomId) {
+const normalizedId = normalizeUsername(roomId) || 'general';
+if (normalizedId === 'general' || normalizedId === 'admin-room') return true;
+return !!chatRoomsCache[normalizedId];
+}
+
+function pruneNotificationsForMissingRooms() {
+const nextNotifications = (localNotificationCache || []).filter((item) => {
+  const action = item && item.action;
+  if (!action || typeof action !== 'object') return true;
+  if (action.kind !== 'room') return true;
+  return doesChatRoomExist(action.roomId || 'general');
+});
+if (nextNotifications.length === (localNotificationCache || []).length) return;
+localNotificationCache = nextNotifications;
+saveLocalNotifications();
+renderNotificationCenter();
+}
+
+function getChatRoomConfig(roomId) {
+const normalizedId = normalizeUsername(roomId) || 'general';
+const merged = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom(), ...chatRoomsCache };
+if (merged[normalizedId]) {
+return buildChatRoomConfig(normalizedId, merged[normalizedId]);
+}
+if (normalizedId === 'general') {
+return getDefaultGeneralRoom();
+}
+if (normalizedId === 'admin-room') {
+return getDefaultAdminRoom();
+}
+return buildChatRoomConfig(normalizedId, {
+name: normalizedId.replace(/-/g, ' '),
+description: 'Loading room...',
+isPublic: false
+});
+}
+
+function getRoomAudienceLabel(room) {
+if (!room) return '0 members';
+const roomId = normalizeUsername(room.id || '');
+if (room.isPublic || roomId === 'general') return 'Everyone';
+if (roomId === 'admin-room') return 'Staff';
+const memberCount = Array.from(new Set((room.members || []).filter(Boolean))).length;
+return `${memberCount} member${memberCount === 1 ? '' : 's'}`;
+}
+
+function renderChatRoomOptions() {
+const select = document.getElementById('chat-room-select');
+if (!select) return;
+const rooms = getAvailableChatRooms();
+select.innerHTML = rooms.map((room) => `<option value="${escapeHtml(room.id)}">${escapeHtml(`${getRoomOptionIconLabel(room.icon)}${isFavoriteRoom(room.id) ? '★ ' : ''}${room.name}`.trim())}</option>`).join('');
+}
+
+function renderChatRoomSummary() {
+const summary = document.getElementById('chat-room-summary');
+const select = document.getElementById('chat-room-select');
+const editButton = document.getElementById('edit-room-btn');
+const deleteButton = document.getElementById('delete-room-btn');
+const favoriteButton = document.getElementById('favorite-room-btn');
+const room = getChatRoomConfig(currentChatRoom);
+renderChatRoomOptions();
+if (select) select.value = room.id;
+const canManageCurrentRoom = canManageRoom(room);
+const canDeleteCurrentRoom = canManageCurrentRoom && !isProtectedRoomId(room.id);
+if (editButton) editButton.style.display = canManageCurrentRoom ? 'inline-flex' : 'none';
+if (deleteButton) deleteButton.style.display = canDeleteCurrentRoom ? 'inline-flex' : 'none';
+if (favoriteButton) favoriteButton.textContent = isFavoriteRoom(room.id) ? '★ Favorite' : '☆ Favorite';
+if (summary) {
+  const accessLabel = room.isPublic ? 'Public room' : 'Private room';
+  const audienceLabel = getRoomAudienceLabel(room);
+  const roleLabel = getRoomRole(room) === 'read-only' ? 'Read-only access' : getRoomRole(room) === 'manager' ? 'Manager access' : getRoomRole(room) === 'poster' ? 'Poster access' : 'Post access';
+  const roomTitle = `<span class="chat-room-summary-title">${renderRoomIconHtml(room.icon)}<span>${escapeHtml(room.name)}</span></span>`;
+  summary.innerHTML = `${roomTitle}<div class="chat-room-pill-row"><span class="chat-room-pill">${escapeHtml(accessLabel)}</span><span class="chat-room-pill">${escapeHtml(audienceLabel)}</span><span class="chat-room-pill">${escapeHtml(roleLabel)}</span>${room.inviteCode ? `<span class="chat-room-pill">Invite ready</span>` : ''}</div>${room.description ? `<div style="margin-top:0.32rem; color:#9fb0c2; font-size:0.76rem;">${escapeHtml(room.description)}</div>` : ''}`;
+}
+const input = document.getElementById('chat-message-input');
+if (input && !isReadOnlyForCurrentUser()) {
+input.placeholder = `Message ${room.name}...`;
+}
+updateChatSendAsUi();
+}
+
+function canUseChatSendAs(username = currentChatUser) {
+const role = getUserRole(username);
+return role === 'owner' || role === 'admin';
+}
+
+function updateChatSendAsUi() {
+const row = document.getElementById('chat-send-as-row');
+const input = document.getElementById('chat-send-as-input');
+const container = document.getElementById('chat-container');
+const me = normalizeUsername(currentChatUser || getUserName() || '');
+const canSendAs = !!me && canUseChatSendAs(me);
+const isMinimized = !!(container && container.classList.contains('minimized'));
+if (!row || !input) return;
+if (!canSendAs) {
+row.style.display = 'none';
+input.value = '';
+return;
+}
+row.style.display = isMinimized ? 'none' : 'flex';
+input.placeholder = getUserRole(me) === 'owner'
+? 'Any username'
+: `Username (shows as user (${me}))`;
+input.title = getUserRole(me) === 'owner'
+? 'Owner messages can fully appear as the typed username.'
+: 'Admin messages appear as the typed username followed by your admin username.';
+}
+
+function isChatNearBottom(messagesDiv = document.getElementById('chat-messages')) {
+if (!messagesDiv) return true;
+return messagesDiv.scrollHeight - messagesDiv.scrollTop - messagesDiv.clientHeight < 60;
+}
+
+function updateOlderChatsButton(forceShow = false) {
+const button = document.getElementById('chat-jump-latest-btn');
+const messagesDiv = document.getElementById('chat-messages');
+if (!button || !messagesDiv) return;
+const hasMessages = messagesDiv.children.length > 0;
+const show = hasMessages && (forceShow || !isChatNearBottom(messagesDiv));
+button.style.display = show ? 'inline-flex' : 'none';
+button.classList.toggle('has-unread-burst', chatPendingNewMessageCount > 0);
+button.textContent = chatPendingNewMessageCount > 0
+? `Jump to latest (${chatPendingNewMessageCount} new)`
+: 'You are looking at older chats';
+}
+
+function scrollChatToLatest() {
+const messagesDiv = document.getElementById('chat-messages');
+if (!messagesDiv) return;
+messagesDiv.scrollTop = messagesDiv.scrollHeight;
+markCurrentRoomRead();
+updateOlderChatsButton(false);
+}
+
+function getChatMessageIdentity() {
+const actualUser = sanitizeNullableText(currentChatUser || getUserName() || 'guest', 'guest');
+const actualKey = normalizeUsername(actualUser) || 'guest';
+if (!canUseChatSendAs(actualKey)) {
+return {
+actualUser,
+actualKey,
+displayUser: actualUser,
+profileUser: actualKey,
+impersonating: false
+};
+}
+const input = document.getElementById('chat-send-as-input');
+const aliasKey = normalizeUsername(input && input.value || '');
+if (!aliasKey || aliasKey === actualKey) {
+return {
+actualUser,
+actualKey,
+displayUser: actualUser,
+profileUser: actualKey,
+impersonating: false
+};
+}
+const isOwner = getUserRole(actualKey) === 'owner';
+return {
+actualUser,
+actualKey,
+displayUser: isOwner ? aliasKey : `${aliasKey} (${actualKey})`,
+profileUser: aliasKey,
+impersonating: true
+};
+}
+
+function applyChatIdentityToMessageData(msgData) {
+const identity = getChatMessageIdentity();
+msgData.user = identity.actualUser;
+msgData.authoredBy = identity.actualKey;
+msgData.profileUser = identity.profileUser;
+if (identity.impersonating) {
+msgData.displayUser = identity.displayUser;
+msgData.impersonatedUser = identity.profileUser;
+} else {
+delete msgData.displayUser;
+delete msgData.impersonatedUser;
+}
+return msgData;
+}
+
+function renderChatRoomToolbarState() {
+const toolbar = document.getElementById('chat-room-toolbar');
+const button = document.getElementById('chat-room-toggle-btn');
+if (!toolbar || !button) return;
+toolbar.classList.toggle('is-collapsed', !chatRoomToolbarOpen);
+button.textContent = chatRoomToolbarOpen ? 'Close Rooms' : 'Open Rooms';
+}
+
+function toggleChatRoomToolbar() {
+chatRoomToolbarOpen = !chatRoomToolbarOpen;
+localStorage.setItem('chatRoomToolbarOpen', chatRoomToolbarOpen ? '1' : '0');
+renderChatRoomToolbarState();
+}
+
+function changeChatRoom(roomId) {
+const room = getChatRoomConfig(roomId);
+if (!canAccessRoom(room)) return;
+currentChatRoom = room.id;
+localStorage.setItem('chatRoom', currentChatRoom);
+clearReply();
+renderChatRoomSummary();
+renderTypingIndicator();
+refreshRoomPinnedMessageListener();
+loadChatMessages();
+}
+
+function getCurrentChatRoom() {
+const stored = normalizeUsername(localStorage.getItem('chatRoom') || '');
+return stored || currentChatRoom || 'general';
+}
+
+function updateCreateRoomMembersVisibility() {
+const privacy = document.getElementById('create-room-privacy');
+const wrap = document.getElementById('create-room-members-wrap');
+if (!privacy || !wrap) return;
+wrap.style.display = privacy.value === 'private' ? 'block' : 'none';
+}
+
+function openCreateRoomModal() {
+const status = document.getElementById('create-room-status');
+const name = document.getElementById('create-room-name');
+const description = document.getElementById('create-room-description');
+const members = document.getElementById('create-room-members');
+const privacy = document.getElementById('create-room-privacy');
+const title = document.getElementById('create-room-modal-title');
+const subtle = document.getElementById('create-room-modal-subtle');
+const submitButton = document.getElementById('create-room-submit-btn');
+const inviteWrap = document.getElementById('create-room-invite-wrap');
+const inviteCode = document.getElementById('create-room-invite-code');
+activeRoomEditorId = '';
+pendingCreateRoomIconData = '';
+if (status) status.textContent = '';
+if (name) name.value = '';
+if (document.getElementById('create-room-icon')) document.getElementById('create-room-icon').value = '';
+if (document.getElementById('create-room-icon-upload')) document.getElementById('create-room-icon-upload').value = '';
+if (description) description.value = '';
+createRoomMemberSelection = [];
+if (members) members.value = '';
+if (privacy) privacy.value = 'public';
+if (title) title.textContent = 'Create Room';
+if (subtle) subtle.textContent = 'General stays public for everyone. Admin Room is staff-only. Create a new room and either open it to everyone or only specific usernames.';
+if (submitButton) submitButton.textContent = 'Create Room';
+if (inviteWrap) inviteWrap.style.display = 'none';
+if (inviteCode) inviteCode.value = '';
+updateCreateRoomMembersVisibility();
+syncCreateRoomMembersField();
+renderCreateRoomMemberSearch();
+updateCreateRoomIconPreview();
+openModalById('create-room-modal');
+if (name) setTimeout(() => name.focus(), 50);
+}
+
+function openEditRoomModal(encodedRoomId = '') {
+const status = document.getElementById('create-room-status');
+const name = document.getElementById('create-room-name');
+const description = document.getElementById('create-room-description');
+const members = document.getElementById('create-room-members');
+const privacy = document.getElementById('create-room-privacy');
+const title = document.getElementById('create-room-modal-title');
+const subtle = document.getElementById('create-room-modal-subtle');
+const submitButton = document.getElementById('create-room-submit-btn');
+const inviteWrap = document.getElementById('create-room-invite-wrap');
+const inviteCode = document.getElementById('create-room-invite-code');
+const requestedRoomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
+const room = getChatRoomConfig(requestedRoomId || currentChatRoom);
+if (!canManageRoom(room)) return;
+activeRoomEditorId = room.id;
+pendingCreateRoomIconData = room.icon || '';
+if (status) status.textContent = '';
+if (name) name.value = room.name;
+if (document.getElementById('create-room-icon')) document.getElementById('create-room-icon').value = room.icon && !room.icon.startsWith('data:image/') ? room.icon : '';
+if (document.getElementById('create-room-icon-upload')) document.getElementById('create-room-icon-upload').value = '';
+if (description) description.value = room.description === 'Custom chat room' ? '' : room.description;
+createRoomMemberSelection = room.members.filter(member => member !== room.createdBy);
+if (members) members.value = createRoomMemberSelection.join(', ');
+if (privacy) privacy.value = room.isPublic ? 'public' : 'private';
+if (title) title.textContent = 'Edit Room';
+if (subtle) subtle.textContent = 'Update the room name, description, or who can join.';
+if (submitButton) submitButton.textContent = 'Save Room';
+if (inviteWrap) inviteWrap.style.display = room.inviteCode ? 'block' : 'none';
+if (inviteCode) inviteCode.value = room.inviteCode || '';
+updateCreateRoomMembersVisibility();
+syncCreateRoomMembersField();
+renderCreateRoomMemberSearch();
+updateCreateRoomIconPreview();
+openModalById('create-room-modal');
+if (name) setTimeout(() => name.focus(), 50);
+}
+
+function closeCreateRoomModal() {
+activeRoomEditorId = '';
+pendingCreateRoomIconData = '';
+closeModalById('create-room-modal');
+}
+
+async function loadChatRooms() {
+try {
+const db = getAdminDb();
+if (chatRoomsUnsub) chatRoomsUnsub();
+chatRoomsUnsub = db.collection(CHAT_ROOMS_COLLECTION).onSnapshot((snapshot) => {
+const next = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom() };
+snapshot.forEach((doc) => {
+next[normalizeUsername(doc.id)] = buildChatRoomConfig(doc.id, doc.data() || {});
+});
+chatRoomsCache = next;
+pruneNotificationsForMissingRooms();
+const currentRoom = getChatRoomConfig(currentChatRoom);
+if (!canAccessRoom(currentRoom)) {
+currentChatRoom = 'general';
+localStorage.setItem('chatRoom', currentChatRoom);
+}
+renderChatRoomSummary();
+refreshRoomPinnedMessageListener();
+if (activeRoomModerationId) renderRoomModerationModal();
+if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canUseAdminPermission('manageRooms')) {
+loadAdminRoomManager();
+}
+if (chatInitialized) loadChatMessages();
+});
+} catch (err) {
+chatRoomsCache = { general: getDefaultGeneralRoom(), 'admin-room': getDefaultAdminRoom() };
+renderChatRoomSummary();
+refreshRoomPinnedMessageListener();
+if (activeRoomModerationId) renderRoomModerationModal();
+if (document.getElementById('admin-menu') && document.getElementById('admin-menu').style.display === 'flex' && canUseAdminPermission('manageRooms')) {
+loadAdminRoomManager();
+}
+}
+}
+
+async function submitCreateRoom() {
+const nameEl = document.getElementById('create-room-name');
+const iconEl = document.getElementById('create-room-icon');
+const descriptionEl = document.getElementById('create-room-description');
+const privacyEl = document.getElementById('create-room-privacy');
+const membersEl = document.getElementById('create-room-members');
+const statusEl = document.getElementById('create-room-status');
+const me = normalizeUsername(currentChatUser);
+if (!nameEl || !descriptionEl || !privacyEl || !membersEl || !statusEl || !me) return;
+const name = sanitizeRoomName(nameEl.value);
+const icon = normalizeRoomIcon((iconEl && iconEl.value) ? iconEl.value : pendingCreateRoomIconData);
+const description = sanitizeRoomDescription(descriptionEl.value);
+const isPublic = privacyEl.value !== 'private';
+const requestedMembers = membersEl.value.split(',').map(normalizeUsername).filter(Boolean);
+if (!name) {
+statusEl.textContent = 'Enter a room name.';
+return;
+}
+const isEditing = !!activeRoomEditorId;
+const roomId = isEditing ? activeRoomEditorId : (() => {
+const baseId = normalizeRoomId(name);
+return isProtectedRoomId(baseId) ? `room-${Date.now()}` : `${baseId}-${Date.now().toString().slice(-5)}`;
+})();
+try {
+const db = getAdminDb();
+const existingRoom = isEditing ? getChatRoomConfig(roomId) : null;
+if (isEditing) {
+if (!canManageRoom(existingRoom, me)) {
+statusEl.textContent = 'You cannot edit this room.';
+return;
+}
+}
+const roomOwner = isEditing ? normalizeUsername(existingRoom.createdBy || '') || me : me;
+const memberSet = new Set([roomOwner, me, ...requestedMembers]);
+const payload = {
+name,
+description: description || 'Custom chat room',
+isPublic,
+members: Array.from(memberSet),
+icon,
+inviteCode: existingRoom && existingRoom.inviteCode ? existingRoom.inviteCode : buildRoomInviteCode(),
+roleAssignments: existingRoom ? existingRoom.roleAssignments : {},
+createdBy: roomOwner,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+};
+if (!isEditing) {
+payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+}
+await db.collection(CHAT_ROOMS_COLLECTION).doc(roomId).set(payload, { merge: true });
+currentChatRoom = roomId;
+localStorage.setItem('chatRoom', currentChatRoom);
+closeCreateRoomModal();
+if (canUseAdminPermission('manageRooms')) loadAdminRoomManager();
+loadChatMessages();
+renderChatRoomSummary();
+} catch (err) {
+statusEl.textContent = isEditing ? 'Failed to update room.' : 'Failed to create room.';
+}
+}
+
+async function deleteCurrentRoom(encodedRoomId = '') {
+const requestedRoomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
+const room = getChatRoomConfig(requestedRoomId || currentChatRoom);
+const me = normalizeUsername(currentChatUser);
+if (!canManageRoom(room, me)) return;
+if (isProtectedRoomId(room.id)) {
+alert(`${room.name} cannot be deleted.`);
+return;
+}
+if (!confirm(`Delete the room "${room.name}"?`)) return;
+try {
+const db = getAdminDb();
+await db.collection(CHAT_ROOMS_COLLECTION).doc(room.id).delete();
+roomFavorites.delete(room.id);
+saveRoomFavorites();
+delete roomReadMarkers[room.id];
+saveRoomReadMarkers();
+localNotificationCache = (localNotificationCache || []).filter((item) => {
+  const action = item && item.action;
+  return !(action && typeof action === 'object' && action.kind === 'room' && normalizeUsername(action.roomId || '') === room.id);
+});
+saveLocalNotifications();
+renderNotificationCenter();
+currentChatRoom = 'general';
+localStorage.setItem('chatRoom', currentChatRoom);
+clearReply();
+renderChatRoomSummary();
+if (canUseAdminPermission('manageRooms')) loadAdminRoomManager();
+loadChatMessages();
+} catch (err) {
+alert('Failed to delete room.');
+}
+}
+
+function extractFirstUrl(text) {
+const match = String(text || '').match(/https?:\/\/[^\s<>"]+/i);
+return match ? match[0] : '';
+}
+
+function buildLinkPreviewData(url) {
+if (!url) return null;
+try {
+const parsed = new URL(url);
+const host = parsed.hostname.replace(/^www\./i, '');
+const path = parsed.pathname.replace(/\/$/, '') || '/';
+const lastSegment = path.split('/').filter(Boolean).pop() || host;
+const cleanedTitle = decodeURIComponent(lastSegment).replace(/[-_]+/g, ' ').slice(0, 80) || host;
+return {
+url: parsed.toString(),
+host: host.slice(0, 60),
+title: cleanedTitle.charAt(0).toUpperCase() + cleanedTitle.slice(1),
+path: path.slice(0, 120)
+};
+} catch (err) {
+return null;
+}
+}
+
+function renderLinkifiedText(text) {
+const escaped = escapeHtml(String(text || ''));
+return escaped.replace(/(https?:\/\/[^\s<>"]+)/gi, (match) => {
+const safeUrl = escapeHtml(match);
+return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
+});
+}
+
+function renderLinkPreviewHtml(preview) {
+if (!preview || !preview.url) return '';
+return `<a class="chat-link-preview" href="${escapeHtml(preview.url)}" target="_blank" rel="noopener noreferrer">
+<div class="chat-link-preview-title">${escapeHtml(preview.title || preview.host || preview.url)}</div>
+<div class="chat-link-preview-meta">${escapeHtml(preview.host || '')}</div>
+<div class="chat-link-preview-url">${escapeHtml(preview.url)}</div>
+</a>`;
+}
+
+function collectReportEvidence(docId) {
+const order = Array.isArray(window._chatDocOrder) ? window._chatDocOrder : [];
+const docs = window._chatDocs || {};
+const index = order.indexOf(docId);
+if (index === -1) return [];
+return order.slice(Math.max(0, index - 2), Math.min(order.length, index + 3)).map((id) => {
+const item = docs[id] || {};
+return {
+id,
+user: item.user || 'unknown',
+message: String(item.message || '').slice(0, 220),
+room: item.room || 'general',
+timestampMs: getTimestampMs(item.timestamp)
+};
+});
+}
+
+function deepCloneRolePermissions(source) {
+return JSON.parse(JSON.stringify(source || DEFAULT_ROLE_PERMISSIONS));
+}
+
+function normalizeRolePermissions(raw) {
+const normalized = deepCloneRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+if (!raw || typeof raw !== 'object') return normalized;
+Object.keys(normalized).forEach((role) => {
+const candidate = raw[role];
+if (!candidate || typeof candidate !== 'object') return;
+Object.keys(normalized[role]).forEach((perm) => {
+if (Object.prototype.hasOwnProperty.call(candidate, perm)) {
+normalized[role][perm] = !!candidate[perm];
+}
+});
+});
+return normalized;
+}
+
+function hasRolePermission(username, permissionKey) {
+const role = getUserRole(username);
+const perms = moderationSettings.rolePermissions || DEFAULT_ROLE_PERMISSIONS;
+if (role === 'owner') return true;
+if (!perms[role]) return false;
+return !!perms[role][permissionKey];
+}
+
+function markSlowModeFromSettings() {
+const seconds = Math.max(0, Math.min(60, parseInt(moderationSettings.slowModeSeconds, 10) || DEFAULT_SLOW_MODE_SECONDS));
+moderationSettings.slowModeSeconds = seconds;
+chatSlowModeMs = seconds * 1000;
+const input = document.getElementById('admin-slowmode-seconds');
+if (input) input.value = String(seconds);
+}
+
+async function writeAuditLog(action, target = '', details = '') {
+try {
+const db = getAdminDb();
+await db.collection(AUDIT_LOG_COLLECTION).add({
+action: String(action || '').slice(0, 60),
+target: String(target || '').slice(0, 80),
+details: String(details || '').slice(0, 300),
+by: currentChatUser || getUserName() || 'system',
+at: firebase.firestore.FieldValue.serverTimestamp()
+});
+} catch (err) {}
+}
+
+async function addStrike(username, reason, source = 'manual') {
+const key = normalizeUsername(username);
+if (!key) {
+throw new Error('invalid-user');
+}
+if (isProtectedUsername(key)) {
+throw new Error('protected-user');
+}
+const db = getAdminDb();
+const ref = db.collection(USER_STRIKES_COLLECTION).doc(key);
+const doc = await ref.get();
+const currentCount = doc.exists ? (parseInt((doc.data() || {}).count, 10) || 0) : 0;
+const nextCount = currentCount + 1;
+const history = doc.exists && Array.isArray(doc.data().history) ? doc.data().history.slice(-19) : [];
+history.push({
+reason: String(reason || 'Rule violation').slice(0, 120),
+source: String(source || 'manual').slice(0, 40),
+by: currentChatUser || getUserName() || 'system',
+at: new Date().toISOString()
+});
+await ref.set({ count: nextCount, history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+let muted = false;
+let tempBanned = false;
+if (nextCount >= 3) {
+await db.collection('muted_users').doc(key).set({
+muted: true,
+mutedBy: currentChatUser || 'system',
+reason: 'Auto-mute after 3 strikes',
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+muted = true;
+}
+if (nextCount >= 5) {
+const expiresAt = new Date(Date.now() + 60 * 60000);
+await db.collection(TIMED_BANS_COLLECTION).doc(key).set({
+reason: 'Auto temp ban after 5 strikes',
+minutes: 60,
+bannedBy: currentChatUser || 'system',
+createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt)
+}, { merge: true });
+await db.collection('kicked_users').doc(key).set({
+kicked: true,
+kickedBy: currentChatUser || 'system',
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+tempBanned = true;
+}
+return { count: nextCount, muted, tempBanned };
+}
+
+function getStatsStore() {
+try {
+return JSON.parse(localStorage.getItem(USER_STATS_STORAGE_KEY) || '{}');
+} catch (err) {
+return {};
+}
+}
+
+function saveStatsStore(store) {
+localStorage.setItem(USER_STATS_STORAGE_KEY, JSON.stringify(store));
+}
+
+function getArchiveStatsRecoveryStore() {
+try {
+return JSON.parse(localStorage.getItem(USER_ARCHIVE_STATS_RECOVERY_KEY) || '{}');
+} catch (err) {
+return {};
+}
+}
+
+function saveArchiveStatsRecoveryStore(store) {
+localStorage.setItem(USER_ARCHIVE_STATS_RECOVERY_KEY, JSON.stringify(store));
+}
+
+function clearArchiveRecoveryCacheEntry(userKey) {
+const key = normalizeUsername(userKey);
+if (!key) return;
+const store = getArchiveStatsRecoveryStore();
+if (!Object.prototype.hasOwnProperty.call(store, key)) return;
+delete store[key];
+saveArchiveStatsRecoveryStore(store);
+}
+
+async function getArchivedMessageStatsForUser(userKey, currentUsername = '', accountStartMs = 0, liveMessageIds = new Set()) {
+const archiveDb = getArchiveDb();
+if (!archiveDb) {
+return { messagesSent: 0, mediaShared: 0, recovered: false };
+}
+
+const queryTargets = [
+  ['authoredBy', userKey],
+  ['profileUser', userKey],
+  ['user', currentUsername],
+  ['user', userKey]
+].filter(([field, value], index, source) => {
+  const normalizedValue = String(value || '').trim();
+  if (!normalizedValue) return false;
+  return source.findIndex(([otherField, otherValue]) => otherField === field && String(otherValue || '').trim() === normalizedValue) === index;
+});
+
+if (!queryTargets.length) {
+return { messagesSent: 0, mediaShared: 0, recovered: false };
+}
+
+const seenMessageIds = new Set();
+let messagesSent = 0;
+let mediaShared = 0;
+let recovered = false;
+
+const consumeArchivedMessageDocs = (docs = []) => {
+  docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const authorKey = normalizeUsername(data.authoredBy || data.profileUser || data.user || '');
+    if (!authorKey || authorKey !== userKey || data.system) return;
+
+    const messageId = String(data.originalId || doc.id || '');
+    if (messageId && (liveMessageIds.has(messageId) || seenMessageIds.has(messageId))) return;
+    if (messageId) seenMessageIds.add(messageId);
+
+    const timestampMs = getTimestampMs(data.timestamp) || getTimestampMs(data.archivedAt);
+    if (accountStartMs && timestampMs && timestampMs < accountStartMs) return;
+
+    const hasMedia = !!(data.imageData || data.gifUrl || data.type === 'gif');
+    const hasTextMessage = !!sanitizeNullableText(data.message, '');
+    if (hasTextMessage && !hasMedia) {
+      messagesSent += 1;
+    }
+    if (hasMedia) {
+      mediaShared += 1;
+    }
+  });
+};
+
+if (typeof archiveDb.collectionGroup === 'function') {
+  const queryResults = await Promise.allSettled(queryTargets.map(([field, value]) => archiveDb.collectionGroup('messages').where(field, '==', value).get()));
+  queryResults.forEach((result) => {
+    if (result.status !== 'fulfilled') return;
+    recovered = true;
+    consumeArchivedMessageDocs(result.value && result.value.docs ? result.value.docs : []);
+  });
+}
+
+if (messagesSent > 0 || mediaShared > 0) {
+  return { messagesSent, mediaShared, recovered: true };
+}
+
+try {
+  const sessionsSnapshot = await archiveDb.collection('chat_archives').orderBy('archivedAt', 'desc').limit(80).get();
+  const sessionDocs = sessionsSnapshot && Array.isArray(sessionsSnapshot.docs) ? sessionsSnapshot.docs : [];
+  for (const sessionDoc of sessionDocs) {
+    const sessionRef = archiveDb.collection('chat_archives').doc(sessionDoc.id).collection('messages');
+    const sessionResults = await Promise.allSettled(queryTargets.map(([field, value]) => sessionRef.where(field, '==', value).get()));
+    sessionResults.forEach((result) => {
+      if (result.status !== 'fulfilled') return;
+      recovered = true;
+      consumeArchivedMessageDocs(result.value && result.value.docs ? result.value.docs : []);
+    });
+  }
+} catch (fallbackErr) {
+  console.error('Failed to scan archive sessions for stat recovery:', fallbackErr);
+}
+
+return { messagesSent, mediaShared, recovered };
+}
+
+function pushUserStatsToFirestore(userKey, stats) {
+try {
+const db = getPrimaryDb();
+db.collection(USER_STATS_COLLECTION).doc(userKey).set(stats, { merge: true }).catch(() => {});
+} catch (e) {}
+}
+
+function getStatsUserKey() {
+return (currentChatUser || getUserName() || '').trim().toLowerCase();
+}
+
+function getStatsForUserKey(userKey) {
+const key = normalizeUsername(userKey);
+const store = getStatsStore();
+return store[key] || {
+gamesOpened: 0,
+messagesSent: 0,
+mediaShared: 0,
+reactionsUsed: 0
+};
+}
+
+function mergeUserStats(primaryStats = {}, secondaryStats = {}) {
+return {
+gamesOpened: Math.max(primaryStats.gamesOpened || 0, secondaryStats.gamesOpened || 0),
+messagesSent: Math.max(primaryStats.messagesSent || 0, secondaryStats.messagesSent || 0),
+mediaShared: Math.max(primaryStats.mediaShared || 0, secondaryStats.mediaShared || 0),
+reactionsUsed: Math.max(primaryStats.reactionsUsed || 0, secondaryStats.reactionsUsed || 0)
+};
+}
+
+async function fetchStatsFromFirestore(userKey) {
+try {
+const db = getPrimaryDb();
+const doc = await db.collection(USER_STATS_COLLECTION).doc(userKey).get();
+if (doc.exists) {
+const data = doc.data() || {};
+const store = getStatsStore();
+store[userKey] = mergeUserStats(store[userKey] || {}, data);
+saveStatsStore(store);
+return store[userKey];
+}
+} catch (e) {}
+return getStatsForUserKey(userKey);
+}
+
+function getCurrentUserStats() {
+return getStatsForUserKey(getStatsUserKey());
+}
+
+async function rebuildUserMessageStats(userKey, options = {}) {
+const normalizedUserKey = normalizeUsername(userKey);
+if (!normalizedUserKey) return null;
+
+const forceArchiveRefresh = !!options.forceArchiveRefresh;
+const usernameCandidates = Array.isArray(options.usernameCandidates) ? options.usernameCandidates : [];
+const db = getPrimaryDb();
+const adminDb = getAdminDb();
+
+try {
+const fsDoc = await db.collection(USER_STATS_COLLECTION).doc(normalizedUserKey).get();
+if (fsDoc.exists) {
+  const fsData = fsDoc.data() || {};
+  const store = getStatsStore();
+  const local = store[normalizedUserKey] || {};
+  const statFields = ['gamesOpened', 'reactionsUsed'];
+  const merged = {};
+  statFields.forEach((field) => {
+    merged[field] = Math.max(local[field] || 0, fsData[field] || 0);
+  });
+  merged.messagesSent = Math.max(local.messagesSent || 0, fsData.messagesSent || 0);
+  merged.mediaShared = Math.max(local.mediaShared || 0, fsData.mediaShared || 0);
+  store[normalizedUserKey] = merged;
+  saveStatsStore(store);
+}
+} catch (e) {}
+
+let accountStartMs = 0;
+try {
+const accountDoc = await adminDb.collection(LOGIN_REQUESTS_COLLECTION).doc(normalizedUserKey).get();
+if (accountDoc.exists) {
+  const accountData = accountDoc.data() || {};
+  accountStartMs = Number(accountData.createdAtMs)
+    || getTimestampMs(accountData.createdAt)
+    || getTimestampMs(accountData.approvedAt)
+    || Number(accountData.approvedAtMs)
+    || getTimestampMs(accountData.submittedAt)
+    || Number(accountData.submittedAtMs)
+    || 0;
+}
+} catch (e) {}
+
+const snapshot = await db.collection('site_messages').get();
+let messageCount = 0;
+let mediaCount = 0;
+let totalMessageCount = 0;
+let totalMediaCount = 0;
+const liveMessageIds = new Set();
+
+snapshot.forEach((doc) => {
+const data = doc.data() || {};
+const author = normalizeUsername(data.authoredBy || data.profileUser || data.user || '');
+if (!author || author !== normalizedUserKey || data.system) return;
+liveMessageIds.add(String(doc.id || ''));
+const hasMedia = !!(data.imageData || data.gifUrl || data.type === 'gif');
+const hasTextMessage = !!sanitizeNullableText(data.message, '');
+if (hasTextMessage && !hasMedia) {
+  totalMessageCount += 1;
+}
+if (hasMedia) {
+  totalMediaCount += 1;
+}
+const timestampMs = getTimestampMs(data.timestamp);
+if (accountStartMs && timestampMs && timestampMs < accountStartMs) return;
+if (hasTextMessage && !hasMedia) {
+  messageCount += 1;
+}
+if (hasMedia) {
+  mediaCount += 1;
+}
+});
+
+if (totalMessageCount > messageCount && (messageCount <= 1 || totalMessageCount >= messageCount * 2)) {
+messageCount = totalMessageCount;
+mediaCount = totalMediaCount;
+}
+
+if (forceArchiveRefresh) {
+clearArchiveRecoveryCacheEntry(normalizedUserKey);
+}
+
+const recoveryStore = getArchiveStatsRecoveryStore();
+let archivedMessageCount = Math.max(0, Number(recoveryStore[normalizedUserKey] && recoveryStore[normalizedUserKey].messagesSent) || 0);
+let archivedMediaCount = Math.max(0, Number(recoveryStore[normalizedUserKey] && recoveryStore[normalizedUserKey].mediaShared) || 0);
+
+if (!recoveryStore[normalizedUserKey]) {
+  try {
+    const archiveStats = await getArchivedMessageStatsForUser(
+      normalizedUserKey,
+      usernameCandidates[0] || normalizedUserKey,
+      accountStartMs,
+      liveMessageIds
+    );
+    if (archiveStats.recovered) {
+      archivedMessageCount = Math.max(0, Number(archiveStats.messagesSent) || 0);
+      archivedMediaCount = Math.max(0, Number(archiveStats.mediaShared) || 0);
+      recoveryStore[normalizedUserKey] = {
+        recoveredAtMs: Date.now(),
+        messagesSent: archivedMessageCount,
+        mediaShared: archivedMediaCount
+      };
+      saveArchiveStatsRecoveryStore(recoveryStore);
+    }
+  } catch (archiveErr) {
+    console.error('Failed to recover archived message stats:', archiveErr);
+  }
+}
+
+const store = getStatsStore();
+const current = store[normalizedUserKey] || getStatsForUserKey(normalizedUserKey);
+let changed = false;
+const nextMessageCount = Math.max(Number(current.messagesSent) || 0, messageCount + archivedMessageCount);
+const nextMediaCount = Math.max(Number(current.mediaShared) || 0, mediaCount + archivedMediaCount);
+
+if ((current.messagesSent || 0) !== nextMessageCount) {
+current.messagesSent = nextMessageCount;
+changed = true;
+}
+if ((current.mediaShared || 0) !== nextMediaCount) {
+current.mediaShared = nextMediaCount;
+changed = true;
+}
+
+if (changed) {
+store[normalizedUserKey] = current;
+saveStatsStore(store);
+}
+pushUserStatsToFirestore(normalizedUserKey, current);
+return {
+  userKey: normalizedUserKey,
+  stats: current,
+  changed,
+  archiveRecovered: archivedMessageCount > 0 || archivedMediaCount > 0,
+  archivedMessageCount,
+  archivedMediaCount,
+  liveMessageCount: messageCount,
+  liveMediaCount: mediaCount
+};
+}
+
+function incrementUserStat(stat, amount = 1) {
+const key = getStatsUserKey();
+if (!key) return;
+const store = getStatsStore();
+const current = store[key] || getCurrentUserStats();
+current[stat] = (current[stat] || 0) + amount;
+store[key] = current;
+saveStatsStore(store);
+pushUserStatsToFirestore(key, current);
+renderProfileModal();
+scheduleDynamicLeaderboardTagRefresh();
+}
+
+async function decrementUserStatsForDeletedMessage(messageData) {
+const authorKey = normalizeUsername(messageData && messageData.user);
+if (!authorKey || authorKey === 'system') return;
+
+const hasMedia = !!(messageData.imageData || messageData.gifUrl || messageData.type === 'gif');
+const hasTextMessage = !!sanitizeNullableText(messageData.message, '') && !hasMedia;
+const messageDelta = hasTextMessage ? 1 : 0;
+const mediaDelta = hasMedia ? 1 : 0;
+if (!messageDelta && !mediaDelta) return;
+
+const applyDecrement = (stats) => ({
+gamesOpened: Math.max(0, Number(stats.gamesOpened) || 0),
+messagesSent: Math.max(0, (Number(stats.messagesSent) || 0) - messageDelta),
+mediaShared: Math.max(0, (Number(stats.mediaShared) || 0) - mediaDelta),
+reactionsUsed: Math.max(0, Number(stats.reactionsUsed) || 0)
+});
+
+try {
+const db = getPrimaryDb();
+const doc = await db.collection(USER_STATS_COLLECTION).doc(authorKey).get();
+const nextStats = applyDecrement(doc.exists ? (doc.data() || {}) : getStatsForUserKey(authorKey));
+await db.collection(USER_STATS_COLLECTION).doc(authorKey).set(nextStats, { merge: true });
+
+const store = getStatsStore();
+store[authorKey] = applyDecrement(store[authorKey] || nextStats);
+saveStatsStore(store);
+scheduleDynamicLeaderboardTagRefresh();
+if (authorKey === getStatsUserKey()) {
+renderProfileModal();
+}
+} catch (err) {
+console.error('Failed to decrement stats for deleted message:', err);
+}
+}
+
+function getUnlockedAchievements(stats, username = '') {
+if (normalizeUsername(username) === 'kaiden') {
+return ACHIEVEMENTS.slice();
+}
+return ACHIEVEMENTS.filter(item => (stats[item.stat] || 0) >= item.goal);
+}
+
+async function openProfileModal(event) {
+if (event) event.stopPropagation();
+const key = getStatsUserKey();
+if (key) await fetchStatsFromFirestore(key);
+if (key) await loadProfileDetails(key);
+currentProfileEditorVisible = false;
+profileModalBackgroundOnly = false;
+await loadFriendsData();
+renderProfileModal(key);
+document.getElementById('profile-modal').style.display = 'flex';
+}
+
+async function openUserProfileFromChat(encodedUsername, event) {
+if (event) event.stopPropagation();
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+await fetchStatsFromFirestore(username);
+await loadProfileDetails(username);
+currentProfileEditorVisible = false;
+profileModalBackgroundOnly = false;
+await loadFriendsData();
+renderProfileModal(username);
+document.getElementById('profile-modal').style.display = 'flex';
+}
+
+function closeProfileModal() {
+document.getElementById('profile-modal').style.display = 'none';
+profileModalBackgroundOnly = false;
+pendingProfileAvatarData = null;
+pendingProfileBannerData = null;
+}
+
+function toggleProfileModalBackgroundOnly() {
+profileModalBackgroundOnly = !profileModalBackgroundOnly;
+renderProfileModal(currentProfileViewUser || getStatsUserKey());
+}
+
+function renderProfileModal(profileUserKey = '') {
+const usernameEl = document.getElementById('profile-username');
+const roleEl = document.getElementById('profile-role');
+const profilePanelEl = document.getElementById('profile-modal-panel');
+const bannerEl = document.getElementById('profile-banner');
+const bannerEmptyEl = document.getElementById('profile-banner-empty');
+const avatarImageEl = document.getElementById('profile-avatar-image');
+const avatarFallbackEl = document.getElementById('profile-avatar-fallback');
+const levelProgressBarEl = document.getElementById('profile-level-progress-bar');
+const levelProgressTextEl = document.getElementById('profile-level-progress-text');
+const statsGrid = document.getElementById('profile-stat-grid');
+const inventorySectionEl = document.getElementById('profile-casino-inventory-section');
+const countEl = document.getElementById('profile-achievement-count');
+const listEl = document.getElementById('achievement-list');
+const compareBtn = document.getElementById('profile-compare-btn');
+const backgroundOnlyBtn = document.getElementById('profile-background-only-btn');
+const moderationStatusEl = document.getElementById('profile-moderation-status');
+if (!usernameEl || !statsGrid || !inventorySectionEl || !countEl || !listEl) return;
+
+const resolvedUserKey = normalizeUsername(profileUserKey || getStatsUserKey());
+currentProfileViewUser = resolvedUserKey;
+const stats = getStatsForUserKey(resolvedUserKey);
+const profile = getCachedProfile(resolvedUserKey);
+const casinoStats = getCachedCasinoProfileStats(resolvedUserKey);
+const unlocked = getUnlockedAchievements(stats, resolvedUserKey);
+const isKaidenProfile = resolvedUserKey === 'kaiden';
+const equippedRewardTitle = getEquippedProfileRewardTitle(resolvedUserKey, stats, casinoStats, profile);
+usernameEl.textContent = resolvedUserKey ? `@${resolvedUserKey}${equippedRewardTitle ? ` • ${equippedRewardTitle}` : ''}` : 'Not logged in';
+if (profilePanelEl) {
+const equippedProfileBackground = getProfileBackgroundShopItem(casinoStats.selectedProfileBackgroundId);
+applyProfileModalBackground(profilePanelEl, equippedProfileBackground ? equippedProfileBackground.backgroundData : '');
+const equippedRewardCosmetic = getEquippedProfileRewardCosmetic(resolvedUserKey, stats, casinoStats, profile);
+applyProfileRewardCosmetic(profilePanelEl, equippedRewardCosmetic);
+profilePanelEl.classList.toggle('profile-modal-preview-only', profileModalBackgroundOnly);
+}
+if (backgroundOnlyBtn) {
+backgroundOnlyBtn.textContent = profileModalBackgroundOnly ? 'Show UI' : 'Background Only';
+backgroundOnlyBtn.style.background = profileModalBackgroundOnly ? '#1565c0' : '#455a64';
+}
+if (avatarImageEl && avatarFallbackEl) {
+const avatarData = sanitizeProfileAvatar(profile.avatarData);
+if (avatarData) {
+avatarImageEl.src = avatarData;
+avatarImageEl.style.display = 'block';
+avatarFallbackEl.style.display = 'none';
+} else {
+avatarImageEl.src = '';
+avatarImageEl.style.display = 'none';
+avatarFallbackEl.textContent = resolvedUserKey ? resolvedUserKey.slice(0, 2).toUpperCase() : '?';
+avatarFallbackEl.style.display = 'flex';
+}
+}
+if (roleEl) {
+roleEl.textContent = resolvedUserKey ? `Role: ${getRoleDisplayName(getUserRole(resolvedUserKey))}` : '';
+}
+if (bannerEl) {
+applyProfileBannerBackground(bannerEl, profile.bannerData, bannerEmptyEl);
+}
+if (compareBtn) {
+compareBtn.style.display = !profileModalBackgroundOnly && resolvedUserKey && resolvedUserKey !== getMyProfileKey() ? 'inline-block' : 'none';
+}
+const { level, points, nextLevelPoints } = calculateUserLevel(stats, resolvedUserKey);
+const profileLevelEl = document.getElementById('profile-level');
+if (profileLevelEl) {
+profileLevelEl.textContent = `LEVEL ${level} • ${points.toLocaleString()} points`;
+}
+if (levelProgressBarEl && levelProgressTextEl) {
+const baseMilestones = [0, 100, 250, 450, 700, 1000, 1500, 2100, 2800, 3600, 4500];
+let levelStart = 0;
+let targetPoints = nextLevelPoints;
+if (targetPoints > points) {
+for (let i = 0; i < baseMilestones.length; i++) {
+if (baseMilestones[i] <= points) {
+levelStart = baseMilestones[i];
+}
+}
+} else {
+levelStart = Math.floor(points / 1000) * 1000;
+targetPoints = levelStart + 1000;
+}
+const neededThisLevel = Math.max(1, targetPoints - levelStart);
+const gainedThisLevel = Math.min(neededThisLevel, Math.max(0, points - levelStart));
+const progressPercent = Math.max(0, Math.min(100, Math.round((gainedThisLevel / neededThisLevel) * 100)));
+const pointsToNext = Math.max(0, targetPoints - points);
+
+levelProgressBarEl.style.width = `${progressPercent}%`;
+levelProgressTextEl.textContent = pointsToNext > 0
+? `${gainedThisLevel.toLocaleString()} / ${neededThisLevel.toLocaleString()} XP (${progressPercent}%) • ${pointsToNext.toLocaleString()} to next level`
+: 'Max progress reached for this tier';
+}
+countEl.textContent = `${unlocked.length}/${ACHIEVEMENTS.length} unlocked`;
+statsGrid.innerHTML = [
+['Games Opened', stats.gamesOpened || 0],
+['Messages Sent', stats.messagesSent || 0],
+['Media Shared', stats.mediaShared || 0],
+['Reactions Used', stats.reactionsUsed || 0]
+].map(([label, value]) => `<div class="profile-stat-card"><div style="color:#aaa; font-size:0.75rem;">${label}</div><div style="font-size:1.3rem; font-weight:bold; margin-top:0.2rem;">${value}</div></div>`).join('');
+
+renderProfileIdentity(resolvedUserKey, stats, profile);
+renderProfileCasinoInventorySection(resolvedUserKey, casinoStats);
+renderProfileBackgroundShopSection(resolvedUserKey, casinoStats);
+if (moderationStatusEl) {
+if (resolvedUserKey && resolvedUserKey === getMyProfileKey()) {
+  moderationStatusEl.style.display = 'grid';
+  moderationStatusEl.innerHTML = `<div><strong>Account Status</strong></div><div>${currentMuteInfo ? escapeHtml(currentMuteInfo.expiresAt && currentMuteInfo.expiresAt.getTime() > Date.now() ? `Muted for ${formatRemainingDuration(currentMuteInfo.expiresAt.getTime() - Date.now())}` : 'Muted until staff clear it') : 'No active mute'}</div><div>${currentTimedBanInfo ? escapeHtml(currentTimedBanInfo.expiresAt && currentTimedBanInfo.expiresAt.getTime() > Date.now() ? `Timeout for ${formatRemainingDuration(currentTimedBanInfo.expiresAt.getTime() - Date.now())}` : 'Timeout active') : 'No active timeout'}</div><div>${escapeHtml(currentMuteInfo && currentMuteInfo.reason ? `Mute reason: ${currentMuteInfo.reason}` : currentTimedBanInfo && currentTimedBanInfo.reason ? `Timeout reason: ${currentTimedBanInfo.reason}` : 'No current moderation notes on your account.')}</div>`;
+} else {
+  moderationStatusEl.style.display = 'none';
+  moderationStatusEl.innerHTML = '';
+}
+}
+
+listEl.innerHTML = ACHIEVEMENTS.map(item => {
+const progress = stats[item.stat] || 0;
+const unlockedNow = isKaidenProfile || progress >= item.goal;
+const displayProgress = isKaidenProfile ? item.goal : Math.min(progress, item.goal);
+const nearComplete = !unlockedNow && item.goal > 1 && displayProgress / item.goal >= 0.8;
+return `<div class="achievement-item ${unlockedNow ? 'unlocked' : ''}"><div><div style="font-weight:bold;">${item.label}</div><div style="font-size:0.78rem; color:#bbb; margin-top:0.15rem;">${item.description}</div>${nearComplete ? '<div class="achievement-near">Almost there</div>' : ''}</div><div style="white-space:nowrap; color:${unlockedNow ? '#66bb6a' : '#ffca28'}; font-weight:bold;">${displayProgress}/${item.goal}</div></div>`;
+}).join('');
+renderProfileFlags(resolvedUserKey);
+updateProfileModalButtons();
+}
+
+function openProfileCompareModal() {
+const input = document.getElementById('profile-compare-username');
+if (input) input.value = currentProfileViewUser && currentProfileViewUser !== getMyProfileKey() ? currentProfileViewUser : '';
+openModalById('profile-compare-modal');
+if (input && input.value) renderProfileCompare(input.value);
+}
+
+function closeProfileCompareModal() {
+closeModalById('profile-compare-modal');
+}
+
+async function openGeneralShopModal() {
+if (getCasinoPlayerKey()) {
+  await loadCasinoBalance().catch(() => {});
+}
+setGeneralShopStatus('', 'neutral');
+renderGeneralShopModal();
+openModalById('general-shop-modal');
+}
+
+function closeGeneralShopModal() {
+closeModalById('general-shop-modal');
+}
+
+async function openGeneralShopInventoryModal() {
+if (getCasinoPlayerKey()) {
+  await loadCasinoBalance().catch(() => {});
+}
+setGeneralShopInventoryStatus('', 'neutral');
+renderGeneralShopInventoryModal();
+openModalById('general-shop-inventory-modal');
+}
+
+function closeGeneralShopInventoryModal() {
+closeModalById('general-shop-inventory-modal');
+if (!generalShopCaseOpeningState.opening) {
+  resetGeneralShopCaseOpeningState();
+}
+}
+
+function renderProfileCompareFromInput() {
+const input = document.getElementById('profile-compare-username');
+renderProfileCompare(input ? input.value : '');
+}
+
+async function renderProfileCompare(username) {
+const targetUser = normalizeUsername(username);
+const ownUser = getMyProfileKey();
+const grid = document.getElementById('profile-compare-grid');
+if (!grid) return;
+if (!ownUser || !targetUser) {
+  grid.innerHTML = '<div class="submission-empty">Choose a username to compare.</div>';
+  return;
+}
+await Promise.all([
+  fetchStatsFromFirestore(ownUser),
+  fetchStatsFromFirestore(targetUser),
+  loadProfileDetails(ownUser),
+  loadProfileDetails(targetUser)
+]);
+const users = [ownUser, targetUser];
+grid.innerHTML = users.map((user) => {
+  const stats = getStatsForUserKey(user);
+  const profile = getCachedProfile(user);
+  return `<div class="profile-detail-card"><div style="font-weight:bold; color:#ffca28; margin-bottom:0.4rem;">@${escapeHtml(user)}</div><div style="color:#bbb; margin-bottom:0.5rem;">${escapeHtml(profile.bio || 'No bio yet')}</div><div style="display:grid; gap:0.28rem;"><div>Games opened: ${escapeHtml(String(stats.gamesOpened || 0))}</div><div>Messages sent: ${escapeHtml(String(stats.messagesSent || 0))}</div><div>Media shared: ${escapeHtml(String(stats.mediaShared || 0))}</div><div>Reactions used: ${escapeHtml(String(stats.reactionsUsed || 0))}</div><div>Favorite game: ${escapeHtml(profile.favoriteGameName || 'None')}</div></div></div>`;
+}).join('');
+}
+
+async function renderProfileFlags(targetUserKey) {
+const panel = document.getElementById('profile-flags-panel');
+if (!panel) return;
+
+if (!targetUserKey || !canModerate(currentChatUser)) {
+panel.style.display = 'none';
+panel.innerHTML = '';
+return;
+}
+
+panel.style.display = 'block';
+panel.innerHTML = '<div style="color:#999; font-size:0.85rem;">Loading profile flags...</div>';
+
+try {
+const db = getAdminDb();
+const [doc, warningsDoc, strikesDoc] = await Promise.all([
+  db.collection(USER_FLAGS_COLLECTION).doc(targetUserKey).get(),
+  db.collection(USER_WARNINGS_COLLECTION).doc(targetUserKey).get(),
+  db.collection(USER_STRIKES_COLLECTION).doc(targetUserKey).get()
+]);
+const data = doc.exists ? (doc.data() || {}) : {};
+const warningData = warningsDoc.exists ? (warningsDoc.data() || {}) : {};
+const strikeData = strikesDoc.exists ? (strikesDoc.data() || {}) : {};
+const trusted = !!data.trusted;
+const offender = !!data.offender;
+const tag = sanitizeProfileTag(data.tag);
+const note = data.note ? String(data.note) : '';
+const warningCount = parseInt(warningData.count, 10) || 0;
+const strikeCount = parseInt(strikeData.count, 10) || 0;
+panel.innerHTML = `
+     <div style="font-weight:bold; margin-bottom:0.4rem; color:#ffca28;">Admin Flags</div>
+     <div style="display:flex; gap:0.45rem; flex-wrap:wrap; margin-bottom:0.45rem;">
+       <span class="profile-badge">⚠ ${warningCount} warning${warningCount === 1 ? '' : 's'}</span>
+       <span class="profile-badge">🪓 ${strikeCount} strike${strikeCount === 1 ? '' : 's'}</span>
+     </div>
+     <label style="display:block; margin-bottom:0.35rem;"><input id="profile-flag-trusted" type="checkbox" ${trusted ? 'checked' : ''} /> Trusted</label>
+     <label style="display:block; margin-bottom:0.35rem;"><input id="profile-flag-offender" type="checkbox" ${offender ? 'checked' : ''} /> Repeat Offender</label>
+  <label style="display:block; margin-top:0.45rem; color:#ddd; font-size:0.85rem;">Profile Tag</label>
+  <select id="profile-flag-tag" style="width:100%; margin-top:0.25rem; background:#1d1d1d; color:#fff; border:1px solid #444; border-radius:0.35rem; padding:0.45rem;">${getProfileTagOptionsHtml(tag)}</select>
+     <textarea id="profile-flag-note" placeholder="Private admin note" style="width:100%; min-height:72px; margin-top:0.4rem; background:#1d1d1d; color:#fff; border:1px solid #444; border-radius:0.35rem; padding:0.45rem;">${escapeHtml(note)}</textarea>
+     <div style="margin-top:0.5rem; display:flex; gap:0.45rem; flex-wrap:wrap;"><button onclick="saveProfileFlags()" style="padding:0.35rem 0.7rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Save Flags</button><button onclick="adminAddStrikeFromProfile()" style="padding:0.35rem 0.7rem; background:#ef6c00; color:#fff; border:none; border-radius:0.25rem;">Add Strike</button></div>
+   `;
+} catch (err) {
+panel.innerHTML = '<div style="color:#f88; font-size:0.85rem;">Could not load profile flags.</div>';
+}
+}
+
+async function saveProfileFlags() {
+if (!canModerate(currentChatUser)) return;
+const targetUser = normalizeUsername(currentProfileViewUser);
+if (!targetUser) return;
+
+const trustedEl = document.getElementById('profile-flag-trusted');
+const offenderEl = document.getElementById('profile-flag-offender');
+const tagEl = document.getElementById('profile-flag-tag');
+const noteEl = document.getElementById('profile-flag-note');
+if (!trustedEl || !offenderEl || !tagEl || !noteEl) return;
+
+try {
+const db = getAdminDb();
+const nextTag = sanitizeProfileTag(tagEl.value);
+await db.collection(USER_FLAGS_COLLECTION).doc(targetUser).set({
+trusted: !!trustedEl.checked,
+offender: !!offenderEl.checked,
+tag: nextTag,
+note: noteEl.value.trim().slice(0, 500),
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+if (nextTag) {
+  userTagCache[targetUser] = nextTag;
+} else {
+  delete userTagCache[targetUser];
+}
+refreshTagDependentUi();
+renderProfileModal(targetUser);
+renderProfileFlags(targetUser);
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = `Saved flags for ${targetUser}.`;
+ addSiteActivity('moderation_flag', `${currentChatUser} updated flags for ${targetUser}`, noteEl.value.trim().slice(0, 120));
+} catch (err) {
+alert('Failed to save profile flags.');
+}
+}
+
+async function adminAddStrikeFromPanel() {
+if (!canModerate(currentChatUser)) return;
+const username = resolveAdminTargetUsername('admin-warn-username');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+  if (statusDiv) statusDiv.textContent = 'Enter a username to strike.';
+  return;
+}
+const reason = (document.getElementById('admin-warn-reason').value || 'Manual strike').trim().slice(0, 120);
+try {
+  const result = await addStrike(username, reason, 'admin-panel');
+  if (statusDiv) statusDiv.textContent = `${username} strike count: ${result.count}.`;
+  await writeAuditLog('strike', username, `${reason} (count ${result.count})`);
+  addSiteActivity('moderation', `${currentChatUser} struck ${username}`, reason);
+} catch (err) {
+  if (err && err.message === 'protected-user') {
+    if (statusDiv) statusDiv.textContent = 'You cannot strike kaiden.';
+    return;
+  }
+  if (statusDiv) statusDiv.textContent = 'Failed to add strike.';
+}
+}
+
+async function adminAddStrikeFromProfile() {
+if (!canModerate(currentChatUser)) return;
+const targetUser = normalizeUsername(currentProfileViewUser);
+if (!targetUser) return;
+const reason = (prompt(`Strike reason for ${targetUser}:`, 'Profile moderation') || '').trim().slice(0, 120);
+if (!reason) return;
+try {
+  const result = await addStrike(targetUser, reason, 'profile');
+  await writeAuditLog('strike_profile', targetUser, `${reason} (count ${result.count})`);
+  await renderProfileFlags(targetUser);
+  addSiteActivity('moderation', `${currentChatUser} struck ${targetUser}`, reason);
+} catch (err) {
+  if (err && err.message === 'protected-user') {
+    alert('You cannot strike kaiden.');
+    return;
+  }
+  alert('Failed to add strike.');
+}
+}
+
+function calculateUserLevel(stats, username = '') {
+if (!stats) return { level: 1, points: 0, nextLevelPoints: 100 };
+const points = (stats.messagesSent || 0) * 1 + (stats.gamesOpened || 0) * 2 + (stats.mediaShared || 0) * 5 + (stats.reactionsUsed || 0) * 1;
+let level = 1;
+let nextLevelPoints = 100;
+if (points >= 100) level = 2, nextLevelPoints = 250;
+if (points >= 250) level = 3, nextLevelPoints = 450;
+if (points >= 450) level = 4, nextLevelPoints = 700;
+if (points >= 700) level = 5, nextLevelPoints = 1000;
+if (points >= 1000) level = 6, nextLevelPoints = 1500;
+if (points >= 1500) level = 7, nextLevelPoints = 2100;
+if (points >= 2100) level = 8, nextLevelPoints = 2800;
+if (points >= 2800) level = 9, nextLevelPoints = 3600;
+if (points >= 3600) level = 10, nextLevelPoints = 4500;
+if (points >= 4500) level = Math.floor(points / 1000) + 10;
+return { level, points, nextLevelPoints };
+}
+
+async function openLeaderboardModal(event) {
+if (event) event.stopPropagation();
+await loadLeaderboard();
+document.getElementById('leaderboard-modal').style.display = 'flex';
+}
+
+function closeLeaderboardModal() {
+document.getElementById('leaderboard-modal').style.display = 'none';
+}
+
+function openUpdateNotesModal() {
+document.getElementById('update-notes-modal').style.display = 'flex';
+toggleUpdateNotesEditor(false);
+renderUpdateNotes(updateNotesCache);
+loadUpdateNotes();
+}
+
+function closeUpdateNotesModal() {
+document.getElementById('update-notes-modal').style.display = 'none';
+toggleUpdateNotesEditor(false);
+}
+
+function openCreditsModal() {
+document.getElementById('credits-modal').style.display = 'flex';
+}
+
+function closeCreditsModal() {
+document.getElementById('credits-modal').style.display = 'none';
+}
+
+function openModalById(modalId) {
+const modal = document.getElementById(modalId);
+if (modal) modal.style.display = 'flex';
+}
+
+function closeModalById(modalId) {
+const modal = document.getElementById(modalId);
+if (modal) modal.style.display = 'none';
+}
+
+function getTimestampMs(timestampValue) {
+if (!timestampValue || typeof timestampValue.toDate !== 'function') return 0;
+return timestampValue.toDate().getTime();
+}
+
+function formatInboxTime(timestampMs) {
+if (!timestampMs) return '';
+const date = new Date(timestampMs);
+const now = new Date();
+return date.toDateString() === now.toDateString()
+? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+: date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function getDmConversationPreview(data, me) {
+const isOwn = normalizeUsername(data.from || '') === me;
+const rawText = sanitizeNullableText(data.message, '');
+const baseText = rawText || 'Sent a message';
+return `${isOwn ? 'You: ' : ''}${baseText}`.slice(0, 90);
+}
+
+function getDmConversationListHtml(activeUsername = '', emptyText = 'No conversations yet.', compact = false) {
+const active = normalizeUsername(activeUsername);
+if (!dmConversationSummaries.length) {
+return `<div class="dm-empty-state">${escapeHtml(emptyText)}</div>`;
+}
+return dmConversationSummaries.map((summary) => {
+const summaryUser = normalizeUsername(summary.username);
+const displayUsername = sanitizeNullableText(summary.username, '?');
+const encodedUser = encodeURIComponent(summaryUser);
+const activeClass = summaryUser === active ? ' is-active' : '';
+const unreadClass = summary.unreadCount > 0 ? ' has-unread' : '';
+const unreadBadge = summary.unreadCount > 0 ? `<span class="dm-conversation-unread">${summary.unreadCount > 99 ? '99+' : summary.unreadCount}</span>` : '';
+const avatar = escapeHtml(displayUsername.slice(0, 2).toUpperCase());
+const preview = escapeHtml(sanitizeNullableText(summary.preview, 'Open conversation'));
+const timeText = escapeHtml(formatInboxTime(summary.lastMessageAtMs));
+return `<button class="dm-conversation-item${activeClass}${unreadClass}" onclick="openDMModalByEncoded('${encodedUser}')" style="${compact ? 'padding:0.65rem 0.75rem;' : ''}">
+<div class="dm-conversation-avatar">${avatar}</div>
+<div class="dm-conversation-content">
+<div class="dm-conversation-top">
+<div class="dm-conversation-name">${escapeHtml(displayUsername)}</div>
+<div class="dm-conversation-time">${timeText}</div>
+</div>
+<div class="dm-conversation-preview">${preview}</div>
+</div>
+${unreadBadge}
+</button>`;
+}).join('');
+}
+
+function renderDMConversationLists() {
+const sidebarList = document.getElementById('dm-conversation-list');
+if (sidebarList) {
+sidebarList.innerHTML = getDmConversationListHtml(activeDMUser, 'No conversations yet. Start from a profile or your friends list.');
+}
+const inboxList = document.getElementById('friends-dm-inbox-list');
+if (inboxList) {
+inboxList.innerHTML = getDmConversationListHtml(activeDMUser, 'No DMs yet. Messages you send or receive will show up here.', true);
+}
+}
+
+function rebuildDMConversationSummaries() {
+const me = normalizeUsername(currentChatUser);
+const summaryMap = new Map();
+if (!me) {
+dmConversationSummaries = [];
+dmUnreadCount = 0;
+updateDmUnreadBadge();
+renderDMConversationLists();
+return;
+}
+
+dmInboxDocs.forEach((data) => {
+const from = normalizeUsername(data.from || '');
+const to = normalizeUsername(data.to || '');
+if (!from || !to || (from !== me && to !== me)) return;
+const other = from === me ? to : from;
+if (isUserBlocked(other)) return;
+const timestampMs = getTimestampMs(data.timestamp);
+const unreadIncrement = to === me && !data.readByRecipient ? 1 : 0;
+const existing = summaryMap.get(other) || {
+username: other,
+preview: '',
+lastMessageAtMs: 0,
+unreadCount: 0
+};
+existing.unreadCount += unreadIncrement;
+if (timestampMs >= existing.lastMessageAtMs) {
+existing.preview = getDmConversationPreview(data, me);
+existing.lastMessageAtMs = timestampMs;
+}
+summaryMap.set(other, existing);
+});
+
+dmConversationSummaries = Array.from(summaryMap.values()).sort((a, b) => {
+if (b.unreadCount !== a.unreadCount) return b.unreadCount - a.unreadCount;
+return b.lastMessageAtMs - a.lastMessageAtMs;
+});
+dmUnreadCount = dmConversationSummaries.reduce((sum, item) => sum + item.unreadCount, 0);
+updateDmUnreadBadge();
+renderDMConversationLists();
+const friendsModal = document.getElementById('friends-modal');
+if (friendsModal && friendsModal.style.display === 'flex') {
+renderFriendsModal();
+}
+}
+
+function openDMModalByEncoded(encodedUsername) {
+openDMModal(decodeURIComponent(encodedUsername || ''));
+}
+
+function openLatestDMConversation() {
+if (!dmConversationSummaries.length) {
+openDMModal('');
+return;
+}
+openDMModal(dmConversationSummaries[0].username);
+}
+
+function closeReportModal() {
+closeModalById('chat-report-modal');
+const status = document.getElementById('chat-report-status');
+if (status) status.textContent = '';
+const extra = document.getElementById('chat-report-extra');
+if (extra) extra.value = '';
+const docInput = document.getElementById('chat-report-doc-id');
+if (docInput) docInput.value = '';
+}
+
+function closeEditMessageModal() {
+closeModalById('chat-edit-modal');
+const status = document.getElementById('chat-edit-status');
+if (status) status.textContent = '';
+const docInput = document.getElementById('chat-edit-doc-id');
+if (docInput) docInput.value = '';
+const countdown = document.getElementById('chat-edit-countdown');
+if (countdown) countdown.textContent = '';
+if (chatEditCountdownInterval) {
+clearInterval(chatEditCountdownInterval);
+chatEditCountdownInterval = null;
+}
+}
+
+function closeMessageHistoryModal() {
+closeModalById('chat-history-modal');
+}
+
+function renderUpdateNotes(notes, updatedBy = '', updatedAt = null) {
+const listEl = document.getElementById('update-notes-list');
+const metaEl = document.getElementById('update-notes-meta');
+const statusEl = document.getElementById('update-notes-status');
+const editBtn = document.getElementById('update-notes-edit-btn');
+if (!listEl || !metaEl) return;
+
+const finalNotes = Array.isArray(notes) && notes.length ? notes : ['No updates yet.'];
+listEl.innerHTML = finalNotes.map(note => `<li>${escapeHtml(note)}</li>`).join('');
+updateNotesUpdatedByCache = updatedBy || updateNotesUpdatedByCache || '';
+updateNotesUpdatedAtCache = updatedAt instanceof Date ? updatedAt : updateNotesUpdatedAtCache;
+renderWhatsNewPanel();
+if (editBtn) editBtn.style.display = canUseAdminPermission('manageSettings') ? 'inline-block' : 'none';
+if (statusEl && !statusEl.textContent) {
+statusEl.textContent = canUseAdminPermission('manageSettings') ? 'Admins can edit these notes inline.' : '';
+}
+
+if (updatedBy || updatedAt) {
+const timeText = updatedAt instanceof Date ? updatedAt.toLocaleString() : '';
+metaEl.textContent = `Last updated${updatedBy ? ` by ${updatedBy}` : ''}${timeText ? ` on ${timeText}` : ''}`;
+} else {
+metaEl.textContent = '';
+}
+}
+
+async function loadUpdateNotes() {
+try {
+if (!firebase.apps.length) {
+firebase.initializeApp(firebaseConfig);
+}
+const db = getAdminDb();
+const doc = await db.collection('chat_meta').doc(UPDATE_NOTES_DOC_ID).get();
+if (!doc.exists) {
+updateNotesUpdatedByCache = '';
+updateNotesUpdatedAtCache = null;
+renderUpdateNotes(updateNotesCache);
+return;
+}
+
+const data = doc.data() || {};
+const loadedNotes = normalizeUpdateNotesList(data.notes);
+updateNotesCache = shouldReplaceLegacyUpdateNotes(loadedNotes)
+? DEFAULT_UPDATE_NOTES.slice()
+: loadedNotes;
+
+const updatedBy = data.updatedBy ? String(data.updatedBy) : '';
+const updatedAt = data.updatedAt && typeof data.updatedAt.toDate === 'function'
+? data.updatedAt.toDate()
+: null;
+updateNotesUpdatedByCache = updatedBy;
+updateNotesUpdatedAtCache = updatedAt;
+renderUpdateNotes(updateNotesCache, updatedBy, updatedAt);
+} catch (err) {
+console.error('Failed to load update notes:', err);
+renderUpdateNotes(updateNotesCache);
+}
+}
+
+function toggleUpdateNotesEditor(shouldEdit) {
+const listEl = document.getElementById('update-notes-list');
+const editorEl = document.getElementById('update-notes-editor');
+const editBtn = document.getElementById('update-notes-edit-btn');
+const saveBtn = document.getElementById('update-notes-save-btn');
+const cancelBtn = document.getElementById('update-notes-cancel-btn');
+const statusEl = document.getElementById('update-notes-status');
+const canEdit = canUseAdminPermission('manageSettings');
+const editing = !!shouldEdit && canEdit;
+if (listEl) listEl.style.display = editing ? 'none' : 'block';
+if (editorEl) {
+editorEl.style.display = editing ? 'block' : 'none';
+editorEl.value = editing ? updateNotesCache.join('\n') : '';
+}
+if (editBtn) editBtn.style.display = !editing && canEdit ? 'inline-block' : 'none';
+if (saveBtn) saveBtn.style.display = editing ? 'inline-block' : 'none';
+if (cancelBtn) cancelBtn.style.display = editing ? 'inline-block' : 'none';
+if (statusEl) statusEl.textContent = editing ? 'One update per line. Up to 30 notes will be saved.' : (canEdit ? 'Admins can edit these notes inline.' : '');
+}
+
+async function submitUpdateNotesEditor() {
+if (!canUseAdminPermission('manageSettings')) return;
+const editorEl = document.getElementById('update-notes-editor');
+const statusEl = document.getElementById('update-notes-status');
+const statusDiv = document.getElementById('admin-ban-status');
+const rawValue = String(editorEl && editorEl.value || '');
+const notes = rawValue
+  .split('\n')
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .slice(0, 30);
+if (!notes.length) {
+  if (statusEl) statusEl.textContent = 'Please enter at least one update note.';
+  return;
+}
+try {
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  const db = getAdminDb();
+  await db.collection('chat_meta').doc(UPDATE_NOTES_DOC_ID).set({
+    notes,
+    updatedBy: currentChatUser || getUserName() || 'admin',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  updateNotesCache = notes;
+  toggleUpdateNotesEditor(false);
+  renderUpdateNotes(updateNotesCache, currentChatUser || getUserName() || 'admin', new Date());
+  if (statusEl) statusEl.textContent = 'Update notes saved.';
+  if (statusDiv) statusDiv.textContent = 'Update notes saved.';
+} catch (err) {
+  console.error('Failed to save update notes:', err);
+  if (statusEl) statusEl.textContent = 'Failed to save update notes.';
+  if (statusDiv) statusDiv.textContent = 'Failed to save update notes.';
+}
+}
+
+async function adminEditUpdateNotes() {
+if (!canUseAdminPermission('manageSettings')) return;
+openUpdateNotesModal();
+await loadUpdateNotes();
+toggleUpdateNotesEditor(true);
+}
+
+function updateAdminMenuButtonVisibility() {
+const btn = document.getElementById('admin-menu-btn');
+if (!btn) return;
+btn.style.display = (siteLoginPassed && canOpenAdminMenuForUser(currentChatUser)) ? 'block' : 'none';
+updateReviewQueueBadges();
+}
+
+async function loadRoleCache() {
+try {
+const db = getAdminDb();
+db.collection(USER_ROLES_COLLECTION).onSnapshot(snapshot => {
+const next = {};
+snapshot.forEach(doc => {
+const role = normalizeUsername((doc.data() || {}).role || 'member');
+if (role) next[normalizeUsername(doc.id)] = role;
+});
+roleCache = next;
+updateAdminMenuButtonVisibility();
+renderProfileModal(currentProfileViewUser || getStatsUserKey());
+applyReadOnlyUiState();
+updateChatSendAsUi();
+});
+} catch (err) {
+console.error('Failed to load role cache:', err);
+}
+}
+
+async function loadUserTagCache() {
+try {
+const db = getAdminDb();
+db.collection(USER_FLAGS_COLLECTION).onSnapshot(snapshot => {
+const next = {};
+snapshot.forEach(doc => {
+const tag = sanitizeProfileTag((doc.data() || {}).tag);
+if (tag) {
+next[normalizeUsername(doc.id)] = tag;
+}
+});
+userTagCache = next;
+refreshTagDependentUi();
+});
+} catch (err) {
+console.error('Failed to load user tag cache:', err);
+}
+}
+
+async function loadUserProfileCache() {
+try {
+const db = getAdminDb();
+db.collection(USER_PROFILES_COLLECTION).onSnapshot(snapshot => {
+const next = {};
+snapshot.forEach(doc => {
+const data = doc.data() || {};
+const key = normalizeUsername(doc.id);
+if (!key) return;
+next[key] = buildProfileCacheEntry(key, data);
+});
+userProfileCache = next;
+refreshInlineProfileAvatars();
+if (currentProfileViewUser && document.getElementById('profile-modal')?.style.display === 'flex') {
+renderProfileModal(currentProfileViewUser);
+}
+});
+} catch (err) {
+console.error('Failed to load user profile cache:', err);
+}
+}
+
+function listenForProfileBackgroundShop() {
+try {
+  if (profileBackgroundShopUnsub) profileBackgroundShopUnsub();
+  profileBackgroundShopUnsub = getProfileBackgroundShopCollection()
+    .limit(160)
+    .onSnapshot((snapshot) => {
+      const next = [];
+      snapshot.forEach((doc) => {
+        const item = normalizeProfileBackgroundShopItem(doc.id, doc.data() || {});
+        if (item.id && item.backgroundData) next.push(item);
+      });
+      profileBackgroundShopCache = next;
+      renderAdminProfileBackgroundShopManager();
+      if (currentProfileViewUser && document.getElementById('profile-modal')?.style.display === 'flex') {
+        renderProfileModal(currentProfileViewUser);
+      }
+    });
+} catch (err) {
+  profileBackgroundShopCache = [];
+  renderAdminProfileBackgroundShopManager();
+}
+}
+
+function listenForGeneralShop() {
+try {
+  if (generalShopUnsub) generalShopUnsub();
+  generalShopUnsub = getGeneralShopCollection()
+    .limit(160)
+    .onSnapshot((snapshot) => {
+      const next = [];
+      snapshot.forEach((doc) => {
+        const item = normalizeGeneralShopItem(doc.id, doc.data() || {});
+        if (item.id && item.visualData) next.push(item);
+      });
+      generalShopCache = next;
+      renderAdminGeneralShopManager();
+      updateAdminGeneralShopEditorState();
+      if (document.getElementById('general-shop-modal')?.style.display === 'flex') {
+        renderGeneralShopModal();
+      }
+      if (document.getElementById('general-shop-inventory-modal')?.style.display === 'flex') {
+        renderGeneralShopInventoryModal();
+      }
+    });
+} catch (err) {
+  generalShopCache = [];
+  renderAdminGeneralShopManager();
+  updateAdminGeneralShopEditorState();
+  if (document.getElementById('general-shop-modal')?.style.display === 'flex') {
+    renderGeneralShopModal();
+  }
+  if (document.getElementById('general-shop-inventory-modal')?.style.display === 'flex') {
+    renderGeneralShopInventoryModal();
+  }
+}
+}
+
+function parseBlockedWords(rawWords) {
+if (!Array.isArray(rawWords)) return [];
+return rawWords
+.map(w => String(w || '').trim().toLowerCase())
+.filter(Boolean)
+.slice(0, 120);
+}
+
+function renderAnnouncementBanner() {
+const banner = document.getElementById('site-announcement-banner');
+if (!banner) return;
+const eventData = activeSiteEventCache;
+if (eventData && (!eventData.endsAtMs || eventData.endsAtMs > Date.now())) {
+banner.style.display = 'block';
+banner.style.background = eventData.accent || '#2f8d46';
+banner.style.borderColor = eventData.accent || '#2f8d46';
+banner.textContent = `${eventData.title}${eventData.body ? ` • ${eventData.body}` : ''}${eventData.endsAtMs ? ` • Ends ${new Date(eventData.endsAtMs).toLocaleString()}` : ''}`;
+return;
+}
+const text = moderationSettings.announcementText || '';
+const endsAt = moderationSettings.announcementEndsAt;
+const active = text && (!endsAt || endsAt.getTime() > Date.now());
+if (!active) {
+banner.style.display = 'none';
+banner.textContent = '';
+return;
+}
+banner.style.display = 'block';
+banner.textContent = text;
+}
+
+function applyReadOnlyUiState() {
+const isReadOnly = moderationSettings.readOnlyMode && !canModerate(currentChatUser);
+const input = document.getElementById('chat-message-input');
+const mediaBtn = document.getElementById('chat-image-btn');
+const sendAsInput = document.getElementById('chat-send-as-input');
+if (input) {
+input.disabled = isReadOnly;
+if (isReadOnly) {
+input.placeholder = 'Chat is in read-only mode.';
+} else if (input.placeholder === 'Chat is in read-only mode.') {
+renderChatRoomSummary();
+}
+}
+if (mediaBtn) {
+mediaBtn.disabled = isReadOnly;
+mediaBtn.style.opacity = isReadOnly ? '0.6' : '1';
+}
+if (sendAsInput) {
+sendAsInput.disabled = isReadOnly;
+sendAsInput.style.opacity = isReadOnly ? '0.6' : '1';
+}
+}
+
+function isReadOnlyForCurrentUser() {
+return moderationSettings.readOnlyMode && !canModerate(currentChatUser);
+}
+
+function containsBlockedWord(text) {
+if (canModerate(currentChatUser)) return false;
+const value = normalizeUsername(text);
+if (!value) return false;
+return moderationSettings.blockedWords.some(word => value.includes(word));
+}
+
+async function loadModerationSettings() {
+try {
+const db = getAdminDb();
+db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).onSnapshot(doc => {
+const data = doc.exists ? (doc.data() || {}) : {};
+moderationSettings.readOnlyMode = !!data.readOnlyMode;
+moderationSettings.blockedWords = parseBlockedWords(data.blockedWords || []);
+moderationSettings.announcementText = data.announcementText ? String(data.announcementText).trim() : '';
+moderationSettings.announcementEndsAt = data.announcementEndsAt && typeof data.announcementEndsAt.toDate === 'function'
+? data.announcementEndsAt.toDate()
+: null;
+
+const alertText = data.globalAlertText ? String(data.globalAlertText).trim() : '';
+const alertDurationSeconds = Math.max(2, Math.min(30, parseInt(data.globalAlertDurationSeconds, 10) || 10));
+const alertUpdatedAt = data.globalAlertUpdatedAt && typeof data.globalAlertUpdatedAt.toDate === 'function'
+? data.globalAlertUpdatedAt.toDate().getTime()
+: 0;
+const nextAlertKey = getGlobalAlertStorageKey(alertText, alertUpdatedAt);
+if (nextAlertKey && !hasSeenGlobalAlert(alertText, alertUpdatedAt)) {
+showGlobalAlertNotification(alertText, alertDurationSeconds);
+setLastSeenGlobalAlertKey(nextAlertKey);
+}
+
+moderationSettings.slowModeSeconds = data.slowModeSeconds !== undefined
+? (parseInt(data.slowModeSeconds, 10) || DEFAULT_SLOW_MODE_SECONDS)
+: DEFAULT_SLOW_MODE_SECONDS;
+moderationSettings.customProfileTags = normalizeCustomProfileTagDefinitions(data.customProfileTags);
+moderationSettings.rolePermissions = normalizeRolePermissions(data.rolePermissions);
+markSlowModeFromSettings();
+renderAdminRolePermissions();
+renderAdminCustomTagManager();
+renderAnnouncementBanner();
+applyReadOnlyUiState();
+});
+} catch (err) {
+console.error('Failed to load moderation settings:', err);
+}
+}
+
+function renderAdminCustomTagManager() {
+const container = document.getElementById('admin-custom-tag-list');
+if (!container) return;
+if (!canUseAdminPermission('manageCustomTags')) {
+  container.textContent = 'Only the owner can manage custom tags.';
+  return;
+}
+const entries = Array.isArray(moderationSettings.customProfileTags) ? moderationSettings.customProfileTags : [];
+if (!entries.length) {
+  container.innerHTML = '<div class="submission-empty">No custom tags yet.</div>';
+  return;
+}
+container.innerHTML = entries.map((entry) => `<div class="admin-compact-card"><div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;"><div><div style="font-weight:bold; color:#ffca28;">${escapeHtml(entry.label)}</div><div style="margin-top:0.25rem; color:#90a4ae; font-size:0.78rem;">${escapeHtml(entry.id)}</div><div style="margin-top:0.45rem;"><span class="custom-tag" style="background:${escapeHtml(entry.background)}; color:${escapeHtml(entry.color)}; border-color:${escapeHtml(entry.border)};">${escapeHtml(entry.label)}</span></div></div><div class="admin-compact-actions"><button onclick="loadCustomProfileTagIntoForm('${encodeURIComponent(entry.id)}')" style="padding:0.3rem 0.55rem; background:#37474f; color:#fff; border:none; border-radius:0.25rem;">Load</button><button onclick="adminDeleteCustomProfileTag('${encodeURIComponent(entry.id)}')" style="padding:0.3rem 0.55rem; background:#6d2727; color:#fff; border:none; border-radius:0.25rem;">Delete</button></div></div></div>`).join('');
+}
+
+function renderAdminCustomTagPreview() {
+const preview = document.getElementById('admin-custom-tag-preview');
+const idEl = document.getElementById('admin-custom-tag-id');
+const labelEl = document.getElementById('admin-custom-tag-label');
+const bgEl = document.getElementById('admin-custom-tag-bg');
+const textEl = document.getElementById('admin-custom-tag-text');
+const borderEl = document.getElementById('admin-custom-tag-border');
+if (!preview || !idEl || !labelEl || !bgEl || !textEl || !borderEl) return;
+const normalizedId = normalizeProfileTagId(idEl.value);
+const label = sanitizeNullableText(labelEl.value, '').slice(0, 24) || 'Preview Tag';
+const background = normalizeProfileTagColor(bgEl.value, '#21344f');
+const color = normalizeProfileTagColor(textEl.value, '#f3f7ff');
+const border = normalizeProfileTagColor(borderEl.value, '#6e9fe6');
+preview.innerHTML = `<div style="display:flex; gap:0.65rem; align-items:center; flex-wrap:wrap;"><span class="custom-tag" style="background:${escapeHtml(background)}; color:${escapeHtml(color)}; border-color:${escapeHtml(border)};">${escapeHtml(label)}</span><span style="font-size:0.76rem; color:#90a4ae;">${escapeHtml(normalizedId || 'no-id-yet')}</span></div>`;
+}
+
+function loadCustomProfileTagIntoForm(encodedId = '') {
+const targetId = normalizeProfileTagId(decodeURIComponent(encodedId || document.getElementById('admin-custom-tag-id')?.value || ''));
+if (!targetId) return;
+const entry = (moderationSettings.customProfileTags || []).find((item) => item && item.id === targetId);
+if (!entry) return;
+const idEl = document.getElementById('admin-custom-tag-id');
+const labelEl = document.getElementById('admin-custom-tag-label');
+const bgEl = document.getElementById('admin-custom-tag-bg');
+const textEl = document.getElementById('admin-custom-tag-text');
+const borderEl = document.getElementById('admin-custom-tag-border');
+if (idEl) idEl.value = entry.id;
+if (labelEl) labelEl.value = entry.label;
+if (bgEl) bgEl.value = entry.background;
+if (textEl) textEl.value = entry.color;
+if (borderEl) borderEl.value = entry.border;
+renderAdminCustomTagPreview();
+}
+
+async function adminSaveCustomProfileTag() {
+if (!canUseAdminPermission('manageCustomTags')) return;
+const idEl = document.getElementById('admin-custom-tag-id');
+const labelEl = document.getElementById('admin-custom-tag-label');
+const bgEl = document.getElementById('admin-custom-tag-bg');
+const textEl = document.getElementById('admin-custom-tag-text');
+const borderEl = document.getElementById('admin-custom-tag-border');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!idEl || !labelEl || !bgEl || !textEl || !borderEl || !statusDiv) return;
+const id = normalizeProfileTagId(idEl.value);
+const label = sanitizeNullableText(labelEl.value, '').slice(0, 24);
+if (!id || !label) {
+  statusDiv.textContent = 'Enter both a tag id and tag label.';
+  return;
+}
+if (PROFILE_TAGS[id]) {
+  statusDiv.textContent = 'That tag id is already used by a built-in tag.';
+  return;
+}
+const nextEntry = {
+  id,
+  label,
+  background: normalizeProfileTagColor(bgEl.value, '#21344f'),
+  color: normalizeProfileTagColor(textEl.value, '#f3f7ff'),
+  border: normalizeProfileTagColor(borderEl.value, '#6e9fe6')
+};
+const current = Array.isArray(moderationSettings.customProfileTags) ? moderationSettings.customProfileTags.slice() : [];
+const next = current.filter((entry) => entry && entry.id !== id);
+next.push(nextEntry);
+next.sort((a, b) => a.label.localeCompare(b.label));
+try {
+  await getAdminDb().collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+    customProfileTags: next,
+    updatedBy: currentChatUser,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  moderationSettings.customProfileTags = next;
+  renderAdminCustomTagManager();
+  renderAdminCustomTagPreview();
+  refreshTagDependentUi();
+  statusDiv.textContent = `Saved custom tag ${label}.`;
+} catch (err) {
+  statusDiv.textContent = 'Failed to save custom tag.';
+}
+}
+
+async function adminDeleteCustomProfileTag(encodedId = '') {
+if (!canUseAdminPermission('manageCustomTags')) return;
+const statusDiv = document.getElementById('admin-ban-status');
+const rawId = decodeURIComponent(encodedId || document.getElementById('admin-custom-tag-id')?.value || '');
+const id = normalizeProfileTagId(rawId);
+if (!id || !statusDiv) return;
+const next = (moderationSettings.customProfileTags || []).filter((entry) => entry && entry.id !== id);
+try {
+  await getAdminDb().collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+    customProfileTags: next,
+    updatedBy: currentChatUser,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  moderationSettings.customProfileTags = next;
+  renderAdminCustomTagManager();
+  renderAdminCustomTagPreview();
+  refreshTagDependentUi();
+  statusDiv.textContent = `Deleted custom tag ${id}.`;
+} catch (err) {
+  statusDiv.textContent = 'Failed to delete custom tag.';
+}
+}
+
+async function adminSendAlertPopup() {
+if (!canUseAdminPermission('manageSettings')) return;
+const text = (prompt('Alert popup text (shows to everyone):', '') || '').trim();
+if (!text) return;
+const durationInput = (prompt('How many seconds should it stay visible? (2-30)', '10') || '').trim();
+const durationSeconds = Math.max(2, Math.min(30, parseInt(durationInput, 10) || 10));
+try {
+const db = getAdminDb();
+await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+globalAlertText: text.slice(0, 220),
+globalAlertDurationSeconds: durationSeconds,
+globalAlertUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = 'Alert popup sent.';
+} catch (err) {
+alert('Failed to send alert popup.');
+}
+}
+
+// === SLOW MODE ADMIN ===
+async function adminSetSlowMode() {
+if (!canUseAdminPermission('manageSettings')) return;
+const input = document.getElementById('admin-slowmode-seconds');
+const seconds = Math.max(0, Math.min(60, parseInt((input ? input.value : '0') || '0', 10) || 0));
+try {
+const db = getAdminDb();
+await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+slowModeSeconds: seconds,
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+moderationSettings.slowModeSeconds = seconds;
+chatSlowModeMs = seconds * 1000;
+if (input) input.value = String(seconds);
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = `Slow mode set to ${seconds}s.`;
+await writeAuditLog('set_slow_mode', `${seconds}s`, `Slow mode set to ${seconds} seconds`);
+} catch (err) {
+alert('Failed to set slow mode.');
+}
+}
+
+// === ROLE PERMISSIONS ADMIN ===
+function renderAdminRolePermissions() {
+const container = document.getElementById('admin-role-permissions');
+if (!container) return;
+const roles = ['owner', 'admin', 'mod', 'moderator', 'reviewer', 'helper', 'chud', 'cameronsbitch', 'member'];
+const permissions = ['ban', 'mute', 'kick', 'warn', 'tempBan', 'manageSettings', 'assignRoles', 'deleteMessage', 'reviewSubmissions', 'manageLoginRequests', 'viewReports', 'viewUserHistory', 'viewArchives', 'manageAccounts', 'manageCasino', 'manageProfileBackgrounds', 'manageGeneralShop', 'manageGameBios', 'manageLeaderboard', 'useOwnerTool', 'viewAppeals', 'viewAuditLog', 'viewAnalytics', 'manageRooms', 'manageCustomTags'];
+const permLabels = { ban: 'Ban', mute: 'Mute', kick: 'Kick', warn: 'Warn', tempBan: 'Temp Ban', manageSettings: 'Core Settings', assignRoles: 'Assign Roles', deleteMessage: 'Delete Msg', reviewSubmissions: 'Game/Case Reviews', manageLoginRequests: 'Login Requests', viewReports: 'Message Reports', viewUserHistory: 'User History', viewArchives: 'Archived Chats', manageAccounts: 'Accounts', manageCasino: 'Casino Controls', manageProfileBackgrounds: 'Profile BG Shop', manageGeneralShop: 'General Shop', manageGameBios: 'Game Bios', manageLeaderboard: 'Reset Leaderboard', useOwnerTool: 'Owner Tool', viewAppeals: 'Appeals', viewAuditLog: 'Audit Log', viewAnalytics: 'Analytics', manageRooms: 'Rooms', manageCustomTags: 'Custom Tags' };
+const perms = moderationSettings.rolePermissions || DEFAULT_ROLE_PERMISSIONS;
+container.innerHTML = roles.map(role => {
+const isOwner = role === 'owner';
+return `<div style="margin-bottom:0.5rem;">
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.2rem;">${escapeHtml(getRoleDisplayName(role))}</div>
+<div style="display:flex; flex-wrap:wrap; gap:0.4rem;">${permissions.map(perm => {
+const checked = isOwner ? true : (perms[role] ? !!perms[role][perm] : false);
+const dis = isOwner ? 'disabled' : '';
+return `<label style="font-size:0.78rem; color:#ddd; display:flex; align-items:center; gap:0.2rem; cursor:pointer;"><input type="checkbox" class="role-perm-check" data-role="${role}" data-perm="${perm}" ${checked ? 'checked' : ''} ${dis} style="cursor:pointer;" />${permLabels[perm]}</label>`;
+}).join('')}</div>
+</div>`;
+}).join('');
+}
+
+async function adminSaveRolePermissions() {
+if (!canUseAdminPermission('manageSettings')) return;
+const checks = document.querySelectorAll('.role-perm-check');
+const builtPerms = deepCloneRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+checks.forEach(cb => {
+const role = cb.dataset.role;
+const perm = cb.dataset.perm;
+if (role === 'owner') return;
+if (builtPerms[role] && perm in builtPerms[role]) builtPerms[role][perm] = cb.checked;
+});
+try {
+const db = getAdminDb();
+await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+rolePermissions: builtPerms,
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+moderationSettings.rolePermissions = normalizeRolePermissions(builtPerms);
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = 'Role permissions saved.';
+await writeAuditLog('save_role_permissions', '', 'Role permissions updated');
+} catch (err) {
+alert('Failed to save role permissions.');
+}
+}
+
+// === BAN APPEAL ===
+async function submitBanAppeal() {
+const appealText = ((document.getElementById('ban-appeal-text') || {}).value || '').trim();
+if (!appealText) { alert('Please write an appeal before submitting.'); return; }
+const username = normalizeUsername(
+((document.getElementById('site-login-username') || {}).value || '').trim() || getUserName() || ''
+);
+if (!username) { alert('Username not found. Please refresh.'); return; }
+try {
+const db = getAdminDb();
+await db.collection(APPEALS_COLLECTION).add({
+username,
+appealText: appealText.slice(0, 1000),
+status: 'pending',
+submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+});
+alert('Appeal submitted. An admin will review it.');
+const btn = document.querySelector('button[onclick="submitBanAppeal()"]');
+if (btn) { btn.disabled = true; btn.textContent = 'Appeal Submitted'; }
+} catch (err) {
+alert('Failed to submit appeal. Please try again.');
+}
+}
+
+// === AUDIT LOG ===
+async function loadAuditLogs() {
+const container = document.getElementById('admin-audit-log');
+if (!container) return;
+if (!canUseAdminPermission('viewAuditLog')) { container.textContent = 'Insufficient permissions.'; return; }
+container.textContent = 'Loading...';
+try {
+const db = getAdminDb();
+const snapshot = await db.collection(AUDIT_LOG_COLLECTION).orderBy('at', 'desc').limit(50).get();
+if (snapshot.empty) { container.textContent = 'No audit log entries yet.'; return; }
+container.innerHTML = snapshot.docs.map(doc => {
+const d = doc.data() || {};
+const time = d.at && d.at.toDate ? d.at.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const actionText = sanitizeNullableText(d.action, '');
+const targetText = sanitizeNullableText(d.target, '');
+const detailsText = sanitizeNullableText(d.details, '');
+const byText = sanitizeNullableText(d.by, '');
+return `<div style="padding:0.3rem 0; border-bottom:1px solid #2a2a2a; overflow:hidden;">
+<span style="color:#90caf9; font-size:0.78rem;">[${escapeHtml(actionText)}]</span>
+${targetText ? `<span style="color:#ffca28; font-size:0.82rem;"> ${escapeHtml(targetText)}</span>` : ''}
+${detailsText ? `<span style="color:#bbb; font-size:0.78rem;"> — ${escapeHtml(detailsText)}</span>` : ''}
+<span style="color:#666; font-size:0.73rem; float:right;">${escapeHtml(byText)} ${time}</span>
+</div>`;
+}).join('');
+} catch (err) {
+container.textContent = 'Failed to load audit log.';
+}
+}
+
+async function loadAdminAnalytics() {
+const container = document.getElementById('admin-analytics-panel');
+if (!container) return;
+if (!canUseAdminPermission('viewAnalytics')) {
+container.textContent = 'Insufficient permissions.';
+return;
+}
+container.textContent = 'Loading analytics...';
+try {
+const db = getAdminDb();
+const primaryDb = getPrimaryDb();
+const loadDocsSafely = async (loader, warningKey) => {
+  try {
+    const snapshot = await loader();
+    return { docs: snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [], warning: '' };
+  } catch (_) {
+    return { docs: [], warning: warningKey };
+  }
+};
+
+const [messagesResult, reportsResult, appealsResult, presenceResult, rolesResult, statsResult, gameResult, loginResult] = await Promise.all([
+  loadDocsSafely(() => primaryDb.collection('site_messages').orderBy('timestamp', 'desc').limit(200).get(), 'messages'),
+  loadDocsSafely(() => db.collection(MESSAGE_REPORTS_COLLECTION).orderBy('reportedAt', 'desc').limit(100).get(), 'reports'),
+  loadDocsSafely(() => db.collection(APPEALS_COLLECTION).orderBy('submittedAt', 'desc').limit(100).get(), 'appeals'),
+  loadDocsSafely(() => db.collection(USER_ACTIVITY_COLLECTION).limit(100).get(), 'presence'),
+  loadDocsSafely(() => db.collection(USER_ROLES_COLLECTION).limit(100).get(), 'roles'),
+  loadDocsSafely(() => primaryDb.collection(USER_STATS_COLLECTION).limit(200).get(), 'stats'),
+  loadDocsSafely(() => db.collection(GAME_SUBMISSIONS_COLLECTION).limit(160).get(), 'game submissions'),
+  loadDocsSafely(() => db.collection(LOGIN_REQUESTS_COLLECTION).limit(160).get(), 'login requests')
+]);
+
+const messageDocs = messagesResult.docs;
+const reportDocs = reportsResult.docs;
+const appealDocs = appealsResult.docs;
+const presenceDocs = presenceResult.docs;
+const roleDocs = rolesResult.docs;
+const statsDocs = statsResult.docs;
+const gameDocs = gameResult.docs;
+const loginDocs = loginResult.docs;
+const recentMessages = messageDocs.map((doc) => doc.data() || {});
+const pendingReports = reportDocs.filter((doc) => ((doc.data() || {}).status || 'pending') === 'pending').length;
+const pendingAppeals = appealDocs.filter((doc) => ((doc.data() || {}).status || 'pending') === 'pending').length;
+const onlineUsers = presenceDocs.filter((doc) => {
+const data = doc.data() || {};
+const updatedMs = getTimestampMs(data.updatedAt);
+return (data.status || 'offline') !== 'offline' && updatedMs && (Date.now() - updatedMs) < 10 * 60000;
+}).length;
+const modCount = roleDocs.filter((doc) => roleHasAnyPermission((doc.data() || {}).role || 'member', ['ban', 'mute', 'kick', 'warn', 'tempBan', 'deleteMessage', 'manageSettings'])).length;
+const uniqueSenders = new Set();
+const senderCounts = {};
+const roomCounts = {};
+let mediaMessages = 0;
+let messages24h = 0;
+let newestMessageMs = 0;
+recentMessages.forEach((message) => {
+const room = getChatRoomConfig(message.room || 'general').id;
+roomCounts[room] = (roomCounts[room] || 0) + 1;
+const user = normalizeUsername(message.user || '');
+if (user) {
+  uniqueSenders.add(user);
+  senderCounts[user] = (senderCounts[user] || 0) + 1;
+}
+if (message.imageData || message.videoData || message.videoUrl || message.gifUrl || message.type === 'gif') {
+  mediaMessages += 1;
+}
+const timestampMs = getTimestampMs(message.timestamp);
+if (timestampMs) {
+  newestMessageMs = Math.max(newestMessageMs, timestampMs);
+  if ((Date.now() - timestampMs) <= 24 * 60 * 60000) {
+    messages24h += 1;
+  }
+}
+});
+
+const gameItems = gameDocs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+const loginItems = loginDocs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+const pendingGameReviews = gameItems.filter((item) => normalizeReviewStatus(item.status) === 'pending').length;
+const approvedGameReviews = gameItems.filter((item) => normalizeReviewStatus(item.status) === 'approved').length;
+const pendingLoginReviews = loginItems.filter((item) => normalizeReviewStatus(item.status) === 'pending').length;
+const approvedManagedAccounts = loginItems.filter((item) => normalizeReviewStatus(item.status) === 'approved').length;
+const knownRooms = getAllChatRooms();
+const statsLeaders = statsDocs
+  .map((doc) => {
+    const username = normalizeUsername(doc.id);
+    const stats = doc.data() || {};
+    const levelInfo = calculateUserLevel(stats, username);
+    return { username, points: levelInfo.points || 0 };
+  })
+  .filter((entry) => entry.username)
+  .sort((a, b) => b.points - a.points)
+  .slice(0, 5);
+const topRooms = Object.entries(roomCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+const topSenders = Object.entries(senderCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+const buildAnalyticsBarRows = (items, labelResolver, valueResolver, emptyText) => {
+  if (!items.length) return `<div style="color:#78909c;">${escapeHtml(emptyText)}</div>`;
+  const maxValue = Math.max(1, ...items.map(valueResolver));
+  return `<div class="analytics-bar-list">${items.map((item) => {
+    const value = valueResolver(item);
+    const width = Math.max(6, Math.round((value / maxValue) * 100));
+    return `<div class="analytics-bar-row"><div class="analytics-bar-label">${escapeHtml(labelResolver(item))}</div><div class="analytics-bar-track"><div class="analytics-bar-fill" style="width:${width}%;"></div></div><div class="analytics-bar-value">${escapeHtml(String(value))}</div></div>`;
+  }).join('')}</div>`;
+};
+
+const warnings = [messagesResult.warning, reportsResult.warning, appealsResult.warning, presenceResult.warning, rolesResult.warning, statsResult.warning, gameResult.warning, loginResult.warning].filter(Boolean);
+
+container.innerHTML = `
+<div class="analytics-grid">
+<div class="analytics-card"><div class="analytics-card-label">Recent Messages</div><div class="analytics-card-value">${recentMessages.length}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Messages (24h)</div><div class="analytics-card-value">${messages24h}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Unique Senders</div><div class="analytics-card-value">${uniqueSenders.size}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Media Posts</div><div class="analytics-card-value">${mediaMessages}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Pending Reports</div><div class="analytics-card-value">${pendingReports}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Pending Appeals</div><div class="analytics-card-value">${pendingAppeals}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Active Users</div><div class="analytics-card-value">${onlineUsers}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Staff Roles</div><div class="analytics-card-value">${modCount}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Pending Reviews</div><div class="analytics-card-value">${pendingGameReviews + pendingLoginReviews}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Managed Accounts</div><div class="analytics-card-value">${approvedManagedAccounts}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Approved Community Games</div><div class="analytics-card-value">${approvedGameReviews}</div></div>
+<div class="analytics-card"><div class="analytics-card-label">Rooms</div><div class="analytics-card-value">${knownRooms.length}</div></div>
+</div>
+${warnings.length ? `<div style="margin-top:0.7rem; color:#ffb74d;">Loaded with limited data: ${escapeHtml(warnings.join(', '))}.</div>` : ''}
+<div class="analytics-section">
+<div class="analytics-section-title">Queue Snapshot</div>
+<div class="analytics-mini-grid">
+<div class="analytics-mini-card"><div class="analytics-mini-label">Game submissions</div><div class="analytics-mini-value">${pendingGameReviews} pending / ${approvedGameReviews} approved</div></div>
+<div class="analytics-mini-card"><div class="analytics-mini-label">Login requests</div><div class="analytics-mini-value">${pendingLoginReviews} pending / ${approvedManagedAccounts} approved</div></div>
+<div class="analytics-mini-card"><div class="analytics-mini-label">Latest message</div><div class="analytics-mini-value">${newestMessageMs ? escapeHtml(formatAdminElapsedTime(Date.now() - newestMessageMs)) : 'No recent data'}</div></div>
+</div>
+</div>
+<div class="analytics-section">
+<div class="analytics-section-title">Most Active Rooms</div>
+${buildAnalyticsBarRows(topRooms, ([roomId]) => getChatRoomConfig(roomId).name, ([, count]) => count, 'No room activity found.')}
+</div>
+<div class="analytics-section">
+<div class="analytics-section-title">Top Recent Senders</div>
+${buildAnalyticsBarRows(topSenders, ([username]) => username, ([, count]) => count, 'No sender activity found.')}
+</div>
+<div class="analytics-section">
+<div class="analytics-section-title">Top Accounts By Points</div>
+${buildAnalyticsBarRows(statsLeaders, (item) => item.username, (item) => item.points, 'No point data found.')}
+</div>
+<div class="analytics-sublist">
+${knownRooms.map((room) => `<div><strong>${escapeHtml(room.name)}:</strong> ${roomCounts[room.id] || 0} recent messages</div>`).join('')}
+</div>`;
+} catch (err) {
+container.textContent = 'Failed to load analytics.';
+}
+}
+
+async function loadAdminUserHistory(targetUsername = '') {
+const container = document.getElementById('admin-user-history');
+if (!container) return;
+if (!canModerate(currentChatUser)) {
+container.textContent = 'Insufficient permissions.';
+return;
+}
+const username = normalizeUsername(targetUsername || resolveAdminTargetUsername('admin-history-username'));
+if (!username) {
+container.textContent = 'Enter a username to inspect.';
+return;
+}
+const input = document.getElementById('admin-history-username');
+if (input) input.value = username;
+container.textContent = 'Loading user history...';
+try {
+const db = getAdminDb();
+const primaryDb = firebase.firestore();
+const [
+messagesSnapshot,
+reportsSnapshot,
+appealsSnapshot,
+auditSnapshot,
+warningsDoc,
+strikesDoc,
+flagsDoc,
+stats,
+muteInfo,
+timedBanInfo
+] = await Promise.all([
+primaryDb.collection('site_messages').orderBy('timestamp', 'desc').limit(250).get(),
+db.collection(MESSAGE_REPORTS_COLLECTION).orderBy('reportedAt', 'desc').limit(120).get(),
+db.collection(APPEALS_COLLECTION).orderBy('submittedAt', 'desc').limit(120).get(),
+db.collection(AUDIT_LOG_COLLECTION).orderBy('at', 'desc').limit(160).get(),
+db.collection(USER_WARNINGS_COLLECTION).doc(username).get(),
+db.collection(USER_STRIKES_COLLECTION).doc(username).get(),
+db.collection(USER_FLAGS_COLLECTION).doc(username).get(),
+fetchStatsFromFirestore(username),
+getActiveMuteInfo(username),
+getActiveTimedBan(username)
+]);
+
+const recentMessages = messagesSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.user) === username)
+  .slice(0, 12);
+const reportsAbout = reportsSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.reportedUser) === username)
+  .slice(0, 8);
+const reportsBy = reportsSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.reportedBy) === username)
+  .slice(0, 6);
+const appeals = appealsSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.username) === username)
+  .slice(0, 6);
+const auditEntries = auditSnapshot.docs
+  .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  .filter((item) => normalizeUsername(item.target) === username || normalizeUsername(item.by) === username)
+  .slice(0, 10);
+
+const warningData = warningsDoc.exists ? (warningsDoc.data() || {}) : {};
+const strikeData = strikesDoc.exists ? (strikesDoc.data() || {}) : {};
+const flagData = flagsDoc.exists ? (flagsDoc.data() || {}) : {};
+const role = getUserRole(username);
+const warningCount = parseInt(warningData.count, 10) || 0;
+const strikeCount = parseInt(strikeData.count, 10) || 0;
+const trusted = !!flagData.trusted;
+const offender = !!flagData.offender;
+const adminNote = sanitizeNullableText(flagData.note, '');
+const tagLabel = getUserProfileTagKey(username) ? PROFILE_TAGS[getUserProfileTagKey(username)].label : '';
+const muteLabel = muteInfo
+  ? `${sanitizeNullableText(muteInfo.reason, 'Muted')}${muteInfo.expiresAt ? ` • ${formatRemainingDuration(muteInfo.expiresAt.getTime() - Date.now())} left` : ' • permanent'}`
+  : 'Not muted';
+const tempBanLabel = timedBanInfo
+  ? `${sanitizeNullableText(timedBanInfo.reason, 'Temporary ban')} • ${formatRemainingDuration(timedBanInfo.expiresAt.getTime() - Date.now())} left`
+  : 'No active temp ban';
+const statsHtml = [
+  ['Messages', stats.messagesSent || 0],
+  ['Games', stats.gamesOpened || 0],
+  ['Media', stats.mediaShared || 0],
+  ['Reactions', stats.reactionsUsed || 0],
+  ['Warnings', warningCount],
+  ['Strikes', strikeCount]
+].map(([label, value]) => `<div style="padding:0.45rem; background:#151515; border:1px solid #2f2f2f; border-radius:0.3rem;"><div style="color:#999; font-size:0.72rem;">${escapeHtml(label)}</div><div style="font-size:1.05rem; font-weight:bold; margin-top:0.18rem;">${escapeHtml(String(value))}</div></div>`).join('');
+
+container.innerHTML = `
+<div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap; margin-bottom:0.6rem;">
+<div>
+  <button onclick="document.getElementById('chat-image-input').value='';document.getElementById('chat-image-input').click();closeMediaModal();" style="padding:0.6rem 1.25rem; background:#5865f2; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.95rem; font-weight:bold;">📎 Choose Image</button>
+  <div style="font-size:0.78rem; color:#9fb0c2; max-width:22rem;">Upload an image to chat.</div>
+<div style="margin-top:0.18rem; color:#bbb;">Mute: ${escapeHtml(muteLabel)}</div>
+<div style="margin-top:0.18rem; color:#bbb;">Temp ban: ${escapeHtml(tempBanLabel)}</div>
+${adminNote ? `<div style="margin-top:0.3rem; color:#ddd;">Note: ${escapeHtml(adminNote.slice(0, 180))}</div>` : ''}
+</div>
+<div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+<button onclick="openUserProfileFromChat('${encodeURIComponent(username)}', event)" style="padding:0.3rem 0.6rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Profile</button>
+${hasRolePermission(currentChatUser, 'warn') ? `<button onclick="quickWarnFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#8e24aa; color:#fff; border:none; border-radius:0.25rem;">Warn</button>` : ''}
+${hasRolePermission(currentChatUser, 'mute') ? `<button onclick="quickMuteFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#e65100; color:#fff; border:none; border-radius:0.25rem;">Mute</button>` : ''}
+${hasRolePermission(currentChatUser, 'kick') ? `<button onclick="quickKickFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#7b1fa2; color:#fff; border:none; border-radius:0.25rem;">Kick</button>` : ''}
+${hasRolePermission(currentChatUser, 'tempBan') ? `<button onclick="quickTempBanFromUser('${encodeURIComponent(username)}')" style="padding:0.3rem 0.6rem; background:#6a1b9a; color:#fff; border:none; border-radius:0.25rem;">Temp Ban</button>` : ''}
+</div>
+</div>
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(90px, 1fr)); gap:0.4rem; margin-bottom:0.75rem;">${statsHtml}</div>
+<div style="display:grid; gap:0.7rem;">
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Recent Messages</div>
+${recentMessages.length ? recentMessages.map((item) => {
+  const timeText = item.timestamp && typeof item.timestamp.toDate === 'function' ? item.timestamp.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const roomName = getChatRoomConfig(item.room || 'general').name;
+  const body = sanitizeNullableText(item.message, '') || (item.imageData ? '[image]' : '[media]');
+  return `<div style="padding:0.4rem; background:#151515; border:1px solid #2f2f2f; border-radius:0.3rem; margin-bottom:0.25rem;"><div style="color:#999; font-size:0.72rem;">${escapeHtml(timeText)} • ${escapeHtml(roomName)}</div><div style="color:#eee; margin-top:0.18rem;">${escapeHtml(body.slice(0, 180))}</div></div>`;
+}).join('') : '<div style="color:#777;">No recent messages found.</div>'}
+</div>
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Report Activity</div>
+<div style="color:#bbb; margin-bottom:0.2rem;">Reports about user: ${reportsAbout.length} • Reports by user: ${reportsBy.length}</div>
+${reportsAbout.length ? reportsAbout.map((item) => `<div style="padding:0.35rem 0; border-bottom:1px solid #2a2a2a;"><span style="color:#ef9a9a;">${escapeHtml(sanitizeNullableText(item.reason, 'No reason'))}</span> <span style="color:#bbb;">${escapeHtml(sanitizeNullableText(item.messageText, '').slice(0, 100) || '(no message text)')}</span></div>`).join('') : '<div style="color:#777;">No recent reports about this user.</div>'}
+</div>
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Appeals</div>
+${appeals.length ? appeals.map((item) => `<div style="padding:0.35rem 0; border-bottom:1px solid #2a2a2a;"><span style="color:#ffca28;">${escapeHtml(sanitizeNullableText(item.status, 'pending'))}</span> <span style="color:#bbb;">${escapeHtml(sanitizeNullableText(item.appealText, '').slice(0, 140))}</span></div>`).join('') : '<div style="color:#777;">No recent appeals.</div>'}
+</div>
+<div>
+<div style="font-weight:bold; color:#90caf9; margin-bottom:0.25rem;">Audit Trail</div>
+${auditEntries.length ? auditEntries.map((item) => {
+  const timeText = item.at && typeof item.at.toDate === 'function' ? item.at.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  return `<div style="padding:0.35rem 0; border-bottom:1px solid #2a2a2a;"><span style="color:#ffca28;">${escapeHtml(sanitizeNullableText(item.action, '?'))}</span> <span style="color:#bbb;">${escapeHtml(sanitizeNullableText(item.details, '').slice(0, 140))}</span><div style="font-size:0.72rem; color:#777;">${escapeHtml(timeText)} • by ${escapeHtml(sanitizeNullableText(item.by, '?'))}</div></div>`;
+}).join('') : '<div style="color:#777;">No audit entries for this user in the recent log.</div>'}
+</div>
+</div>`;
+} catch (err) {
+container.textContent = 'Failed to load user history.';
+}
+}
+
+async function adminRebuildSelectedUserStats() {
+if (!canUseAdminPermission('viewUserHistory')) return;
+const username = normalizeUsername(resolveAdminTargetUsername('admin-history-username'));
+const statusDiv = document.getElementById('admin-ban-status');
+const historyContainer = document.getElementById('admin-user-history');
+if (!username) {
+  if (statusDiv) statusDiv.textContent = 'Select a username to rebuild stats.';
+  return;
+}
+  if (statusDiv) statusDiv.textContent = `Rebuilding stats for ${username}...`;
+  if (historyContainer) historyContainer.textContent = 'Rebuilding user stats...';
+try {
+  const result = await rebuildUserMessageStats(username, {
+    forceArchiveRefresh: true,
+    usernameCandidates: [username]
+  });
+  await writeAuditLog(
+    'rebuild_user_stats',
+    username,
+    `Messages ${result && result.stats ? result.stats.messagesSent || 0 : 0}, Media ${result && result.stats ? result.stats.mediaShared || 0 : 0}`
+  );
+  if (typeof loadAdminAnalytics === 'function') loadAdminAnalytics();
+  if (typeof loadAdminAccountManager === 'function') loadAdminAccountManager();
+  if (document.getElementById('leaderboard-modal')?.style.display === 'flex') {
+    await loadLeaderboard();
+  }
+  scheduleDynamicLeaderboardTagRefresh();
+  if ((currentProfileViewUser || getStatsUserKey()) === username) {
+    renderProfileModal(username);
+  }
+  if (statusDiv) {
+    statusDiv.textContent = `Rebuilt ${username}: ${result && result.stats ? result.stats.messagesSent || 0 : 0} messages, ${result && result.stats ? result.stats.mediaShared || 0 : 0} media.`;
+  }
+  await loadAdminUserHistory(username);
+} catch (err) {
+  console.error('Failed to rebuild user stats:', err);
+  if (statusDiv) statusDiv.textContent = 'Failed to rebuild user stats.';
+  if (historyContainer) historyContainer.textContent = 'Failed to rebuild user stats.';
+}
+}
+
+async function loadAdminRoomManager() {
+const container = document.getElementById('admin-room-manager');
+if (!container) return;
+if (!canUseAdminPermission('manageRooms')) {
+container.textContent = 'Insufficient permissions.';
+return;
+}
+container.textContent = 'Loading rooms...';
+try {
+const primaryDb = getPrimaryDb();
+const snapshot = await primaryDb.collection('site_messages').orderBy('timestamp', 'desc').limit(400).get();
+const roomCounts = {};
+snapshot.forEach((doc) => {
+const data = doc.data() || {};
+const roomId = getChatRoomConfig(data.room || 'general').id;
+roomCounts[roomId] = (roomCounts[roomId] || 0) + 1;
+});
+const rooms = getAllChatRooms();
+container.innerHTML = rooms.map((room) => {
+  const safeRoomId = encodeURIComponent(room.id);
+  const canManageThisRoom = canManageRoom(room);
+  const canDeleteThisRoom = canManageThisRoom && !isProtectedRoomId(room.id);
+  const ownerLabel = sanitizeNullableText(room.createdBy, room.id === 'general' || room.id === 'admin-room' ? 'system' : 'unknown');
+  const roomTypeLabel = room.id === 'general' ? 'Public' : room.id === 'admin-room' ? 'Staff only' : room.isPublic ? 'Public' : 'Private';
+  return `<div style="padding:0.5rem 0; border-bottom:1px solid #2a2a2a;">
+  <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+  <div>
+  <div style="font-weight:bold; color:#ffca28;">${escapeHtml(room.name)}</div>
+  <div style="margin-top:0.18rem; color:#aaa;">#${escapeHtml(room.id)} • ${escapeHtml(roomTypeLabel)} • Owner: ${escapeHtml(ownerLabel)}</div>
+  <div style="margin-top:0.18rem; color:#bbb;">Members: ${escapeHtml(String(room.members.length || 0))} • Recent messages: ${escapeHtml(String(roomCounts[room.id] || 0))}</div>
+  ${room.description ? `<div style="margin-top:0.18rem; color:#ddd;">${escapeHtml(room.description)}</div>` : ''}
+  </div>
+  <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+  <button onclick="openAdminRoomById('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Open</button>
+  <button onclick="openRoomModerationModal('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Controls</button>
+  ${canManageThisRoom ? `<button onclick="openEditRoomModal('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Edit</button>` : ''}
+  ${canDeleteThisRoom ? `<button onclick="deleteCurrentRoom('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}
+  </div>
+  </div>
+  </div>`;
+}).join('') || 'No rooms found.';
+} catch (err) {
+const rooms = getAllChatRooms();
+if (!rooms.length) {
+container.textContent = 'Failed to load rooms.';
+return;
+}
+container.innerHTML = rooms.map((room) => {
+  const safeRoomId = encodeURIComponent(room.id);
+  const canManageThisRoom = canManageRoom(room);
+  const canDeleteThisRoom = canManageThisRoom && !isProtectedRoomId(room.id);
+  const ownerLabel = sanitizeNullableText(room.createdBy, room.id === 'general' || room.id === 'admin-room' ? 'system' : 'unknown');
+  const roomTypeLabel = room.id === 'general' ? 'Public' : room.id === 'admin-room' ? 'Staff only' : room.isPublic ? 'Public' : 'Private';
+  return `<div style="padding:0.5rem 0; border-bottom:1px solid #2a2a2a;">
+  <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+  <div>
+  <div style="font-weight:bold; color:#ffca28;">${escapeHtml(room.name)}</div>
+  <div style="margin-top:0.18rem; color:#aaa;">#${escapeHtml(room.id)} • ${escapeHtml(roomTypeLabel)} • Owner: ${escapeHtml(ownerLabel)}</div>
+  <div style="margin-top:0.18rem; color:#bbb;">Members: ${escapeHtml(String(room.members.length || 0))} • Recent messages: unavailable</div>
+  ${room.description ? `<div style="margin-top:0.18rem; color:#ddd;">${escapeHtml(room.description)}</div>` : ''}
+  </div>
+  <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+  <button onclick="openAdminRoomById('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#455a64; color:#fff; border:none; border-radius:0.25rem;">Open</button>
+  <button onclick="openRoomModerationModal('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#1565c0; color:#fff; border:none; border-radius:0.25rem;">Controls</button>
+  ${canManageThisRoom ? `<button onclick="openEditRoomModal('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#424242; color:#fff; border:none; border-radius:0.25rem;">Edit</button>` : ''}
+  ${canDeleteThisRoom ? `<button onclick="deleteCurrentRoom('${safeRoomId}')" style="padding:0.3rem 0.6rem; background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Delete</button>` : ''}
+  </div>
+  </div>
+  </div>`;
+}).join('');
+}
+}
+
+function openAdminRoomById(encodedRoomId) {
+const roomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
+if (!roomId) return;
+changeChatRoom(roomId);
+loadAdminRoomManager();
+}
+
+function closeRoomModerationModal() {
+activeRoomModerationId = '';
+closeModalById('room-moderation-modal');
+}
+
+function getActiveModerationRoom() {
+return activeRoomModerationId ? getChatRoomConfig(activeRoomModerationId) : null;
+}
+
+function renderRoomModerationModal() {
+const summary = document.getElementById('room-moderation-summary');
+const meta = document.getElementById('room-moderation-meta');
+const members = document.getElementById('room-moderation-members');
+const status = document.getElementById('room-moderation-status');
+const privacyBtn = document.getElementById('room-moderation-privacy-btn');
+const addInput = document.getElementById('room-moderation-member-input');
+const inviteInput = document.getElementById('room-invite-code');
+const audit = document.getElementById('room-moderation-audit');
+if (!summary || !meta || !members || !privacyBtn || !addInput) return;
+const room = getActiveModerationRoom();
+if (!room) {
+  summary.textContent = 'Select a room from the admin room list.';
+  meta.innerHTML = '';
+  members.innerHTML = '<div class="submission-empty">No room selected.</div>';
+  privacyBtn.disabled = true;
+  addInput.disabled = true;
+  if (inviteInput) inviteInput.value = '';
+  if (audit) audit.innerHTML = '<div class="submission-empty">No room selected.</div>';
+  if (status) status.textContent = '';
+  return;
+}
+const protectedRoom = isProtectedRoomId(room.id);
+const ownerLabel = sanitizeNullableText(room.createdBy, protectedRoom ? 'system' : 'unknown');
+const audienceLabel = getRoomAudienceLabel(room);
+summary.textContent = `${room.name} (${room.id}) • ${room.isPublic ? 'Public' : 'Private'} • Owner: ${ownerLabel}`;
+meta.innerHTML = `<div class="admin-chip-row"><span class="admin-info-chip">${escapeHtml(room.isPublic ? 'Public room' : 'Private room')}</span><span class="admin-info-chip">${escapeHtml(audienceLabel)}</span>${room.description ? `<span class="admin-info-chip">${escapeHtml(room.description)}</span>` : ''}${room.icon ? `<span class="admin-info-chip">${escapeHtml(room.icon)} icon</span>` : ''}</div>${protectedRoom ? '<div class="admin-note-text">Protected rooms cannot change privacy or member lists, but you can still open them and clear their room messages.</div>' : ''}`;
+privacyBtn.disabled = protectedRoom;
+privacyBtn.textContent = room.isPublic ? 'Make Private' : 'Make Public';
+addInput.disabled = protectedRoom;
+if (inviteInput) inviteInput.value = room.inviteCode || '';
+if (audit) {
+  const auditItems = roomAuditPreviewCache[room.id] || [];
+  audit.innerHTML = auditItems.length ? auditItems.map((entry) => `<div style="padding:0.35rem 0; border-bottom:1px solid #2a2a2a;"><div style="color:#ffca28; font-size:0.76rem;">${escapeHtml(entry.action || '?')}</div><div style="color:#bbb; font-size:0.78rem;">${escapeHtml(entry.details || '')}</div></div>`).join('') : '<div class="submission-empty">No recent room audit entries.</div>';
+}
+const memberList = Array.from(new Set([ownerLabel, ...(room.members || [])].filter(Boolean)));
+members.innerHTML = memberList.length ? memberList.map((username) => {
+  const safeUser = encodeURIComponent(username);
+  const isOwner = normalizeUsername(username) === normalizeUsername(room.createdBy || ownerLabel);
+  const role = getRoomRole(room, username);
+  return `<div class="room-member-row"><div class="room-member-name">${escapeHtml(username)}${isOwner ? ' (owner)' : ''}</div><div style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center;"><select onchange="setRoomModerationMemberRole('${safeUser}', this.value)" ${protectedRoom || isOwner ? 'disabled' : ''}><option value="member" ${role === 'member' ? 'selected' : ''}>Member</option><option value="poster" ${role === 'poster' ? 'selected' : ''}>Poster</option><option value="read-only" ${role === 'read-only' ? 'selected' : ''}>Read-only</option><option value="manager" ${role === 'manager' ? 'selected' : ''}>Manager</option></select>${!protectedRoom && !isOwner ? `<button onclick="removeRoomModerationMember('${safeUser}')" style="background:#8e0000; color:#fff; border:none; border-radius:0.25rem;">Remove</button>` : ''}</div></div>`;
+}).join('') : '<div class="submission-empty">No explicit room members.</div>';
+}
+
+function openRoomModerationModal(encodedRoomId = '') {
+if (!canUseAdminPermission('manageRooms')) return;
+const roomId = normalizeUsername(decodeURIComponent(encodedRoomId || ''));
+const room = getChatRoomConfig(roomId || currentChatRoom);
+activeRoomModerationId = room.id;
+const status = document.getElementById('room-moderation-status');
+const addInput = document.getElementById('room-moderation-member-input');
+if (status) status.textContent = '';
+if (addInput) addInput.value = '';
+loadRoomAuditPreview(room.id);
+renderRoomModerationModal();
+openModalById('room-moderation-modal');
+}
+
+async function loadRoomAuditPreview(roomId) {
+try {
+  const snapshot = await getAdminDb().collection(AUDIT_LOG_COLLECTION).orderBy('at', 'desc').limit(80).get();
+  roomAuditPreviewCache[roomId] = snapshot.docs.map((doc) => doc.data() || {}).filter((entry) => normalizeUsername(entry.target || '') === normalizeUsername(roomId || '')).slice(0, 10);
+  renderRoomModerationModal();
+} catch (_) {
+  roomAuditPreviewCache[roomId] = [];
+}
+}
+
+async function setRoomModerationMemberRole(encodedUsername, value) {
+const room = getActiveModerationRoom();
+const status = document.getElementById('room-moderation-status');
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!room || !username || isProtectedRoomId(room.id)) return;
+const nextRoles = { ...(room.roleAssignments || {}) };
+if (value === 'member' || !value) {
+  delete nextRoles[username];
+} else {
+  nextRoles[username] = value;
+}
+try {
+  await getAdminDb().collection(CHAT_ROOMS_COLLECTION).doc(room.id).set({
+    roleAssignments: nextRoles,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  if (status) status.textContent = `${username} is now ${value || 'member'} in ${room.name}.`;
+  await writeAuditLog('room_role', room.id, `${username} -> ${value || 'member'}`);
+  loadAdminRoomManager();
+  renderRoomModerationModal();
+} catch (err) {
+  if (status) status.textContent = 'Failed to update room role.';
+}
+}
+
+function copyActiveRoomInviteCode() {
+const input = document.getElementById('room-invite-code');
+if (input && input.value) navigator.clipboard.writeText(input.value).catch(() => {});
+}
+
+function copyCurrentRoomInviteCode() {
+const input = document.getElementById('create-room-invite-code');
+if (input && input.value) navigator.clipboard.writeText(input.value).catch(() => {});
+}
+
+async function submitJoinRoomInvite() {
+const input = document.getElementById('join-room-invite-code');
+const status = document.getElementById('join-room-invite-status');
+const code = normalizeRoomInviteCode(input && input.value || '');
+const me = normalizeUsername(currentChatUser);
+if (!code || !me) {
+  if (status) status.textContent = 'Enter an invite code while signed in.';
+  return;
+}
+try {
+  const snapshot = await getAdminDb().collection(CHAT_ROOMS_COLLECTION).where('inviteCode', '==', code).limit(1).get();
+  if (!snapshot || snapshot.empty) {
+    if (status) status.textContent = 'Invite code not found.';
+    return;
+  }
+  const doc = snapshot.docs[0];
+  const room = buildChatRoomConfig(doc.id, doc.data() || {});
+  const members = Array.from(new Set([...(room.members || []), me, normalizeUsername(room.createdBy || '')].filter(Boolean)));
+  await doc.ref.set({ members, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  changeChatRoom(room.id);
+  closeJoinRoomInviteModal();
+} catch (err) {
+  if (status) status.textContent = 'Failed to join room with that code.';
+}
+}
+
+function openCurrentModeratedRoom() {
+const room = getActiveModerationRoom();
+if (!room) return;
+openAdminRoomById(encodeURIComponent(room.id));
+}
+
+async function toggleRoomModerationPrivacy() {
+if (!canUseAdminPermission('manageRooms')) return;
+const room = getActiveModerationRoom();
+const status = document.getElementById('room-moderation-status');
+if (!room || isProtectedRoomId(room.id)) return;
+try {
+  const nextMembers = Array.from(new Set([normalizeUsername(room.createdBy || currentChatUser), ...room.members].filter(Boolean)));
+  await getAdminDb().collection(CHAT_ROOMS_COLLECTION).doc(room.id).set({
+    isPublic: !room.isPublic,
+    members: nextMembers,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  if (status) status.textContent = `${room.name} is now ${!room.isPublic ? 'public' : 'private'}.`;
+  await writeAuditLog('toggle_room_privacy', room.id, `Set room to ${!room.isPublic ? 'public' : 'private'}`);
+  loadAdminRoomManager();
+  renderRoomModerationModal();
+} catch (err) {
+  if (status) status.textContent = 'Failed to update room privacy.';
+}
+}
+
+async function addRoomModerationMember() {
+if (!canUseAdminPermission('manageRooms')) return;
+const room = getActiveModerationRoom();
+const input = document.getElementById('room-moderation-member-input');
+const status = document.getElementById('room-moderation-status');
+if (!room || !input || isProtectedRoomId(room.id)) return;
+const username = normalizeUsername(input.value || '');
+if (!username) {
+  if (status) status.textContent = 'Enter a username to add.';
+  return;
+}
+const members = Array.from(new Set([normalizeUsername(room.createdBy || currentChatUser), ...room.members, username].filter(Boolean)));
+try {
+  await getAdminDb().collection(CHAT_ROOMS_COLLECTION).doc(room.id).set({
+    members,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  input.value = '';
+  if (status) status.textContent = `${username} added to ${room.name}.`;
+  await writeAuditLog('add_room_member', room.id, `${username} added to room`);
+  loadAdminRoomManager();
+  renderRoomModerationModal();
+} catch (err) {
+  if (status) status.textContent = 'Failed to add room member.';
+}
+}
+
+async function removeRoomModerationMember(encodedUsername) {
+if (!canUseAdminPermission('manageRooms')) return;
+const room = getActiveModerationRoom();
+const status = document.getElementById('room-moderation-status');
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!room || !username || isProtectedRoomId(room.id)) return;
+if (username === normalizeUsername(room.createdBy || '')) {
+  if (status) status.textContent = 'Room owner cannot be removed from members.';
+  return;
+}
+try {
+  const members = room.members.filter((member) => normalizeUsername(member) !== username);
+  await getAdminDb().collection(CHAT_ROOMS_COLLECTION).doc(room.id).set({
+    members,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  if (status) status.textContent = `${username} removed from ${room.name}.`;
+  await writeAuditLog('remove_room_member', room.id, `${username} removed from room`);
+  loadAdminRoomManager();
+  renderRoomModerationModal();
+} catch (err) {
+  if (status) status.textContent = 'Failed to remove room member.';
+}
+}
+
+async function clearRoomModerationMessages() {
+if (!canUseAdminPermission('manageRooms')) return;
+const room = getActiveModerationRoom();
+const status = document.getElementById('room-moderation-status');
+if (!room) return;
+if (!confirm(`Delete messages from ${room.name}? This cannot be undone.`)) return;
+try {
+  const db = getPrimaryDb();
+  let deletedCount = 0;
+  while (true) {
+    const snapshot = await db.collection('site_messages').where('room', '==', room.id).limit(250).get();
+    if (!snapshot || snapshot.empty) break;
+    const batch = db.batch();
+    snapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+      deletedCount += 1;
+    });
+    await batch.commit();
+    if (snapshot.size < 250) break;
+  }
+  if (status) status.textContent = deletedCount ? `Deleted ${deletedCount} message${deletedCount === 1 ? '' : 's'} from ${room.name}.` : `No room-tagged messages found in ${room.name}.`;
+  await writeAuditLog('clear_room_messages', room.id, `${deletedCount} messages removed`);
+  loadAdminRoomManager();
+  if (currentChatRoom === room.id) loadChatMessages();
+} catch (err) {
+  if (status) status.textContent = 'Failed to clear room messages.';
+}
+}
+
+// === MESSAGE REPORTS ===
+async function loadMessageReports() {
+const container = document.getElementById('admin-report-queue');
+if (!container) return;
+if (!canModerate(currentChatUser)) { container.textContent = 'Insufficient permissions.'; return; }
+container.textContent = 'Loading...';
+try {
+const db = getAdminDb();
+const snapshot = await db.collection(MESSAGE_REPORTS_COLLECTION).orderBy('reportedAt', 'desc').limit(40).get();
+if (snapshot.empty) { container.textContent = 'No reports.'; return; }
+container.innerHTML = snapshot.docs.map(doc => {
+const d = doc.data() || {};
+const time = d.reportedAt && d.reportedAt.toDate ? d.reportedAt.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const safeId = encodeURIComponent(doc.id);
+const safeMsgId = encodeURIComponent(d.messageDocId || '');
+const reportedUserText = sanitizeNullableText(d.reportedUser, '?');
+const reportedByText = sanitizeNullableText(d.reportedBy, '?');
+const messageText = sanitizeNullableText(d.messageText, '');
+const reasonText = sanitizeNullableText(d.reason, '');
+return `<div style="padding:0.4rem 0; border-bottom:1px solid #2a2a2a;">
+<div><strong style="color:#ef9a9a;">${escapeHtml(reportedUserText)}</strong>: <span style="color:#eee;">${escapeHtml(messageText.slice(0, 100))}</span></div>
+<div style="font-size:0.75rem; color:#999;">by ${escapeHtml(reportedByText)} · ${escapeHtml(reasonText)} · ${escapeHtml(getChatRoomConfig(d.room || 'general').name)} · ${time}</div>
+${Array.isArray(d.evidenceContext) && d.evidenceContext.length ? `<div style="margin-top:0.35rem; padding:0.4rem; background:#151515; border:1px solid #2f2f2f; border-radius:0.3rem; font-size:0.74rem; color:#bbb;">${d.evidenceContext.map((entry) => {
+const entryUserText = sanitizeNullableText(entry.user, '?');
+const entryMessageText = sanitizeNullableText(entry.message, '');
+return `<div style="margin-bottom:0.2rem;"><span style="color:#90caf9;">${escapeHtml(entryUserText)}</span> <span style="color:#607d8b;">#${escapeHtml(getChatRoomConfig(entry.room || 'general').name)}</span>: ${escapeHtml(entryMessageText.slice(0, 140) || '(media message)')}</div>`;
+}).join('')}</div>` : ''}
+<div style="margin-top:0.25rem; display:flex; gap:0.4rem;">
+<button onclick="openAdminUserHistoryFor('${encodeURIComponent(normalizeUsername(reportedUserText))}')" style="padding:0.2rem 0.5rem; background:#37474f; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">User</button>
+<button onclick="dismissReport('${safeId}')" style="padding:0.2rem 0.5rem; background:#455a64; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Dismiss</button>
+<button onclick="warnFromReport('${safeId}','${encodeURIComponent(normalizeUsername(reportedUserText))}')" style="padding:0.2rem 0.5rem; background:#8e24aa; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Warn</button>
+<button onclick="strikeFromReport('${safeId}','${encodeURIComponent(normalizeUsername(reportedUserText))}','${encodeURIComponent(reasonText)}')" style="padding:0.2rem 0.5rem; background:#ef6c00; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Strike</button>
+<button onclick="deleteReportedMessage('${safeId}','${safeMsgId}')" style="padding:0.2rem 0.5rem; background:#c62828; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Delete Msg</button>
+</div>
+</div>`;
+}).join('');
+} catch (err) {
+container.textContent = 'Failed to load reports.';
+}
+}
+
+async function warnFromReport(reportDocId, encodedUsername) {
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const reason = (prompt(`Warning reason for ${username}:`, 'Reported message') || '').trim().slice(0, 120);
+if (!reason) return;
+try {
+const db = getAdminDb();
+const ref = db.collection(USER_WARNINGS_COLLECTION).doc(username);
+const doc = await ref.get();
+const count = ((doc.exists ? (doc.data().count || 0) : 0) + 1);
+const history = doc.exists && Array.isArray(doc.data().history) ? doc.data().history.slice(-19) : [];
+history.push({ reason, by: currentChatUser, at: new Date().toISOString() });
+await ref.set({ count, history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+await db.collection(MESSAGE_REPORTS_COLLECTION).doc(decodeURIComponent(reportDocId)).set({
+status: 'resolved',
+resolvedBy: currentChatUser,
+resolution: `warning:${count}`
+}, { merge: true });
+await writeAuditLog('warn_from_report', username, reason);
+loadMessageReports();
+} catch (err) {
+alert('Failed to warn user from report.');
+}
+}
+
+async function strikeFromReport(reportDocId, encodedUsername, encodedReason) {
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const baseReason = decodeURIComponent(encodedReason || '') || 'Reported message';
+try {
+const result = await addStrike(username, baseReason, 'report');
+const db = getAdminDb();
+await db.collection(MESSAGE_REPORTS_COLLECTION).doc(decodeURIComponent(reportDocId)).set({
+status: 'resolved',
+resolvedBy: currentChatUser,
+resolution: `strike:${result.count}`
+}, { merge: true });
+await writeAuditLog('strike_from_report', username, `${baseReason} (count ${result.count})`);
+loadMessageReports();
+alert(`${username} now has ${result.count} strike(s).`);
+} catch (err) {
+if (err && err.message === 'protected-user') {
+alert('You cannot strike kaiden.');
+return;
+}
+alert('Failed to add strike from report.');
+}
+}
+
+async function dismissReport(reportDocId) {
+try {
+const db = getAdminDb();
+await db.collection(MESSAGE_REPORTS_COLLECTION).doc(decodeURIComponent(reportDocId)).update({ status: 'dismissed', resolvedBy: currentChatUser });
+loadMessageReports();
+} catch (err) { alert('Failed to dismiss.'); }
+}
+
+async function deleteReportedMessage(reportDocId, messageDocId) {
+const msgId = decodeURIComponent(messageDocId || '');
+if (msgId) {
+try {
+const db = getPrimaryDb();
+const messageData = (window._chatDocs && window._chatDocs[msgId]) || (await db.collection('site_messages').doc(msgId).get()).data() || null;
+await db.collection('site_messages').doc(msgId).delete();
+await decrementUserStatsForDeletedMessage(messageData);
+} catch (e) {}
+}
+try {
+const db = getAdminDb();
+await db.collection(MESSAGE_REPORTS_COLLECTION).doc(decodeURIComponent(reportDocId)).update({ status: 'resolved', resolvedBy: currentChatUser });
+await writeAuditLog('delete_reported_message', msgId, 'Deleted via report queue');
+loadMessageReports();
+} catch (err) { alert('Failed to resolve report.'); }
+}
+
+async function reportMessage(docId) {
+if (!currentChatUser) { alert('You must be logged in to report messages.'); return; }
+const data = window._chatDocs && window._chatDocs[docId];
+if (!data) { alert('Message not found.'); return; }
+const preview = document.getElementById('chat-report-preview');
+const status = document.getElementById('chat-report-status');
+const docInput = document.getElementById('chat-report-doc-id');
+const reasonInput = document.getElementById('chat-report-reason');
+const extraInput = document.getElementById('chat-report-extra');
+if (!preview || !status || !docInput || !reasonInput || !extraInput) return;
+docInput.value = docId;
+reasonInput.value = 'spam';
+extraInput.value = '';
+status.textContent = '';
+const previewUser = sanitizeNullableText(data.user, 'unknown');
+const previewText = sanitizeNullableText(data.message, '');
+preview.innerHTML = `
+<div class="message-preview-user">@${escapeHtml(previewUser)}</div>
+<div class="message-preview-text">${escapeHtml(previewText.slice(0, 300) || '(No message text)')}</div>
+<div style="margin-top:0.35rem; font-size:0.72rem; color:#90a4ae;">Room: ${escapeHtml(getChatRoomConfig(data.room || currentChatRoom || 'general').name)}</div>`;
+openModalById('chat-report-modal');
+}
+
+async function submitReportModal() {
+const docInput = document.getElementById('chat-report-doc-id');
+const reasonInput = document.getElementById('chat-report-reason');
+const extraInput = document.getElementById('chat-report-extra');
+const status = document.getElementById('chat-report-status');
+const docId = docInput ? docInput.value : '';
+const pickedReason = reasonInput ? reasonInput.value.trim().toLowerCase() : '';
+const extra = extraInput ? extraInput.value.trim() : '';
+const data = window._chatDocs && window._chatDocs[docId];
+const evidenceContext = collectReportEvidence(docId);
+if (!docId || !data || !pickedReason) {
+if (status) status.textContent = 'Could not submit the report. Reload chat and try again.';
+return;
+}
+const reason = `${pickedReason}${extra ? ` - ${extra}` : ''}`.slice(0, 200);
+const reportMessageText = sanitizeNullableText(data.message, '').slice(0, 300);
+const reportedUser = sanitizeNullableText(data.user, 'unknown');
+try {
+const db = getAdminDb();
+await db.collection(MESSAGE_REPORTS_COLLECTION).add({
+messageDocId: docId,
+messageText: reportMessageText,
+reportedUser,
+reportedBy: currentChatUser,
+room: data.room || currentChatRoom || 'general',
+reportedMessageAt: data.timestamp || null,
+evidenceContext,
+reason,
+status: 'pending',
+reportedAt: firebase.firestore.FieldValue.serverTimestamp()
+});
+closeReportModal();
+alert('Report submitted. Thank you.');
+} catch (err) {
+if (status) status.textContent = 'Failed to submit report.';
+}
+}
+
+async function editOwnMessage(docId) {
+const data = window._chatDocs && window._chatDocs[docId];
+if (!data || data.system) return;
+if (normalizeUsername(data.user) !== normalizeUsername(currentChatUser)) return;
+const timestampMs = data.timestamp && typeof data.timestamp.toDate === 'function' ? data.timestamp.toDate().getTime() : 0;
+if (!timestampMs || (Date.now() - timestampMs) > DM_EDIT_WINDOW_MS) {
+return;
+}
+const textarea = document.getElementById('chat-edit-textarea');
+const status = document.getElementById('chat-edit-status');
+const input = document.getElementById('chat-edit-doc-id');
+if (!textarea || !status || !input) return;
+const originalMessageText = sanitizeNullableText(data.message, '');
+input.value = docId;
+textarea.value = originalMessageText;
+status.textContent = '';
+updateChatEditCountdown(docId);
+if (chatEditCountdownInterval) clearInterval(chatEditCountdownInterval);
+chatEditCountdownInterval = setInterval(() => updateChatEditCountdown(docId), 1000);
+openModalById('chat-edit-modal');
+}
+
+async function submitEditMessageModal() {
+const textarea = document.getElementById('chat-edit-textarea');
+const status = document.getElementById('chat-edit-status');
+const input = document.getElementById('chat-edit-doc-id');
+const docId = input ? input.value : '';
+const nextText = textarea ? textarea.value.trim() : '';
+const data = window._chatDocs && window._chatDocs[docId];
+if (!docId || !data || !textarea || !status) return;
+const originalMessageText = sanitizeNullableText(data.message, '');
+if (!nextText || nextText === originalMessageText) {
+status.textContent = 'No changes to save.';
+return;
+}
+if (containsBlockedWord(nextText)) {
+status.textContent = 'Edited message blocked by word filter.';
+return;
+}
+const timestampMs = getTimestampMs(data.timestamp);
+if (!timestampMs || (Date.now() - timestampMs) > DM_EDIT_WINDOW_MS) {
+status.textContent = 'The edit window has expired.';
+return;
+}
+try {
+const db = firebase.firestore();
+const history = Array.isArray(data.editHistory) ? data.editHistory.slice(-9) : [];
+history.push({
+previousMessage: originalMessageText,
+editedAt: new Date().toISOString(),
+editedBy: currentChatUser
+});
+await db.collection('site_messages').doc(docId).set({
+message: nextText.slice(0, 600),
+editedAt: firebase.firestore.FieldValue.serverTimestamp(),
+editHistory: history
+}, { merge: true });
+closeEditMessageModal();
+} catch (err) {
+status.textContent = 'Failed to edit message.';
+}
+}
+
+function showMessageEditHistory(docId) {
+const data = window._chatDocs && window._chatDocs[docId];
+if (!data) return;
+const history = Array.isArray(data.editHistory) ? data.editHistory : [];
+const list = document.getElementById('chat-history-list');
+if (!list) return;
+if (!history.length) {
+list.innerHTML = '<div class="dm-empty-state">No edit history for this message.</div>';
+openModalById('chat-history-modal');
+return;
+}
+list.innerHTML = history.map((entry, index) => {
+const editedAt = entry.editedAt ? new Date(entry.editedAt).toLocaleString() : 'Unknown time';
+const previousMessageText = sanitizeNullableText(entry.previousMessage, '');
+return `<div class="modal-history-item">
+<div class="modal-history-meta">Version ${index + 1} • ${escapeHtml(editedAt)}</div>
+<div class="message-preview-text">${escapeHtml(previousMessageText)}</div>
+</div>`;
+}).join('');
+openModalById('chat-history-modal');
+}
+
+// === APPEALS QUEUE ===
+async function loadAppealsQueue() {
+const container = document.getElementById('admin-appeals-queue');
+if (!container) return;
+if (!canUseAdminPermission('viewAppeals')) { container.textContent = 'Insufficient permissions.'; return; }
+container.textContent = 'Loading...';
+try {
+const db = getAdminDb();
+const snapshot = await db.collection(APPEALS_COLLECTION)
+.orderBy('submittedAt', 'desc')
+.limit(50)
+.get();
+const pendingDocs = snapshot.docs.filter(doc => ((doc.data() || {}).status || 'pending') === 'pending');
+if (!pendingDocs.length) { container.textContent = 'No pending appeals.'; return; }
+container.innerHTML = pendingDocs.map(doc => {
+const d = doc.data() || {};
+const time = d.submittedAt && d.submittedAt.toDate ? d.submittedAt.toDate().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const safeId = encodeURIComponent(doc.id);
+const usernameText = sanitizeNullableText(d.username, '?');
+const appealText = sanitizeNullableText(d.appealText, '');
+const safeUser = encodeURIComponent(normalizeUsername(d.username || ''));
+return `<div style="padding:0.4rem 0; border-bottom:1px solid #2a2a2a;">
+<div><strong style="color:#ffca28;">${escapeHtml(usernameText)}</strong> · <span style="color:#999; font-size:0.78rem;">${time}</span></div>
+<div style="color:#ddd; font-size:0.85rem; margin:0.2rem 0;">${escapeHtml(appealText.slice(0, 200))}</div>
+<div style="display:flex; gap:0.4rem;">
+<button onclick="approveAppeal('${safeId}','${safeUser}')" style="padding:0.2rem 0.5rem; background:#2e7d32; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Approve (Unban)</button>
+<button onclick="rejectAppeal('${safeId}')" style="padding:0.2rem 0.5rem; background:#b71c1c; color:#fff; border:none; border-radius:0.2rem; font-size:0.75rem; cursor:pointer;">Reject</button>
+</div>
+</div>`;
+}).join('');
+} catch (err) {
+container.textContent = 'Failed to load appeals.';
+}
+}
+
+async function approveAppeal(appealDocId, encodedUsername) {
+if (!canUseAdminPermission('viewAppeals')) return;
+const username = decodeURIComponent(encodedUsername || '');
+if (!username) return;
+try {
+await setUserBanStatus(username, false, 'Appeal approved', { bannedBy: currentChatUser || getUserName() || 'admin' });
+const db = getAdminDb();
+await db.collection(APPEALS_COLLECTION).doc(decodeURIComponent(appealDocId)).update({ status: 'approved', resolvedBy: currentChatUser });
+await writeAuditLog('approve_appeal', username, 'Ban appeal approved — user unbanned');
+loadAppealsQueue();
+} catch (err) { alert('Failed to approve appeal.'); }
+}
+
+async function rejectAppeal(appealDocId) {
+if (!canUseAdminPermission('viewAppeals')) return;
+try {
+const db = getAdminDb();
+await db.collection(APPEALS_COLLECTION).doc(decodeURIComponent(appealDocId)).update({ status: 'rejected', resolvedBy: currentChatUser });
+loadAppealsQueue();
+} catch (err) { alert('Failed to reject appeal.'); }
+}
+
+// === ACTIVITY STATUS ===
+const USER_ACTIVITY_COLLECTION = 'user_activity';
+let activityHeartbeatInterval = null;
+let activityCache = {};
+let activitySnapshotUnsub = null;
+
+async function startActivityHeartbeat() {
+if (!currentChatUser) return;
+const writeStatus = async (statusVal) => {
+try {
+const db = getAdminDb();
+await db.collection(USER_ACTIVITY_COLLECTION).doc(currentChatUser).set({
+status: statusVal !== undefined ? statusVal : (document.hidden ? 'idle' : 'online'),
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+} catch (e) {}
+};
+await writeStatus();
+if (activityHeartbeatInterval) clearInterval(activityHeartbeatInterval);
+activityHeartbeatInterval = setInterval(() => writeStatus(), 60000);
+document.addEventListener('visibilitychange', () => writeStatus(document.hidden ? 'idle' : 'online'));
+window.addEventListener('beforeunload', () => writeStatus('offline'));
+}
+
+function loadActivityStatuses() {
+try {
+const db = getAdminDb();
+if (activitySnapshotUnsub) activitySnapshotUnsub();
+activitySnapshotUnsub = db.collection(USER_ACTIVITY_COLLECTION).onSnapshot(snapshot => {
+const now = Date.now();
+snapshot.forEach(doc => {
+const d = doc.data() || {};
+const updatedMs = d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().getTime() : 0;
+const age = now - updatedMs;
+if (d.status === 'offline' || age > 10 * 60000) {
+activityCache[doc.id] = 'offline';
+} else if (age > 2 * 60000 || d.status === 'idle') {
+activityCache[doc.id] = 'idle';
+} else {
+activityCache[doc.id] = 'online';
+}
+});
+});
+} catch (e) {}
+}
+
+function getStatusDotHtml(username) {
+const status = activityCache[normalizeUsername(username)] || 'offline';
+const color = status === 'online' ? '#66bb6a' : status === 'idle' ? '#ffca28' : '#555';
+return `<span class="status-dot" style="background:${color};" title="${status}"></span>`;
+}
+
+// === FRIENDS & DM SYSTEM ===
+const USER_FRIENDS_COLLECTION = 'user_friends';
+const DM_MESSAGES_COLLECTION = 'dm_messages';
+let activeDMUser = null;
+let dmSnapshotUnsub = null;
+let myFriends = new Set();
+let pendingRequestsFromOthers = [];
+let pendingRequestsToOthers = new Set();
+
+function getFriendshipId(a, b) {
+return [normalizeUsername(a), normalizeUsername(b)].sort().join('::');
+}
+
+function getDMConversationId(a, b) {
+return [normalizeUsername(a), normalizeUsername(b)].sort().join('::');
+}
+
+function updateDmUnreadBadge() {
+const badge = document.getElementById('dm-unread-badge');
+if (!badge) return;
+if (dmUnreadCount > 0) {
+badge.textContent = dmUnreadCount > 99 ? '99+' : String(dmUnreadCount);
+badge.style.display = 'flex';
+} else {
+badge.style.display = 'none';
+badge.textContent = '';
+}
+}
+
+function startDMInboxListeners() {
+const me = normalizeUsername(currentChatUser);
+if (!me) return;
+const db = getAdminDb();
+if (dmUnreadListenerUnsub) dmUnreadListenerUnsub();
+if (dmInboxOutgoingUnsub) dmInboxOutgoingUnsub();
+dmKnownIncomingIds = new Set();
+dmInboxDocs = new Map();
+let initialSnapshot = true;
+dmUnreadListenerUnsub = db.collection(DM_MESSAGES_COLLECTION)
+  .where('to', '==', me)
+  .limit(200)
+  .onSnapshot((snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === 'removed') {
+        dmInboxDocs.delete(change.doc.id);
+        return;
+      }
+      const data = change.doc.data() || {};
+      const isUnread = !data.readByRecipient;
+      dmInboxDocs.set(change.doc.id, data);
+      if (!dmKnownIncomingIds.has(change.doc.id)) {
+        dmKnownIncomingIds.add(change.doc.id);
+        if (!initialSnapshot && change.type === 'added' && isUnread && !isUserBlocked(data.from || '') && activeDMUser !== normalizeUsername(data.from || '')) {
+          showDMNotification(`New DM from ${data.from || 'someone'}`);
+        }
+      }
+    });
+    initialSnapshot = false;
+    rebuildDMConversationSummaries();
+  });
+
+dmInboxOutgoingUnsub = db.collection(DM_MESSAGES_COLLECTION)
+  .where('from', '==', me)
+  .limit(200)
+  .onSnapshot((snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === 'removed') {
+        dmInboxDocs.delete(change.doc.id);
+        return;
+      }
+      dmInboxDocs.set(change.doc.id, change.doc.data() || {});
+    });
+    rebuildDMConversationSummaries();
+  });
+}
+
+async function markConversationAsRead(targetUsername) {
+const me = normalizeUsername(currentChatUser);
+const target = normalizeUsername(targetUsername);
+if (!me || !target) return;
+try {
+const db = getAdminDb();
+const convoId = getDMConversationId(me, target);
+const snapshot = await db.collection(DM_MESSAGES_COLLECTION)
+    .where('conversationId', '==', convoId)
+    .limit(120)
+    .get();
+  const unreadDocs = snapshot.docs.filter((doc) => {
+    const data = doc.data() || {};
+    return data.to === me && !data.readByRecipient;
+  });
+  for (const doc of unreadDocs) {
+    await doc.ref.set({
+      readByRecipient: true,
+      readAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+} catch (err) {}
+}
+
+async function loadFriendsData() {
+const me = normalizeUsername(currentChatUser);
+if (!me) return;
+try {
+const db = getAdminDb();
+const snapshot = await db.collection(USER_FRIENDS_COLLECTION).where('users', 'array-contains', me).get();
+myFriends.clear();
+pendingRequestsFromOthers = [];
+pendingRequestsToOthers.clear();
+(snapshot.docs || []).forEach(doc => {
+const d = doc.data() || {};
+const other = Array.isArray(d.users) ? d.users.find(u => u !== me) : null;
+if (!other) return;
+if (d.status === 'accepted') {
+myFriends.add(other);
+} else if (d.status === 'pending' && d.initiatedBy === me) {
+pendingRequestsToOthers.add(other);
+} else if (d.status === 'pending' && d.initiatedBy !== me) {
+pendingRequestsFromOthers.push({ username: other, docId: doc.id });
+}
+});
+} catch (e) {}
+}
+
+async function sendFriendRequest(targetUsername) {
+const from = normalizeUsername(currentChatUser);
+const to = normalizeUsername(targetUsername);
+if (!from || !to || from === to) return;
+const docId = getFriendshipId(from, to);
+try {
+const db = getAdminDb();
+const existing = await db.collection(USER_FRIENDS_COLLECTION).doc(docId).get();
+if (existing.exists) { alert('Friend request already sent or already friends.'); return; }
+await db.collection(USER_FRIENDS_COLLECTION).doc(docId).set({
+users: [from, to],
+status: 'pending',
+initiatedBy: from,
+createdAt: firebase.firestore.FieldValue.serverTimestamp()
+});
+pendingRequestsToOthers.add(to);
+updateProfileModalButtons();
+alert(`Friend request sent to ${to}!`);
+} catch (err) {
+alert('Failed to send friend request.');
+}
+}
+
+async function acceptFriendRequest(fromUsername) {
+const from = normalizeUsername(fromUsername);
+const to = normalizeUsername(currentChatUser);
+if (!from || !to) return;
+const docId = getFriendshipId(from, to);
+try {
+const db = getAdminDb();
+await db.collection(USER_FRIENDS_COLLECTION).doc(docId).update({
+status: 'accepted',
+acceptedAt: firebase.firestore.FieldValue.serverTimestamp()
+});
+await loadFriendsData();
+renderFriendsModal();
+updateProfileModalButtons();
+} catch (err) {
+alert('Failed to accept friend request.');
+}
+}
+
+async function removeFriend(targetUsername) {
+const me = normalizeUsername(currentChatUser);
+const target = normalizeUsername(targetUsername);
+if (!me || !target) return;
+const docId = getFriendshipId(me, target);
+try {
+const db = getAdminDb();
+await db.collection(USER_FRIENDS_COLLECTION).doc(docId).delete();
+myFriends.delete(target);
+pendingRequestsToOthers.delete(target);
+pendingRequestsFromOthers = pendingRequestsFromOthers.filter(r => r.username !== target);
+updateProfileModalButtons();
+renderFriendsModal();
+} catch (err) {
+alert('Failed to remove friend.');
+}
+}
+
+async function openFriendsModal() {
+if (!currentChatUser) return;
+await loadFriendsData();
+renderFriendsModal();
+openModalById('friends-modal');
+}
+
+function closeFriendsModal() {
+closeModalById('friends-modal');
+}
+
+function renderFriendsModal() {
+const reqSection = document.getElementById('friend-requests-section');
+const reqList = document.getElementById('friend-requests-list');
+const friendsList = document.getElementById('friends-list');
+const inboxList = document.getElementById('friends-dm-inbox-list');
+if (!reqList || !friendsList || !inboxList) return;
+inboxList.innerHTML = getDmConversationListHtml(activeDMUser, 'No DMs yet. Messages you send or receive will show up here.', true);
+if (pendingRequestsFromOthers.length) {
+reqSection.style.display = 'block';
+reqList.innerHTML = pendingRequestsFromOthers.map(r =>
+`<div style="display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0; border-bottom:1px solid #2a2a2a;">
+${getStatusDotHtml(r.username)}
+<span style="flex:1;">${escapeHtml(r.username)}</span>
+<button onclick="acceptFriendRequest('${escapeHtml(r.username)}')" style="padding:0.2rem 0.5rem; background:#2e7d32; color:#fff; border:none; border-radius:0.2rem; font-size:0.78rem; cursor:pointer;">Accept</button>
+<button onclick="removeFriend('${escapeHtml(r.username)}')" style="padding:0.2rem 0.5rem; background:#b71c1c; color:#fff; border:none; border-radius:0.2rem; font-size:0.78rem; cursor:pointer;">Decline</button>
+</div>`).join('');
+} else {
+if (reqSection) reqSection.style.display = 'none';
+}
+if (!myFriends.size) {
+friendsList.innerHTML = '<div style="color:#999; font-size:0.88rem;">No friends yet. Add them from their profile!</div>';
+} else {
+friendsList.innerHTML = Array.from(myFriends).map(username =>
+`<div style="display:flex; align-items:center; gap:0.5rem; padding:0.35rem 0; border-bottom:1px solid #2a2a2a;">
+${getStatusDotHtml(username)}
+<span style="flex:1; cursor:pointer; color:#90caf9;" onclick="openUserProfileFromChat('${encodeURIComponent(username)}', event)">${escapeHtml(username)}</span>
+<button onclick="openDMModal('${escapeHtml(username)}')" style="padding:0.2rem 0.5rem; background:#1565c0; color:#fff; border:none; border-radius:0.2rem; font-size:0.78rem; cursor:pointer;">\ud83d\udcac DM</button>
+<button onclick="removeFriend('${escapeHtml(username)}')" style="padding:0.2rem 0.5rem; background:#555; color:#fff; border:none; border-radius:0.2rem; font-size:0.78rem; cursor:pointer;">Remove</button>
+</div>`).join('');
+}
+}
+
+function updateProfileModalButtons() {
+const dmBtn = document.getElementById('profile-dm-btn');
+const friendBtn = document.getElementById('profile-friend-btn');
+const blockBtn = document.getElementById('profile-block-btn');
+const me = normalizeUsername(currentChatUser);
+const target = normalizeUsername(currentProfileViewUser);
+if (!me || !target || me === target) {
+if (dmBtn) dmBtn.style.display = 'none';
+if (friendBtn) friendBtn.style.display = 'none';
+if (blockBtn) blockBtn.style.display = 'none';
+return;
+}
+if (dmBtn) dmBtn.style.display = 'inline-block';
+if (friendBtn) {
+friendBtn.style.display = 'inline-block';
+if (myFriends.has(target)) {
+friendBtn.textContent = '\ud83d\udc65 Friends';
+friendBtn.style.background = '#2e7d32';
+} else if (pendingRequestsToOthers.has(target)) {
+friendBtn.textContent = '\u23f3 Pending';
+friendBtn.style.background = '#5a4a00';
+} else {
+friendBtn.textContent = '\ud83d\udc65 Add Friend';
+friendBtn.style.background = '#37474f';
+}
+}
+if (blockBtn) {
+blockBtn.style.display = 'inline-block';
+if (isUserBlocked(target)) {
+blockBtn.textContent = 'Unblock';
+blockBtn.style.background = '#2e7d32';
+} else {
+blockBtn.textContent = 'Block';
+blockBtn.style.background = '#5d4037';
+}
+}
+}
+
+function openDMFromProfile() {
+if (!currentProfileViewUser) return;
+openDMModal(currentProfileViewUser);
+}
+
+async function toggleFriendFromProfile() {
+const target = normalizeUsername(currentProfileViewUser);
+const me = normalizeUsername(currentChatUser);
+if (!target || !me || me === target) return;
+if (myFriends.has(target)) {
+if (confirm(`Remove ${target} as a friend?`)) await removeFriend(target);
+} else if (pendingRequestsToOthers.has(target)) {
+if (confirm(`Cancel friend request to ${target}?`)) await removeFriend(target);
+} else {
+await sendFriendRequest(target);
+}
+updateProfileModalButtons();
+}
+
+function toggleBlockFromProfile() {
+const target = normalizeUsername(currentProfileViewUser);
+const me = normalizeUsername(currentChatUser);
+if (!target || !me || target === me) return;
+if (blockedUsers.has(target)) {
+blockedUsers.delete(target);
+} else {
+blockedUsers.add(target);
+}
+saveBlockedUsers();
+updateProfileModalButtons();
+renderFriendsModal();
+loadChatMessages();
+rebuildDMConversationSummaries();
+}
+
+async function openDMModal(targetUsername) {
+if (!currentChatUser) { alert('You must be logged in to send DMs.'); return; }
+const target = normalizeUsername(targetUsername);
+const friendsModal = document.getElementById('friends-modal');
+if (friendsModal && friendsModal.style.display === 'flex') {
+closeFriendsModal();
+}
+openModalById('dm-modal');
+renderDMConversationLists();
+if (!target) {
+activeDMUser = null;
+document.getElementById('dm-modal-title').textContent = 'Select a conversation';
+document.getElementById('dm-messages').innerHTML = '<div class="dm-empty-state">Pick a conversation from the inbox to read or reply.</div>';
+return;
+}
+if (target === normalizeUsername(currentChatUser)) return;
+activeDMUser = target;
+document.getElementById('dm-modal-title').textContent = target;
+const input = document.getElementById('dm-input');
+if (input) input.value = '';
+renderDMConversationLists();
+markConversationAsRead(target);
+loadDMConversation(target);
+}
+
+function closeDMModal() {
+closeModalById('dm-modal');
+if (dmSnapshotUnsub) { dmSnapshotUnsub(); dmSnapshotUnsub = null; }
+activeDMUser = null;
+renderDMConversationLists();
+}
+
+function loadDMConversation(targetUsername) {
+if (dmSnapshotUnsub) { dmSnapshotUnsub(); dmSnapshotUnsub = null; }
+const me = normalizeUsername(currentChatUser);
+const target = normalizeUsername(targetUsername);
+const convoId = getDMConversationId(me, target);
+const container = document.getElementById('dm-messages');
+if (!container) return;
+container.innerHTML = '<div style="color:#999; font-size:0.85rem; padding:0.5rem;">Loading...</div>';
+try {
+const db = getAdminDb();
+dmSnapshotUnsub = db.collection(DM_MESSAGES_COLLECTION)
+.where('conversationId', '==', convoId)
+.limit(80)
+.onSnapshot(snapshot => {
+markConversationAsRead(target);
+if (snapshot.empty) {
+container.innerHTML = '<div style="color:#999; font-size:0.85rem; padding:0.5rem;">No messages yet. Say hi!</div>';
+return;
+}
+const sortedDocs = snapshot.docs.slice().sort((a, b) => {
+const aMs = a.data().timestamp && a.data().timestamp.toDate ? a.data().timestamp.toDate().getTime() : 0;
+const bMs = b.data().timestamp && b.data().timestamp.toDate ? b.data().timestamp.toDate().getTime() : 0;
+return aMs - bMs;
+});
+container.innerHTML = sortedDocs.map(doc => {
+const d = doc.data() || {};
+const isOwn = d.from === me;
+const time = d.timestamp && d.timestamp.toDate ? d.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+const messageText = sanitizeNullableText(d.message, '');
+const fromText = sanitizeNullableText(d.from, '');
+return `<div style="display:flex; flex-direction:column; align-items:${isOwn ? 'flex-end' : 'flex-start'}; max-width:80%; align-self:${isOwn ? 'flex-end' : 'flex-start'};">
+<div style="background:${isOwn ? '#1565c0' : '#2a2a2a'}; padding:0.45rem 0.75rem; border-radius:0.6rem; color:#fff; font-size:0.9rem; word-break:break-word;">${escapeHtml(messageText)}</div>
+<div style="font-size:0.7rem; color:#666; margin-top:0.1rem;">${escapeHtml(fromText)} \u00b7 ${time}</div>
+</div>`;
+}).join('');
+container.scrollTop = container.scrollHeight;
+});
+} catch (e) {
+container.innerHTML = '<div style="color:#f88; font-size:0.85rem; padding:0.5rem;">Failed to load messages.</div>';
+}
+}
+
+async function adminResetCasinoLeaderboard() {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+if (!confirm('Reset every casino leaderboard? This sets balances back to $1,000, clears owned casino shop inventory, cases, all-time best drops, and deletes all coin flip records.')) {
+  return;
+}
+try {
+  const db = getCasinoDb();
+  const coinFlipResult = await clearCasinoCoinFlipRecords({ refundOpenChallenges: false });
+  const snapshot = await getCasinoBalanceCollection().get();
+  const docs = snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [];
+  let updatedCount = 0;
+  for (let index = 0; index < docs.length; index += 200) {
+    const batch = db.batch();
+    docs.slice(index, index + 200).forEach((doc) => {
+      const rawData = doc.data() || {};
+      const username = normalizeUsername(rawData.username || doc.id);
+      if (!username) return;
+      const currentStats = normalizeCasinoProfileStatsData(username, rawData);
+      const nextStats = {
+        ...currentStats,
+        balance: 1000,
+        biggestBalance: 1000,
+        ownedGeneralShopCaseCounts: {},
+        ownedGeneralShopItemIds: [],
+        ownedGeneralShopItemSaleValues: [],
+        selectedGeneralShopFeaturedItemId: '',
+        allTimeBestGeneralShopDropItemId: '',
+        allTimeBestGeneralShopDropTitle: '',
+        allTimeBestGeneralShopDropRarity: 'mil-spec',
+        allTimeBestGeneralShopDropValue: 0
+      };
+      batch.set(doc.ref, {
+        username,
+        displayName: sanitizeNullableText(rawData.displayName, username) || username,
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      updatedCount += 1;
+    });
+    await batch.commit();
+  }
+  casinoProfileStatsCache = {};
+  await writeAuditLog('casino_reset_leaderboard', '', `Reset ${updatedCount} casino leaderboard records: balances to 1000, cases/items cleared, all-time drops cleared, deleted ${coinFlipResult.deletedCount} coin flip records`);
+  await loadCasinoBalance().catch(() => {});
+  if (typeof renderGeneralShopModal === 'function') renderGeneralShopModal();
+  if (typeof renderGeneralShopInventoryModal === 'function') renderGeneralShopInventoryModal();
+  if (document.getElementById('casino-leaderboard-modal')?.style.display === 'flex') {
+    await loadCasinoLeaderboard().catch(() => {});
+  }
+  if (currentProfileViewUser) {
+    await loadProfileDetails(currentProfileViewUser).catch(() => {});
+    renderProfileModal(currentProfileViewUser);
+  }
+  const selectedCasinoUser = normalizeUsername(resolveAdminTargetUsername('admin-casino-username'));
+  if (selectedCasinoUser) await loadAdminCasinoManager(selectedCasinoUser);
+  scheduleDynamicLeaderboardTagRefresh();
+  if (statusDiv) {
+    statusDiv.textContent = updatedCount
+      ? `Casino leaderboards reset. ${updatedCount} accounts were reset to $1,000, casino inventory/drop records were cleared, and ${coinFlipResult.deletedCount} coin flip records were deleted.`
+      : `Casino leaderboard reset. No casino balances were found.${coinFlipResult.deletedCount ? ` Deleted ${coinFlipResult.deletedCount} coin flip records.` : ''}`;
+  }
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to reset the casino leaderboard.';
+}
+}
+
+async function adminResetCasinoStats() {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+if (!confirm('Reset all casino win/loss stats, streaks, achievements, and bankruptcy counters while keeping current balances? Open coin flips will be cancelled, refunded, and removed.')) {
+  return;
+}
+try {
+  const db = getCasinoDb();
+  const coinFlipResult = await clearCasinoCoinFlipRecords({ refundOpenChallenges: true });
+  const snapshot = await getCasinoBalanceCollection().get();
+  const docs = snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [];
+  let updatedCount = 0;
+  for (let index = 0; index < docs.length; index += 200) {
+    const batch = db.batch();
+    docs.slice(index, index + 200).forEach((doc) => {
+      const rawData = doc.data() || {};
+      const username = normalizeUsername(rawData.username || doc.id);
+      if (!username) return;
+      const currentStats = normalizeCasinoProfileStatsData(username, rawData);
+      const nextStats = normalizeCasinoProfileStatsData(username, {
+        ...rawData,
+        balance: currentStats.balance,
+        bankruptcies: 0,
+        wins: 0,
+        losses: 0,
+        pushes: 0,
+        gamesPlayed: 0,
+        totalWagered: 0,
+        biggestWin: 0,
+        biggestBalance: currentStats.balance,
+        currentWinStreak: 0,
+        currentLossStreak: 0,
+        bestWinStreak: 0,
+        worstLossStreak: 0,
+        hotHandUntilMs: 0,
+        coldTableUntilMs: 0,
+        reliefClaims: 0,
+        lastReliefClaimAtMs: 0,
+        lastGameAtMs: 0,
+        achievementIds: []
+      });
+      batch.set(doc.ref, {
+        username,
+        displayName: sanitizeNullableText(rawData.displayName, username) || username,
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      updatedCount += 1;
+    });
+    await batch.commit();
+  }
+  casinoProfileStatsCache = {};
+  await writeAuditLog('casino_reset_stats', '', `Reset casino stats on ${updatedCount} balance records, refunded ${coinFlipResult.refundedCount} open coin flips, deleted ${coinFlipResult.deletedCount} coin flip records`);
+  await loadCasinoBalance().catch(() => {});
+  if (currentProfileViewUser) {
+    await loadProfileDetails(currentProfileViewUser).catch(() => {});
+    renderProfileModal(currentProfileViewUser);
+  }
+  const selectedCasinoUser = normalizeUsername(resolveAdminTargetUsername('admin-casino-username'));
+  if (selectedCasinoUser) await loadAdminCasinoManager(selectedCasinoUser);
+  scheduleDynamicLeaderboardTagRefresh();
+  if (statusDiv) {
+    statusDiv.textContent = updatedCount
+      ? `Casino stats reset on ${updatedCount} player records. Refunded ${coinFlipResult.refundedCount} open coin flips and deleted ${coinFlipResult.deletedCount} coin flip records.`
+      : `Casino stats reset. No casino records were found.${coinFlipResult.deletedCount ? ` Deleted ${coinFlipResult.deletedCount} coin flip records.` : ''}`;
+  }
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to reset casino stats.';
+}
+}
+
+async function adminClearCasinoFeed() {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+if (!confirm('Clear every item from the casino feed?')) {
+  return;
+}
+try {
+  const db = getCasinoDb();
+  let deletedCount = 0;
+  while (true) {
+    const snapshot = await getCasinoActivityCollection().limit(200).get();
+    if (!snapshot || snapshot.empty) break;
+    const batch = db.batch();
+    snapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+      deletedCount += 1;
+    });
+    await batch.commit();
+  }
+  casinoActivityCache = [];
+  renderCasinoActivityFeed();
+  await writeAuditLog('casino_clear_feed', '', `Deleted ${deletedCount} casino feed records`);
+  if (statusDiv) {
+    statusDiv.textContent = deletedCount
+      ? `Casino feed cleared. Removed ${deletedCount} feed items.`
+      : 'Casino feed cleared. No feed items were found.';
+  }
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to clear the casino feed.';
+}
+}
+
+async function clearCasinoCoinFlipRecords(options = {}) {
+const refundOpenChallenges = !!options.refundOpenChallenges;
+const db = getCasinoDb();
+const snapshot = await getCasinoCoinFlipCollection().get();
+const docs = snapshot && Array.isArray(snapshot.docs) ? snapshot.docs : [];
+let refundedCount = 0;
+let deletedCount = 0;
+if (refundOpenChallenges) {
+  for (let index = 0; index < docs.length; index += 1) {
+    const doc = docs[index];
+    const initialChallenge = normalizeCasinoCoinFlipData(doc.id, doc.data() || {});
+    if (initialChallenge.status !== 'open' || !initialChallenge.challenger || initialChallenge.bet <= 0) continue;
+    const refundResult = await db.runTransaction(async (tx) => {
+      const challengeSnap = await tx.get(doc.ref);
+      if (!challengeSnap.exists) return null;
+      const challenge = normalizeCasinoCoinFlipData(challengeSnap.id, challengeSnap.data() || {});
+      if (challenge.status !== 'open' || !challenge.challenger || challenge.bet <= 0) return null;
+      const balanceRef = getCasinoBalanceCollection().doc(challenge.challenger);
+      const balanceSnap = await tx.get(balanceRef);
+      const currentStats = normalizeCasinoProfileStatsData(challenge.challenger, balanceSnap.exists ? (balanceSnap.data() || {}) : {});
+      const nextBalance = currentStats.balance + challenge.bet;
+      const nextStats = {
+        ...currentStats,
+        balance: nextBalance,
+        biggestBalance: Math.max(currentStats.biggestBalance, nextBalance)
+      };
+      nextStats.achievementIds = getCasinoUnlockedAchievementIds(nextStats);
+      tx.set(balanceRef, {
+        username: challenge.challenger,
+        displayName: sanitizeNullableText((balanceSnap.exists ? (balanceSnap.data() || {}).displayName : '') || challenge.challengerDisplayName, challenge.challenger),
+        ...nextStats,
+        updatedAtMs: Date.now()
+      }, { merge: true });
+      tx.set(doc.ref, {
+        status: 'cancelled',
+        cancelledBy: 'admin',
+        updatedAtMs: Date.now(),
+        resolvedAtMs: Date.now()
+      }, { merge: true });
+      return {
+        challenger: challenge.challenger,
+        nextStats
+      };
+    });
+    if (refundResult && refundResult.challenger) {
+      casinoProfileStatsCache[refundResult.challenger] = refundResult.nextStats;
+      refundedCount += 1;
+    }
+  }
+}
+for (let index = 0; index < docs.length; index += 200) {
+  const batch = db.batch();
+  docs.slice(index, index + 200).forEach((doc) => {
+    batch.delete(doc.ref);
+    deletedCount += 1;
+  });
+  await batch.commit();
+}
+casinoCoinFlipCache = [];
+coinFlipVisualState = createDefaultCasinoCoinFlipVisualState();
+if (document.getElementById('casino-modal')?.style.display === 'flex' && activeCasinoGame === 'coinflip') {
+  renderActiveCasinoGamePanel();
+}
+return { refundedCount, deletedCount };
+}
+
+async function adminClearCasinoCoinFlips() {
+if (!canUseAdminPermission('manageCasino')) return;
+const statusDiv = document.getElementById('admin-casino-status');
+if (!confirm('Clear all coin flip history and cancel open coin flips with refunds before deleting them?')) {
+  return;
+}
+try {
+  const result = await clearCasinoCoinFlipRecords({ refundOpenChallenges: true });
+  await writeAuditLog('casino_clear_coin_flips', '', `Refunded ${result.refundedCount} open coin flips and deleted ${result.deletedCount} coin flip records`);
+  await loadCasinoBalance().catch(() => {});
+  if (statusDiv) {
+    statusDiv.textContent = result.deletedCount
+      ? `Cleared coin flips. Refunded ${result.refundedCount} open challenge${result.refundedCount === 1 ? '' : 's'} and deleted ${result.deletedCount} records.`
+      : 'No coin flip records were found.';
+  }
+} catch (err) {
+  if (statusDiv) statusDiv.textContent = 'Failed to clear coin flip records.';
+}
+}
+
+async function sendDMMessage() {
+if (!currentChatUser || !activeDMUser) return;
+const input = document.getElementById('dm-input');
+const message = input ? input.value.trim() : '';
+if (!message) return;
+const me = normalizeUsername(currentChatUser);
+const target = normalizeUsername(activeDMUser);
+const convoId = getDMConversationId(me, target);
+try {
+const db = getAdminDb();
+await db.collection(DM_MESSAGES_COLLECTION).add({
+conversationId: convoId,
+from: me,
+to: target,
+message: message.slice(0, 500),
+readByRecipient: false,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+if (input) input.value = '';
+} catch (err) {
+alert('Failed to send message.');
+}
+}
+
+async function adminToggleReadOnlyMode() {
+if (!canUseAdminPermission('manageSettings')) return;
+try {
+const db = getAdminDb();
+await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+readOnlyMode: !moderationSettings.readOnlyMode,
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = `Read-only mode ${!moderationSettings.readOnlyMode ? 'enabled' : 'disabled'}.`;
+} catch (err) {
+alert('Failed to toggle read-only mode.');
+}
+}
+
+async function adminEditWordFilter() {
+if (!canUseAdminPermission('manageSettings')) return;
+const current = moderationSettings.blockedWords.join('\n');
+const input = prompt('Blocked words (one per line):', current);
+if (input === null) return;
+const words = input.split('\n').map(w => w.trim().toLowerCase()).filter(Boolean).slice(0, 120);
+try {
+const db = getAdminDb();
+await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+blockedWords: words,
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = `Updated word filter (${words.length} words).`;
+} catch (err) {
+alert('Failed to update word filter.');
+}
+}
+
+async function adminSetAnnouncement() {
+if (!canUseAdminPermission('manageSettings')) return;
+const text = (prompt('Announcement text:', moderationSettings.announcementText || '') || '').trim();
+if (!text) return;
+const minsInput = (prompt('How many minutes should it stay visible? (blank = no auto-expire)', '60') || '').trim();
+const minutes = minsInput ? Math.max(1, Math.min(10080, parseInt(minsInput, 10) || 60)) : 0;
+const expiresAt = minutes ? new Date(Date.now() + minutes * 60000) : null;
+try {
+const db = getAdminDb();
+await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+announcementText: text.slice(0, 300),
+announcementEndsAt: expiresAt ? firebase.firestore.Timestamp.fromDate(expiresAt) : null,
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = 'Announcement updated.';
+} catch (err) {
+alert('Failed to set announcement.');
+}
+}
+
+async function adminClearAnnouncement() {
+if (!canUseAdminPermission('manageSettings')) return;
+try {
+const db = getAdminDb();
+await db.collection('chat_meta').doc(MOD_SETTINGS_DOC_ID).set({
+announcementText: '',
+announcementEndsAt: null,
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+const statusDiv = document.getElementById('admin-ban-status');
+if (statusDiv) statusDiv.textContent = 'Announcement cleared.';
+} catch (err) {
+alert('Failed to clear announcement.');
+}
+}
+
+async function adminSetSiteEvent() {
+if (!canUseAdminPermission('manageSettings')) return;
+const title = sanitizeNullableText(prompt('Event title:', activeSiteEventCache && activeSiteEventCache.title || '') || '', '').slice(0, 80);
+if (!title) return;
+const body = sanitizeNullableText(prompt('Event description:', activeSiteEventCache && activeSiteEventCache.body || '') || '', '').slice(0, 240);
+const accent = sanitizeNullableText(prompt('Hex accent color:', activeSiteEventCache && activeSiteEventCache.accent || '#2f8d46') || '#2f8d46', '').slice(0, 7);
+const minsInput = (prompt('How many minutes should the event stay active? (blank = no auto-expire)', '1440') || '').trim();
+const minutes = minsInput ? Math.max(1, Math.min(43200, parseInt(minsInput, 10) || 1440)) : 0;
+const endsAt = minutes ? new Date(Date.now() + minutes * 60000) : null;
+try {
+  await getAdminDb().collection('chat_meta').doc(SITE_EVENT_DOC_ID).set({
+    title,
+    body,
+    accent: /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : '#2f8d46',
+    endsAtMs: endsAt ? endsAt.getTime() : 0,
+    endsAt: endsAt ? firebase.firestore.Timestamp.fromDate(endsAt) : null,
+    updatedBy: currentChatUser,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  await loadActiveSiteEvent();
+  renderAnnouncementBanner();
+  pushNotification({ type: 'event', title: 'New site event', body: title, read: false, action: { kind: 'hub', tab: 'events' } });
+  const statusDiv = document.getElementById('admin-ban-status');
+  if (statusDiv) statusDiv.textContent = 'Site event updated.';
+} catch (err) {
+  alert('Failed to set site event.');
+}
+}
+
+async function adminClearSiteEvent() {
+if (!canUseAdminPermission('manageSettings')) return;
+try {
+  await getAdminDb().collection('chat_meta').doc(SITE_EVENT_DOC_ID).delete();
+  activeSiteEventCache = null;
+  renderAnnouncementBanner();
+  const statusDiv = document.getElementById('admin-ban-status');
+  if (statusDiv) statusDiv.textContent = 'Site event cleared.';
+} catch (err) {
+  alert('Failed to clear site event.');
+}
+}
+
+async function adminAssignRole() {
+if (!canAssignRoles(currentChatUser)) {
+alert('You do not have permission to assign roles.');
+return;
+}
+const username = resolveAdminTargetUsername('admin-role-username');
+const role = normalizeUsername(document.getElementById('admin-role-select').value || 'member');
+const statusDiv = document.getElementById('admin-ban-status');
+const allowed = ['cameronsbitch','chud','member', 'helper', 'reviewer', 'mod', 'moderator', 'admin'];
+if (!username) {
+statusDiv.textContent = 'Enter a username for role assignment.';
+return;
+}
+if (!allowed.includes(role)) {
+statusDiv.textContent = 'Invalid role selected.';
+return;
+}
+try {
+const db = getAdminDb();
+await db.collection(USER_ROLES_COLLECTION).doc(username).set({
+role,
+updatedBy: currentChatUser,
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+statusDiv.textContent = `Set role of ${username} to ${getRoleDisplayName(role)}.`;
+document.getElementById('admin-role-username').value = '';
+} catch (err) {
+statusDiv.textContent = 'Failed to assign role.';
+}
+}
+
+async function adminWarnUser() {
+if (!canModerate(currentChatUser)) return;
+const username = resolveAdminTargetUsername('admin-warn-username');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+statusDiv.textContent = 'Enter a username to warn.';
+return;
+}
+if (isProtectedUsername(username)) {
+statusDiv.textContent = `${username} cannot be warned.`;
+return;
+}
+const reasonInput = document.getElementById('admin-warn-reason').value;
+const reason = (reasonInput || 'Rule violation').trim().slice(0, 120);
+try {
+const db = getAdminDb();
+const ref = db.collection(USER_WARNINGS_COLLECTION).doc(username);
+const doc = await ref.get();
+const count = ((doc.exists ? (doc.data().count || 0) : 0) + 1);
+const history = doc.exists && Array.isArray(doc.data().history) ? doc.data().history.slice(-19) : [];
+history.push({ reason, by: currentChatUser, at: new Date().toISOString() });
+await ref.set({ count, history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+await postSystemNotice(`${username} received warning ${count}/3.`);
+statusDiv.textContent = `${username} warning count: ${count}/3.`;
+await writeAuditLog('warn', username, `Warning ${count}/3: ${reason}`);
+document.getElementById('admin-warn-username').value = '';
+document.getElementById('admin-warn-reason').value = '';
+if (count >= 3) {
+await db.collection('muted_users').doc(username).set({
+muted: true,
+mutedBy: currentChatUser,
+reason: 'Auto-mute after 3 warnings',
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+await postSystemNotice(`${username} was auto-muted after 3 warnings.`);
+}
+} catch (err) {
+statusDiv.textContent = 'Failed to warn user.';
+}
+}
+
+async function getActiveTimedBan(username) {
+const key = normalizeUsername(username);
+if (!key || isProtectedUsername(key)) return null;
+try {
+if (!firebase.apps.length) {
+firebase.initializeApp(firebaseConfig);
+}
+const db = getAdminDb();
+const ref = db.collection(TIMED_BANS_COLLECTION).doc(key);
+const doc = await ref.get();
+if (!doc.exists) return null;
+const data = doc.data() || {};
+const expiresAt = data.expiresAt && typeof data.expiresAt.toDate === 'function' ? data.expiresAt.toDate() : null;
+if (!expiresAt || expiresAt.getTime() <= Date.now()) {
+await clearTimedBanState(key, db);
+return null;
+}
+return { reason: sanitizeNullableText(data.reason, 'Temporary ban'), expiresAt };
+} catch (err) {
+return null;
+}
+}
+
+async function clearTimedBanState(username, db = null) {
+const key = normalizeUsername(username);
+if (!key || isProtectedUsername(key)) return;
+const adminDb = db || getAdminDb();
+await Promise.allSettled([
+adminDb.collection(TIMED_BANS_COLLECTION).doc(key).delete(),
+adminDb.collection('kicked_users').doc(key).delete()
+]);
+}
+
+async function loadActiveTempBans() {
+const container = document.getElementById('admin-tempban-list');
+if (!container) return;
+if (!canUseAdminPermission('tempBan')) {
+container.textContent = 'Insufficient permissions.';
+return;
+}
+container.textContent = 'Loading temp bans...';
+try {
+const db = getAdminDb();
+const snapshot = await db.collection(TIMED_BANS_COLLECTION).get();
+const now = Date.now();
+const activeEntries = [];
+const cleanupTasks = [];
+
+snapshot.forEach((doc) => {
+const username = normalizeUsername(doc.id);
+const data = doc.data() || {};
+const expiresAt = data.expiresAt && typeof data.expiresAt.toDate === 'function' ? data.expiresAt.toDate() : null;
+if (!username || !expiresAt || expiresAt.getTime() <= now) {
+if (username) cleanupTasks.push(clearTimedBanState(username, db));
+return;
+}
+activeEntries.push({
+username,
+reason: sanitizeNullableText(data.reason, 'Temporary ban'),
+minutes: Math.max(1, parseInt(data.minutes, 10) || 0),
+bannedBy: normalizeUsername(data.bannedBy || ''),
+expiresAt
+});
+});
+
+if (cleanupTasks.length) {
+await Promise.allSettled(cleanupTasks);
+}
+
+if (!activeEntries.length) {
+container.textContent = 'No active temp bans.';
+return;
+}
+
+activeEntries.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+container.innerHTML = activeEntries.map((entry) => {
+const safeUser = encodeURIComponent(entry.username);
+const remaining = formatRemainingDuration(entry.expiresAt.getTime() - now);
+const unbanAt = entry.expiresAt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const originalLength = entry.minutes > 0 ? `${entry.minutes} min` : 'custom';
+return `<div style="padding:0.55rem 0; border-bottom:1px solid #2a2a2a;">
+<div style="display:flex; justify-content:space-between; gap:0.75rem; align-items:flex-start; flex-wrap:wrap;">
+<div>
+<div style="font-weight:bold; color:#ffca28;">${escapeHtml(entry.username)}</div>
+<div style="margin-top:0.18rem; color:#bbb;">Remaining: ${escapeHtml(remaining)} • Unbans: ${escapeHtml(unbanAt)}</div>
+<div style="margin-top:0.18rem; color:#999;">Length: ${escapeHtml(originalLength)}${entry.bannedBy ? ` • By: ${escapeHtml(entry.bannedBy)}` : ''}</div>
+<div style="margin-top:0.18rem; color:#ddd;">Reason: ${escapeHtml(entry.reason)}</div>
+</div>
+<button onclick="adminUnbanTempBannedUser('${safeUser}')" style="padding:0.35rem 0.7rem; background:#2e7d32; color:#fff; border:none; border-radius:0.25rem; white-space:nowrap;">Unban</button>
+</div>
+</div>`;
+}).join('');
+} catch (err) {
+container.textContent = 'Failed to load temp bans.';
+}
+}
+
+async function adminUnbanTempBannedUser(encodedUsername) {
+if (!canUseAdminPermission('tempBan')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+if (statusDiv) statusDiv.textContent = 'Invalid username.';
+return;
+}
+try {
+await clearTimedBanState(username);
+if (statusDiv) statusDiv.textContent = `${username} temp ban removed.`;
+await writeAuditLog('unban_temp_ban', username, 'Temporary ban removed');
+loadActiveTempBans();
+} catch (err) {
+if (statusDiv) statusDiv.textContent = 'Failed to remove temp ban.';
+}
+}
+
+async function adminTempBanUser() {
+if (!canUseAdminPermission('tempBan')) return;
+const username = resolveAdminTargetUsername('admin-tempban-username');
+const minutes = Math.max(1, Math.min(10080, parseInt(document.getElementById('admin-tempban-minutes').value || '60', 10) || 60));
+const reason = (document.getElementById('admin-tempban-reason').value || 'Temporary ban').trim().slice(0, 120);
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) {
+statusDiv.textContent = 'Enter a username to temp ban.';
+return;
+}
+if (isProtectedUsername(username)) {
+statusDiv.textContent = `${username} cannot be temp banned.`;
+return;
+}
+try {
+const expiresAt = new Date(Date.now() + minutes * 60000);
+const db = getAdminDb();
+await db.collection(TIMED_BANS_COLLECTION).doc(username).set({
+reason,
+minutes,
+bannedBy: currentChatUser,
+createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt)
+}, { merge: true });
+await db.collection('kicked_users').doc(username).set({
+kicked: true,
+kickedBy: currentChatUser,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+await postSystemNotice(`${username} was temporarily banned for ${minutes} minute(s).`);
+statusDiv.textContent = `${username} temp banned for ${minutes} minutes.`;
+await writeAuditLog('temp_ban', username, `Temp banned ${minutes}min: ${reason}`);
+document.getElementById('admin-tempban-username').value = '';
+document.getElementById('admin-tempban-minutes').value = '';
+document.getElementById('admin-tempban-reason').value = '';
+loadActiveTempBans();
+} catch (err) {
+statusDiv.textContent = 'Failed to temp ban user.';
+}
+}
+
+function listenForTimedBan() {
+if (!chatInitialized || !currentChatUser || isProtectedUsername(currentChatUser)) return;
+const db = getAdminDb();
+if (timedBanStatusUnsub) timedBanStatusUnsub();
+timedBanStatusUnsub = db.collection(TIMED_BANS_COLLECTION).doc(currentChatUser).onSnapshot(async (doc) => {
+if (!doc.exists) {
+currentTimedBanInfo = null;
+updateChatTimeoutStatusUi();
+return;
+}
+const data = doc.data() || {};
+const expiresAt = data.expiresAt && typeof data.expiresAt.toDate === 'function' ? data.expiresAt.toDate() : null;
+if (!expiresAt || expiresAt.getTime() <= Date.now()) {
+currentTimedBanInfo = null;
+try { await clearTimedBanState(currentChatUser, db); } catch (err) {}
+updateChatTimeoutStatusUi();
+return;
+}
+const nextInfo = { reason: sanitizeNullableText(data.reason, 'Temporary ban'), expiresAt };
+const previousExpiry = currentTimedBanInfo && currentTimedBanInfo.expiresAt ? currentTimedBanInfo.expiresAt.getTime() : 0;
+currentTimedBanInfo = nextInfo;
+updateChatTimeoutStatusUi();
+if (previousExpiry !== expiresAt.getTime()) {
+alert(`You are temporarily banned until ${expiresAt.toLocaleString()}. Reason: ${nextInfo.reason}`);
+}
+});
+}
+
+function listenForMuteStatus() {
+if (!chatInitialized || !currentChatUser || isProtectedUsername(currentChatUser)) return;
+const db = getAdminDb();
+if (muteStatusUnsub) muteStatusUnsub();
+muteStatusUnsub = db.collection('muted_users').doc(currentChatUser).onSnapshot(async (doc) => {
+if (!doc.exists) {
+currentMuteInfo = null;
+updateChatTimeoutStatusUi();
+return;
+}
+const data = doc.data() || {};
+if (data.muted !== true) {
+currentMuteInfo = null;
+updateChatTimeoutStatusUi();
+return;
+}
+const expiresAt = data.expiresAt && typeof data.expiresAt.toDate === 'function' ? data.expiresAt.toDate() : null;
+if (expiresAt && expiresAt.getTime() <= Date.now()) {
+currentMuteInfo = null;
+try { await db.collection('muted_users').doc(currentChatUser).delete(); } catch (err) {}
+updateChatTimeoutStatusUi();
+return;
+}
+currentMuteInfo = {
+reason: sanitizeNullableText(data.reason, ''),
+expiresAt,
+mutedBy: normalizeUsername(data.mutedBy || '')
+};
+updateChatTimeoutStatusUi();
+});
+}
+
+async function loadLeaderboard() {
+const entriesDiv = document.getElementById('leaderboard-entries');
+if (!entriesDiv) return;
+try {
+const db = getPrimaryDb();
+const adminDb = getAdminDb();
+const bannedUsers = await getBannedUsernames();
+const bannedSet = new Set((bannedUsers || []).map(u => normalizeUsername(u)));
+const [statsSnapshot, approvedAccountsSnapshot, profilesSnapshot] = await Promise.all([
+db.collection(USER_STATS_COLLECTION).get(),
+adminDb.collection(LOGIN_REQUESTS_COLLECTION).where('status', '==', 'approved').get(),
+adminDb.collection(USER_PROFILES_COLLECTION).get()
+]);
+const allStats = {};
+statsSnapshot.forEach(doc => { allStats[normalizeUsername(doc.id)] = doc.data(); });
+const localStats = getStatsStore();
+const knownUsers = new Set();
+Object.keys(allStats).forEach((username) => knownUsers.add(normalizeUsername(username)));
+Object.keys(localStats || {}).forEach((username) => knownUsers.add(normalizeUsername(username)));
+approvedAccountsSnapshot.forEach((doc) => knownUsers.add(normalizeUsername(doc.id)));
+Object.keys(roleCache || {}).forEach((username) => knownUsers.add(normalizeUsername(username)));
+Object.keys(userTagCache || {}).forEach((username) => knownUsers.add(normalizeUsername(username)));
+knownUsers.add(normalizeUsername(currentChatUser || getUserName() || ''));
+profilesSnapshot.forEach((doc) => {
+const key = normalizeUsername(doc.id);
+if (!key) return;
+userProfileCache[key] = buildProfileCacheEntry(key, doc.data() || {});
+knownUsers.add(key);
+});
+
+const leaderboardData = Array.from(knownUsers)
+.filter(Boolean)
+.filter((username) => !bannedSet.has(username))
+.map((username) => {
+const stats = allStats[username] || localStats[username] || {
+gamesOpened: 0,
+messagesSent: 0,
+mediaShared: 0,
+reactionsUsed: 0
+};
+const { level, points } = calculateUserLevel(stats, username);
+return { username, level, points };
+})
+.sort((a, b) => {
+if (b.points !== a.points) return b.points - a.points;
+return a.username.localeCompare(b.username);
+});
+applyDynamicLeaderboardTagState({
+mostMoney: dynamicLeaderboardTagState.mostMoney,
+mostActive: leaderboardData[0] ? leaderboardData[0].username : '',
+leastMoney: dynamicLeaderboardTagState.leastMoney,
+leastActive: leaderboardData.length ? leaderboardData[leaderboardData.length - 1].username : ''
+}, false);
+if (!leaderboardData.length) {
+entriesDiv.innerHTML = '<div style="color:#999; padding:1rem; text-align:center;">No scores yet. Start playing to climb the leaderboard!</div>';
+return;
+}
+entriesDiv.innerHTML = leaderboardData.map((entry, idx) => {
+const rank = idx + 1;
+const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+const ownerTag = getOwnerTagHtml(entry.username);
+const customTag = getUserTagHtml(entry.username);
+const levelDisplay = entry.level;
+const profileTarget = encodeURIComponent(entry.username);
+const bannerStyle = `background:${getProfileBannerBackground(getCachedProfile(entry.username).bannerData)};${isProfileBannerMedia(getCachedProfile(entry.username).bannerData) ? 'background-size:100% 100%;background-position:center;background-repeat:no-repeat;' : ''}`;
+return `<div class="leaderboard-entry">
+  <div class="leaderboard-entry-banner" style="${escapeHtml(bannerStyle)}"></div>
+       <div class="leaderboard-rank">${medal}</div>
+  <div class="leaderboard-username" onclick="openUserProfileFromChat('${profileTarget}', event)"><span class="leaderboard-identity">${getStatusDotHtml(entry.username)}${renderInlineProfileAvatarHtml(entry.username, 'leaderboard-avatar')}<span class="leaderboard-name-copy">${escapeHtml(entry.username)}${ownerTag}${customTag}</span></span></div>
+       <div class="leaderboard-level">LVL ${levelDisplay}</div>
+       <div class="leaderboard-points">${entry.points.toLocaleString()} pts</div>
+     </div>`;
+}).join('');
+} catch (err) {
+console.error('Leaderboard load failed:', err);
+entriesDiv.innerHTML = '<div style="color:#f44; padding:1rem; text-align:center;">Failed to load leaderboard.</div>';
+}
+}
+
+function getPinnedMessageDocId(scope = 'room', roomId = currentChatRoom) {
+if (scope === 'global') return 'pinned';
+const normalizedRoomId = normalizeUsername(roomId) || 'general';
+return `pinned-room-${normalizedRoomId}`;
+}
+
+function getPinnedMessageEntriesRef(db, scope = 'room', roomId = currentChatRoom) {
+return db.collection('chat_meta').doc(getPinnedMessageDocId(scope, roomId)).collection('entries');
+}
+
+function getPinnedMessagePreviewText(data = {}) {
+const text = sanitizeNullableText(data.message, '').trim();
+if (text) return text;
+if (data.imageData) return '[image]';
+if (data.videoData || data.videoUrl) return '[video]';
+if (data.type === 'gif') return '[gif]';
+return '';
+}
+
+function getPinnedMessageVideoPayload(data = {}) {
+const directVideo = getRenderableChatVideoSource(data);
+if (directVideo) {
+  return { kind: 'direct', value: directVideo };
+}
+const embedVideo = getRenderableChatVideoEmbedUrl(data);
+if (embedVideo) {
+  return { kind: 'embed', value: embedVideo };
+}
+return null;
+}
+
+async function migrateLegacyPinnedMessage(scope = 'room', roomId = currentChatRoom) {
+const db = getAdminDb();
+const legacyRef = db.collection('chat_meta').doc(getPinnedMessageDocId(scope, roomId));
+const legacyDoc = await legacyRef.get();
+if (!legacyDoc.exists) return;
+const data = legacyDoc.data() || {};
+if (!sanitizeNullableText(data.text, '').trim()) {
+  await legacyRef.delete().catch(() => {});
+  return;
+}
+const entriesRef = getPinnedMessageEntriesRef(db, scope, roomId);
+await entriesRef.doc(`legacy-${legacyDoc.id}`).set({
+  docId: sanitizeNullableText(data.docId, ''),
+  user: sanitizeNullableText(data.user, 'unknown'),
+  text: sanitizeNullableText(data.text, ''),
+  videoUrl: normalizeChatVideoUrl(data.videoUrl || ''),
+  videoData: typeof data.videoData === 'string' ? data.videoData : '',
+  scope: scope === 'global' ? 'global' : 'room',
+  room: scope === 'room' ? (normalizeUsername(data.room || roomId) || normalizeUsername(roomId) || 'general') : '',
+  roomName: scope === 'room' ? sanitizeRoomName(data.roomName || getChatRoomConfig(roomId).name || 'Room') : '',
+  pinnedBy: sanitizeNullableText(data.pinnedBy, ''),
+  timestamp: data.timestamp || firebase.firestore.FieldValue.serverTimestamp(),
+  migratedFromLegacy: true
+}, { merge: true });
+await legacyRef.delete().catch(() => {});
+}
+
+function buildPinnedMessageEntryHtml(label, data, scope = 'room') {
+const pinnedUser = escapeHtml(sanitizeNullableText(data && data.user, 'unknown'));
+const pinnedText = escapeHtml(sanitizeNullableText(data && data.text, ''));
+const videoPayload = getPinnedMessageVideoPayload(data || {});
+const mediaHtml = !videoPayload ? '' : (videoPayload.kind === 'embed'
+  ? `<iframe class="pinned-message-entry-video-embed" src="${escapeHtml(videoPayload.value)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+  : `<video class="pinned-message-entry-video" src="${escapeHtml(videoPayload.value)}" controls loop muted playsinline preload="metadata"></video>`);
+const removeBtn = canModerate(currentChatUser) && data && data.pinId
+  ? `<button class="pinned-message-entry-remove" onclick="clearPinnedMessageEntry('${scope === 'global' ? 'global' : 'room'}','${encodeURIComponent(data.pinId)}','${encodeURIComponent(data.room || '')}')">✕</button>`
+  : '';
+return `<div class="pinned-message-entry"><div class="pinned-message-entry-top"><span class="pinned-message-entry-label">${escapeHtml(label)}</span><div class="pinned-message-entry-user">${pinnedUser}</div>${removeBtn}</div><div class="pinned-message-entry-message">${pinnedText}</div>${mediaHtml}</div>`;
+}
+
+function applyPinnedMessageBarCollapsedState() {
+const bar = document.getElementById('pinned-message-bar');
+const collapseBtn = document.getElementById('pinned-message-collapse-btn');
+if (bar) {
+  bar.classList.toggle('collapsed', !!pinnedMessageBarCollapsed);
+}
+if (collapseBtn) {
+  collapseBtn.textContent = pinnedMessageBarCollapsed ? 'Expand' : 'Collapse';
+}
+}
+
+function togglePinnedMessageBarCollapse() {
+pinnedMessageBarCollapsed = !pinnedMessageBarCollapsed;
+localStorage.setItem('pinnedMessageBarCollapsed', pinnedMessageBarCollapsed ? '1' : '0');
+applyPinnedMessageBarCollapsedState();
+}
+
+async function pinMessage(docId, scope = 'room') {
+if (!canModerate(currentChatUser)) return;
+const data = window._chatDocs && window._chatDocs[docId];
+if (!data) return;
+const text = getPinnedMessagePreviewText(data);
+if (!text) return;
+const pinnedUser = sanitizeNullableText(data.displayUser || data.user, 'unknown');
+const room = getChatRoomConfig(data.room || currentChatRoom || 'general');
+const pinScope = scope === 'global' ? 'global' : 'room';
+try {
+const db = getAdminDb();
+const entriesRef = getPinnedMessageEntriesRef(db, pinScope, room.id);
+const existingSnapshot = await entriesRef.where('docId', '==', docId).limit(1).get();
+const payload = {
+  docId,
+  user: pinnedUser,
+  text,
+  videoUrl: normalizeChatVideoUrl(data.videoUrl || ''),
+  videoData: typeof data.videoData === 'string' ? data.videoData : '',
+  scope: pinScope,
+  room: pinScope === 'room' ? room.id : '',
+  roomName: pinScope === 'room' ? room.name : '',
+  pinnedBy: currentChatUser,
+  timestamp: firebase.firestore.FieldValue.serverTimestamp()
+};
+if (!existingSnapshot.empty) {
+  await existingSnapshot.docs[0].ref.set(payload, { merge: true });
+} else {
+  await entriesRef.add(payload);
+}
+const retainedSnapshot = await entriesRef.orderBy('timestamp', 'desc').get();
+if (retainedSnapshot.size > MAX_PINNED_MESSAGES_PER_SCOPE) {
+  const batch = db.batch();
+  retainedSnapshot.docs.slice(MAX_PINNED_MESSAGES_PER_SCOPE).forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+}
+} catch (err) {
+alert('Failed to pin message.');
+}
+}
+
+async function clearPinnedMessage(scope = 'room') {
+if (!canModerate(currentChatUser)) return;
+try {
+const db = getAdminDb();
+const pinScope = scope === 'global' ? 'global' : 'room';
+const entriesRef = getPinnedMessageEntriesRef(db, pinScope, currentChatRoom);
+const snapshot = await entriesRef.get();
+if (!snapshot.empty) {
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+}
+await db.collection('chat_meta').doc(getPinnedMessageDocId(pinScope, currentChatRoom)).delete().catch(() => {});
+} catch (err) {
+alert('Failed to clear pinned message.');
+}
+}
+
+async function clearPinnedMessageEntry(scope = 'room', pinId = '', roomId = '') {
+if (!canModerate(currentChatUser) || !pinId) return;
+try {
+  const db = getAdminDb();
+  const decodedPinId = decodeURIComponent(pinId);
+  const decodedRoomId = decodeURIComponent(roomId || '') || currentChatRoom;
+  await getPinnedMessageEntriesRef(db, scope === 'global' ? 'global' : 'room', decodedRoomId).doc(decodedPinId).delete();
+} catch (err) {
+  alert('Failed to remove pinned message.');
+}
+}
+
+function renderPinnedMessage() {
+const bar = document.getElementById('pinned-message-bar');
+const text = document.getElementById('pinned-message-text');
+const clearRoomBtn = document.getElementById('pinned-message-clear-room-btn');
+const clearGlobalBtn = document.getElementById('pinned-message-clear-global-btn');
+if (!bar || !text || !clearRoomBtn || !clearGlobalBtn) return;
+const entries = [];
+currentRoomPinnedMessages.forEach((item) => {
+  if (!item || !item.text) return;
+  const roomName = sanitizeRoomName(item.roomName || getChatRoomConfig(currentChatRoom).name || 'Room');
+  entries.push(buildPinnedMessageEntryHtml(`ROOM · ${roomName}`, item, 'room'));
+});
+globalPinnedMessages.forEach((item) => {
+  if (!item || !item.text) return;
+  entries.push(buildPinnedMessageEntryHtml('GLOBAL', item, 'global'));
+});
+if (!entries.length) {
+bar.style.display = 'none';
+return;
+}
+bar.style.display = 'flex';
+text.innerHTML = entries.join('');
+clearRoomBtn.style.display = canModerate(currentChatUser) && currentRoomPinnedMessages.length ? 'inline-block' : 'none';
+clearGlobalBtn.style.display = canModerate(currentChatUser) && globalPinnedMessages.length ? 'inline-block' : 'none';
+applyPinnedMessageBarCollapsedState();
+}
+
+function refreshRoomPinnedMessageListener() {
+if (!chatInitialized) return;
+const db = getAdminDb();
+const roomId = normalizeUsername(currentChatRoom || 'general') || 'general';
+if (pinnedMessageRoomListenerId === roomId && pinnedMessageRoomUnsub) return;
+if (pinnedMessageRoomUnsub) {
+  pinnedMessageRoomUnsub();
+  pinnedMessageRoomUnsub = null;
+}
+pinnedMessageRoomListenerId = roomId;
+pinnedMessageRoomUnsub = null;
+currentRoomPinnedMessages = [];
+renderPinnedMessage();
+(async () => {
+  try {
+    await migrateLegacyPinnedMessage('room', roomId);
+  } catch (_) {}
+  if (pinnedMessageRoomListenerId !== roomId) return;
+  pinnedMessageRoomUnsub = getPinnedMessageEntriesRef(db, 'room', roomId)
+    .orderBy('timestamp', 'desc')
+    .limit(MAX_VISIBLE_PINNED_MESSAGES)
+    .onSnapshot((snapshot) => {
+      currentRoomPinnedMessages = snapshot.docs.map((doc) => ({ pinId: doc.id, ...(doc.data() || {}) }));
+      renderPinnedMessage();
+    });
+})();
+}
+
+function listenForPinnedMessages() {
+if (!chatInitialized) return;
+const db = getAdminDb();
+if (pinnedMessageGlobalUnsub) {
+  pinnedMessageGlobalUnsub();
+  pinnedMessageGlobalUnsub = null;
+}
+(async () => {
+  globalPinnedMessages = [];
+  renderPinnedMessage();
+  try {
+    await migrateLegacyPinnedMessage('global');
+  } catch (_) {}
+  pinnedMessageGlobalUnsub = getPinnedMessageEntriesRef(db, 'global')
+    .orderBy('timestamp', 'desc')
+    .limit(MAX_VISIBLE_PINNED_MESSAGES)
+    .onSnapshot((snapshot) => {
+      globalPinnedMessages = snapshot.docs.map((doc) => ({ pinId: doc.id, ...(doc.data() || {}) }));
+      renderPinnedMessage();
+    });
+})();
+refreshRoomPinnedMessageListener();
+}
+
+function waitForFirebase(callback, maxWait = 5000) {
+const start = Date.now();
+
+const check = () => {
+if (typeof firebase !== 'undefined' && firebase.app) {
+callback();
+} else if (Date.now() - start < maxWait) {
+setTimeout(check, 100);
+}
+};
+
+check();
+}
+
+function applyChatDockPreference() {
+const container = document.getElementById('chat-container');
+if (!container) return;
+container.classList.toggle('docked-left', uiPreferences.chatDock === 'left');
+if (!container.dataset.positioned) {
+  container.style.left = uiPreferences.chatDock === 'left' ? '0' : 'auto';
+  container.style.right = uiPreferences.chatDock === 'left' ? 'auto' : '0';
+}
+}
+
+function toggleChatDock(event) {
+if (event) event.stopPropagation();
+uiPreferences.chatDock = uiPreferences.chatDock === 'left' ? 'right' : 'left';
+saveUiPreferences();
+applyChatDockPreference();
+}
+
+function resetChatLayout(event) {
+if (event) event.stopPropagation();
+const container = document.getElementById('chat-container');
+if (!container) return;
+container.dataset.positioned = '';
+container.style.width = '';
+container.style.height = '';
+container.style.top = '';
+container.style.bottom = '0';
+container.style.left = uiPreferences.chatDock === 'left' ? '0' : 'auto';
+container.style.right = uiPreferences.chatDock === 'left' ? 'auto' : '0';
+}
+
+function clampChatWindowToViewport() {
+const container = document.getElementById('chat-container');
+if (!container || container.classList.contains('fullscreen')) return;
+const rect = container.getBoundingClientRect();
+const maxLeft = Math.max(0, window.innerWidth - rect.width);
+const maxTop = Math.max(0, window.innerHeight - rect.height);
+let nextLeft = Number.parseFloat(container.style.left);
+let nextTop = Number.parseFloat(container.style.top);
+const hasExplicitLeft = Number.isFinite(nextLeft);
+const hasExplicitTop = Number.isFinite(nextTop);
+if (!hasExplicitLeft && !hasExplicitTop) return;
+if (!hasExplicitLeft) nextLeft = Math.min(Math.max(0, rect.left), maxLeft);
+if (!hasExplicitTop) nextTop = Math.min(Math.max(0, rect.top), maxTop);
+container.style.left = `${Math.min(Math.max(0, nextLeft), maxLeft)}px`;
+container.style.top = `${Math.min(Math.max(0, nextTop), maxTop)}px`;
+container.style.right = 'auto';
+container.style.bottom = 'auto';
+container.dataset.positioned = 'true';
+}
+
+function insertChatFormat(type) {
+const input = document.getElementById('chat-message-input');
+if (!input) return;
+let start = input.selectionStart || 0;
+let end = input.selectionEnd || 0;
+let selected = input.value.slice(start, end);
+const wrappers = {
+  bold: ['**', '**'],
+  italic: ['*', '*'],
+  code: ['`', '`'],
+  spoiler: ['||', '||']
+};
+const placeholders = {
+  bold: 'bold text',
+  italic: 'italic text',
+  code: 'code snippet',
+  spoiler: 'spoiler text'
+};
+if (!selected && input.value.trim()) {
+  start = 0;
+  end = input.value.length;
+  selected = input.value;
+}
+const pair = wrappers[type] || ['', ''];
+const insert = `${pair[0]}${selected || placeholders[type] || 'text'}${pair[1]}`;
+input.setRangeText(insert, start, end, 'end');
+if (!selected) {
+  const contentStart = start + pair[0].length;
+  const contentEnd = contentStart + (placeholders[type] || 'text').length;
+  input.setSelectionRange(contentStart, contentEnd);
+}
+input.focus();
+}
+
+function renderFormattedMessageHtml(text) {
+const placeholders = [];
+let value = escapeHtml(String(text || ''));
+value = value.replace(/`([^`]+)`/g, (_, code) => {
+  const token = `__CODE_${placeholders.length}__`;
+  placeholders.push(`<span class="chat-formatted-code">${code}</span>`);
+  return token;
+});
+value = value.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+value = value.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+value = value.replace(/\|\|([^|]+)\|\|/g, '<span class="chat-spoiler" onclick="this.classList.toggle(\'is-revealed\')"><span class="chat-spoiler-label">SPOILER</span><span class="chat-spoiler-content">$1</span></span>');
+value = value.replace(/(https?:\/\/[^\s<>\"]+)/gi, (match) => `<a href="${match}" target="_blank" rel="noopener noreferrer">${match}</a>`);
+placeholders.forEach((html, index) => {
+  value = value.replace(`__CODE_${index}__`, html);
+});
+return value;
+}
+
+function updateChatEditCountdown(docId) {
+const label = document.getElementById('chat-edit-countdown');
+const data = window._chatDocs && window._chatDocs[docId];
+if (!label || !data) return;
+const timestampMs = getTimestampMs(data.timestamp);
+const remainingMs = Math.max(0, DM_EDIT_WINDOW_MS - (Date.now() - timestampMs));
+if (!remainingMs) {
+  label.textContent = 'Edit window expired.';
+  return;
+}
+  const seconds = Math.floor(remainingMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  label.textContent = `Edit window: ${minutes}:${String(seconds % 60).padStart(2, '0')} remaining`;
+}
+
+function setChatColor(color) {
+currentChatColor = String(color || '#1565c0').toLowerCase();
+localStorage.setItem('chatColor', currentChatColor);
+updateColorButtonBorders();
+updateCustomColorInput(currentChatColor);
+}
+
+function selectColor(color) {
+setChatColor(color);
+saveColorToFirebase(color);
+closeColorPicker();
+}
+
+function selectCustomColor(color) {
+setChatColor(color);
+saveColorToFirebase(color);
+closeColorPicker();
+}
+
+function updateCustomColorPreview(color) {
+const label = document.getElementById('custom-chat-color-label');
+if (label) label.textContent = String(color || '#1565c0').toLowerCase();
+}
+
+function updateCustomColorInput(color = currentChatColor) {
+const input = document.getElementById('custom-chat-color-input');
+const normalized = String(color || '#1565c0').toLowerCase();
+if (input) input.value = normalized;
+updateCustomColorPreview(normalized);
+}
+
+async function saveColorToFirebase(color) {
+if (!chatInitialized || !currentChatUser) return;
+try {
+const db = getPrimaryDb();
+await db.collection('user_preferences').doc(currentChatUser).set({
+color: color,
+updated: firebase.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+} catch (err) {
+console.error('Error saving color to Firestore:', err);
+}
+}
+
+function openColorPicker() {
+document.getElementById('color-picker-modal').style.display = 'flex';
+updateCustomColorInput(currentChatColor);
+updateColorButtonBorders();
+}
+
+function closeColorPicker() {
+document.getElementById('color-picker-modal').style.display = 'none';
+}
+
+function getChatColor() {
+const stored = localStorage.getItem('chatColor');
+return String(stored || '#1565c0').toLowerCase();
+}
+
+async function loadColorFromFirebase() {
+if (!chatInitialized || !currentChatUser) return;
+try {
+const db = getPrimaryDb();
+const doc = await db.collection('user_preferences').doc(currentChatUser).get();
+if (doc.exists && doc.data().color) {
+currentChatColor = String(doc.data().color || '#1565c0').toLowerCase();
+localStorage.setItem('chatColor', currentChatColor);
+} else {
+currentChatColor = getChatColor();
+}
+} catch (err) {
+console.error('Error loading color from Firestore:', err);
+currentChatColor = getChatColor();
+}
+}
+
+function updateColorButtonBorders() {
+const buttons = document.querySelectorAll('#color-picker-modal button[onclick*="selectColor"]');
+buttons.forEach(btn => {
+const btnColor = rgbToHex(btn.style.background).toLowerCase();
+if (btnColor === currentChatColor) {
+btn.style.borderColor = '#fff';
+btn.style.borderWidth = '4px';
+} else {
+btn.style.borderColor = '#999';
+btn.style.borderWidth = '3px';
+}
+});
+updateCustomColorInput(currentChatColor);
+}
+
+function rgbToHex(rgb) {
+if (rgb.startsWith('#')) return rgb.toLowerCase();
+const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+if (!match) return rgb;
+const r = parseInt(match[1]).toString(16).padStart(2, '0');
+const g = parseInt(match[2]).toString(16).padStart(2, '0');
+const b = parseInt(match[3]).toString(16).padStart(2, '0');
+return `#${r}${g}${b}`;
+}
+
+async function initializeChat() {
+if (chatInitialized) return;
+
+bootHighValueFeatureState();
+
+try {
+if (!getDefaultFirebaseApp()) return;
+chatInitialized = true;
+currentChatRoom = getCurrentChatRoom();
+loadBlockedUsers();
+loadChatRooms();
+const messagesDiv = document.getElementById('chat-messages');
+if (messagesDiv && !messagesDiv.dataset.scrollBound) {
+messagesDiv.addEventListener('scroll', () => updateOlderChatsButton(false));
+messagesDiv.dataset.scrollBound = '1';
+}
+
+await loadColorFromFirebase();
+updateColorButtonBorders();
+renderChatRoomToolbarState();
+renderChatRoomSummary();
+
+loadChatMessages();
+registerOnlinePresence();
+loadOnlineUsers();
+loadTypingUsers();
+listenForGameThumbnailPolls();
+listenForSiteActivity();
+listenForBuiltInGameMetadata();
+listenForGameSubmissions();
+listenForCaseSuggestions();
+loadRoleCache();
+loadUserTagCache();
+loadUserProfileCache();
+listenForGeneralShop();
+listenForProfileBackgroundShop();
+loadModerationSettings();
+startActivityHeartbeat();
+loadActivityStatuses();
+loadFriendsData();
+startTimeoutStatusLoop();
+startDMInboxListeners();
+listenForKick();
+listenForTimedBan();
+listenForMuteStatus();
+listenForPinnedMessages();
+await backfillLegacyMessageStatsForCurrentUser();
+showChatButton();
+updateAdminMenuButtonVisibility();
+await loadProfileDetails(getMyProfileKey());
+renderProfileModal();
+renderGameStorefront();
+} catch (err) {
+console.error("Firebase initialization error:", err);
+}
+}
+
+async function backfillLegacyMessageStatsForCurrentUser() {
+const userKey = getStatsUserKey();
+if (!userKey) return;
+
+try {
+await rebuildUserMessageStats(userKey, {
+  usernameCandidates: [currentChatUser || getUserName() || userKey]
+});
+} catch (err) {
+console.error('Failed to backfill legacy message stats:', err);
+}
+}
+
+function showChatButton() {
+if (siteLoginPassed) {
+document.getElementById('chat-toggle-btn').style.display = 'block';
+}
+}
+
+function toggleChat() {
+const container = document.getElementById('chat-container');
+if (container.style.display === 'none') {
+container.style.display = 'flex';
+applyChatDockPreference();
+if (!container.dataset.positioned) {
+container.style.right = uiPreferences.chatDock === 'left' ? 'auto' : '0';
+container.style.bottom = '0';
+container.style.left = uiPreferences.chatDock === 'left' ? '0' : 'auto';
+container.style.top = 'auto';
+}
+document.getElementById('chat-message-input').focus();
+updateChatSendAsUi();
+updateOlderChatsButton(false);
+chatUnreadCount = 0;
+updateUnreadBadge();
+} else {
+markCurrentRoomRead();
+container.style.display = 'none';
+document.getElementById('chat-toggle-btn').style.display = 'block';
+}
+}
+
+function minimizeChat(event) {
+if (event) {
+event.stopPropagation();
+}
+const container = document.getElementById('chat-container');
+if (container.classList.contains('fullscreen')) {
+toggleChatFullscreen(null);
+return;
+}
+const isMinimized = container.classList.contains('minimized');
+
+if (isMinimized) {
+container.classList.remove('minimized');
+document.getElementById('chat-messages').style.display = 'flex';
+document.getElementById('chat-input-area').style.display = 'flex';
+document.getElementById('reply-preview-bar').style.display =
+currentReplyTo ? 'flex' : 'none';
+document.getElementById('typing-indicator').style.display = '';
+updateChatSendAsUi();
+updateOlderChatsButton(false);
+chatUnreadCount = 0;
+updateUnreadBadge();
+} else {
+container.classList.add('minimized');
+markCurrentRoomRead();
+document.getElementById('chat-messages').style.display = 'none';
+document.getElementById('chat-input-area').style.display = 'none';
+document.getElementById('chat-send-as-row').style.display = 'none';
+document.getElementById('chat-jump-latest-btn').style.display = 'none';
+document.getElementById('reply-preview-bar').style.display = 'none';
+document.getElementById('typing-indicator').style.display = 'none';
+document.getElementById('online-users-panel').style.display = 'none';
+}
+}
+
+function toggleChatFullscreen(event) {
+if (event) {
+event.stopPropagation();
+}
+const container = document.getElementById('chat-container');
+const btn = document.getElementById('chat-fullscreen-btn');
+const isFullscreen = container.classList.contains('fullscreen');
+if (isFullscreen) {
+container.classList.remove('fullscreen');
+if (chatPreFullscreenState) {
+  container.style.width = chatPreFullscreenState.width;
+  container.style.height = chatPreFullscreenState.height;
+  container.style.top = chatPreFullscreenState.top;
+  container.style.left = chatPreFullscreenState.left;
+  container.style.right = chatPreFullscreenState.right;
+  container.style.bottom = chatPreFullscreenState.bottom;
+  container.dataset.positioned = chatPreFullscreenState.positioned;
+} else {
+  container.style.width = '';
+  container.style.height = '';
+  container.style.top = '';
+  container.style.left = '';
+  container.style.right = '';
+  container.style.bottom = '0';
+}
+clampChatWindowToViewport();
+chatPreFullscreenState = null;
+btn.title = 'Fullscreen';
+btn.textContent = '⛶';
+} else {
+chatPreFullscreenState = {
+  width: container.style.width || '',
+  height: container.style.height || '',
+  top: container.style.top || '',
+  left: container.style.left || '',
+  right: container.style.right || '',
+  bottom: container.style.bottom || '',
+  positioned: container.dataset.positioned || ''
+};
+container.classList.remove('minimized');
+container.classList.add('fullscreen');
+document.getElementById('chat-messages').style.display = 'flex';
+document.getElementById('chat-input-area').style.display = 'flex';
+btn.title = 'Exit Fullscreen';
+btn.textContent = '⊡';
+}
+}
+
+
+function closeChat(event) {
+if (event) {
+event.stopPropagation();
+}
+const container = document.getElementById('chat-container');
+container.style.display = 'none';
+document.getElementById('chat-toggle-btn').style.display = 'block';
+}
+
+function openChatImagePicker() {
+const imageInput = document.getElementById('chat-image-input');
+imageInput.value = '';
+imageInput.click();
+}
+
+function openMediaModal() {
+const modal = document.getElementById('media-modal');
+modal.style.display = 'flex';
+setMediaUploadStatus('');
+switchMediaTab('upload');
+}
+
+function closeMediaModal() {
+setMediaUploadStatus('');
+document.getElementById('media-modal').style.display = 'none';
+}
+
+function setMediaUploadStatus(message, tone = 'info') {
+const status = document.getElementById('media-upload-status');
+if (!status) return;
+status.textContent = message || '';
+if (tone === 'error') {
+  status.style.color = '#ff9b9b';
+} else if (tone === 'success') {
+  status.style.color = '#8fe3b0';
+} else if (tone === 'progress') {
+  status.style.color = '#8fb1ff';
+} else {
+  status.style.color = '#d7e6f7';
+}
+}
+
+function switchMediaTab(tab) {
+document.getElementById('media-tab-upload').style.display = tab === 'upload' ? 'flex' : 'none';
+document.getElementById('media-tab-gif').style.display = tab === 'gif' ? '' : 'none';
+document.getElementById('tab-upload-btn').classList.toggle('active', tab === 'upload');
+document.getElementById('tab-gif-btn').classList.toggle('active', tab === 'gif');
+if (tab === 'gif') {
+  const input = document.getElementById('gif-search-input');
+  if (!input.value) searchGiphyGifs('trending');
+  setTimeout(() => input.focus(), 50);
+}
+}
+
+let gifSearchTimer = null;
+const GIF_PAGE_SIZE = 24;
+let _gifResults = [];
+let _gifQuery = 'trending';
+let _gifOffset = 0;
+let _gifTotalCount = 0;
+let _gifLoading = false;
+
+function hasGiphySearchConfigured() {
+return !!GIPHY_API_KEY && GIPHY_API_KEY !== 'YOUR_GIPHY_API_KEY';
+}
+
+function onGifSearchInput() {
+clearTimeout(gifSearchTimer);
+const query = document.getElementById('gif-search-input').value.trim();
+gifSearchTimer = setTimeout(() => searchGiphyGifs(query || 'trending', 0), 400);
+}
+
+function updateGifPagination() {
+const prevBtn = document.getElementById('gif-prev-btn');
+const nextBtn = document.getElementById('gif-next-btn');
+const status = document.getElementById('gif-page-status');
+if (!prevBtn || !nextBtn || !status) return;
+
+const pageNumber = Math.floor(_gifOffset / GIF_PAGE_SIZE) + 1;
+const hasResults = _gifResults.length > 0;
+const hasPrevious = _gifOffset > 0;
+const hasNext = _gifTotalCount > 0
+  ? _gifOffset + _gifResults.length < _gifTotalCount
+  : _gifResults.length === GIF_PAGE_SIZE;
+
+prevBtn.disabled = _gifLoading || !hasPrevious;
+nextBtn.disabled = _gifLoading || !hasResults || !hasNext;
+
+if (_gifLoading) {
+  status.textContent = `Loading page ${pageNumber}...`;
+  return;
+}
+
+if (!hasResults) {
+  status.textContent = _gifQuery === 'trending' ? 'No trending GIFs found' : 'No GIFs found';
+  return;
+}
+
+const totalPages = _gifTotalCount > 0 ? Math.max(1, Math.ceil(_gifTotalCount / GIF_PAGE_SIZE)) : null;
+status.textContent = totalPages
+  ? `Page ${pageNumber} of ${totalPages}`
+  : `Page ${pageNumber}`;
+}
+
+function changeGifPage(direction) {
+if (_gifLoading) return;
+const nextOffset = Math.max(0, _gifOffset + direction * GIF_PAGE_SIZE);
+if (nextOffset === _gifOffset) return;
+searchGiphyGifs(_gifQuery, nextOffset);
+}
+
+async function sendGifUrlFromInput() {
+const input = document.getElementById('gif-url-input');
+if (!input) return;
+const rawUrl = normalizeReactionImageUrl(input.value);
+if (!rawUrl) {
+  alert('Paste a GIF or Giphy URL first.');
+  return;
+}
+
+const resolvedUrl = await resolveReactionImageUrl(rawUrl);
+if (!resolvedUrl) {
+  alert('Could not resolve that link to a direct GIF. Try a standard Giphy share link or direct .gif URL.');
+  return;
+}
+
+await sendGifMessage(resolvedUrl);
+input.value = '';
+}
+
+async function searchGiphyGifs(query, offset = 0) {
+const grid = document.getElementById('gif-grid');
+_gifQuery = query || 'trending';
+_gifOffset = Math.max(0, offset);
+if (!hasGiphySearchConfigured()) {
+grid.innerHTML = '<div style="color:#ffca28;padding:1rem;text-align:center;grid-column:1/-1;">GIF search is not configured yet. Paste a Giphy or direct GIF URL above.</div>';
+_gifResults = [];
+_gifTotalCount = 0;
+updateGifPagination();
+return;
+}
+
+_gifLoading = true;
+updateGifPagination();
+grid.innerHTML = '<div style="color:#999;padding:1rem;text-align:center;grid-column:1/-1;">Loading…</div>';
+try {
+  const isTrending = !_gifQuery || _gifQuery === 'trending';
+  const endpoint = isTrending
+    ? `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=${GIF_PAGE_SIZE}&offset=${_gifOffset}&rating=g`
+    : `https://api.giphy.com/v1/gifs/search?q=${encodeURIComponent(_gifQuery)}&api_key=${GIPHY_API_KEY}&limit=${GIF_PAGE_SIZE}&offset=${_gifOffset}&rating=g`;
+  const res = await fetch(endpoint);
+  if (!res.ok) throw new Error('Giphy API error: ' + res.status + ' - ' + res.statusText);
+  const json = await res.json();
+  _gifResults = json.data || [];
+  _gifTotalCount = Math.max(_gifResults.length, ((json.pagination && json.pagination.total_count) || 0));
+  renderGifGrid(_gifResults);
+} catch (err) {
+  console.error('GIF search error:', err);
+  _gifResults = [];
+  _gifTotalCount = 0;
+  grid.innerHTML = '<div style="color:#f66;padding:1rem;text-align:center;grid-column:1/-1;">Failed to load GIFs.</div>';
+} finally {
+  _gifLoading = false;
+  updateGifPagination();
+}
+}
+
+function renderGifGrid(gifs) {
+const grid = document.getElementById('gif-grid');
+if (!gifs.length) {
+  grid.innerHTML = '<div style="color:#999;padding:1rem;text-align:center;grid-column:1/-1;">No GIFs found.</div>';
+  return;
+}
+grid.innerHTML = gifs.map((gif, i) => {
+  const images = gif.images || {};
+  const thumbUrl = (images.fixed_height_small && images.fixed_height_small.url) ||
+                   (images.fixed_height && images.fixed_height.url) || '';
+  if (!thumbUrl) return '';
+  const safeThumb = escapeHtml(thumbUrl);
+  return `<img class="gif-thumb" src="${safeThumb}" alt="GIF" loading="lazy" onclick="sendGifFromIndex(${i})" />`;
+}).join('');
+}
+
+function sendGifFromIndex(i) {
+const gif = _gifResults[i];
+if (!gif) return;
+const images = gif.images || {};
+const gifUrl = (images.original && images.original.url) ||
+               (images.fixed_height && images.fixed_height.url) || '';
+if (!gifUrl) return;
+sendGifMessage(gifUrl);
+}
+
+function isTrustedGifUrl(url) {
+try {
+  const parsed = new URL(url, window.location.href);
+  const host = parsed.hostname.toLowerCase();
+  if (parsed.protocol !== 'https:') return false;
+  return host === 'media.giphy.com' ||
+    /^media\d+\.giphy\.com$/.test(host) ||
+    host === 'i.giphy.com' ||
+    host.endsWith('.giphy.com') ||
+    host.endsWith('.giphyusercontent.com');
+} catch (_) {
+  return false;
+}
+}
+
+async function sendGifMessage(gifUrl, caption = '') {
+if (!chatInitialized) { alert('Chat not initialized. Please refresh the page.'); return; }
+if (isReadOnlyForCurrentUser()) { alert('Chat is currently read-only.'); return; }
+const timedBan = await getActiveTimedBan(currentChatUser);
+if (timedBan) { alert(`You are temporarily banned until ${timedBan.expiresAt.toLocaleString()}.`); return; }
+if (await isUserMuted(currentChatUser)) { alert('You are currently muted and cannot send messages.'); return; }
+if (!isTrustedGifUrl(gifUrl)) { console.warn('Rejected untrusted GIF URL:', gifUrl); return; }
+if (!canSendChatNow()) { return; }
+closeMediaModal();
+try {
+  const db = getPrimaryDb();
+  const msgData = applyChatIdentityToMessageData({
+    user: currentChatUser,
+    message: String(caption || ''),
+    type: 'gif',
+    gifUrl: gifUrl,
+    color: currentChatColor,
+    room: currentChatRoom,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  const captionLink = extractFirstUrl(caption);
+  if (captionLink) msgData.linkPreview = buildLinkPreviewData(captionLink);
+  if (currentReplyTo) {
+    msgData.replyTo = {
+      user: currentReplyTo.user,
+      text: currentReplyTo.text,
+      docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+      rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+    };
+  }
+  await db.collection('site_messages').add(msgData);
+  lastChatSendAtMs = Date.now();
+  incrementUserStat('mediaShared');
+  clearReply();
+} catch (err) {
+  console.error('Error sending GIF:', err);
+  alert(err.message || 'Failed to send GIF.');
+}
+}
+
+function startChatDrag(event) {
+const target = event.target;
+if (target.closest('#chat-header-actions')) {
+return;
+}
+
+const container = document.getElementById('chat-container');
+const rect = container.getBoundingClientRect();
+const point = event.touches ? event.touches[0] : event;
+
+isChatDragging = true;
+chatDragOffsetX = point.clientX - rect.left;
+chatDragOffsetY = point.clientY - rect.top;
+container.style.left = `${rect.left}px`;
+container.style.top = `${rect.top}px`;
+container.style.right = 'auto';
+container.style.bottom = 'auto';
+container.dataset.positioned = 'true';
+document.body.style.userSelect = 'none';
+
+event.preventDefault();
+}
+
+function dragChat(event) {
+if (!isChatDragging) {
+return;
+}
+
+const container = document.getElementById('chat-container');
+const point = event.touches ? event.touches[0] : event;
+const maxLeft = window.innerWidth - container.offsetWidth;
+const maxTop = window.innerHeight - container.offsetHeight;
+const nextLeft = Math.min(Math.max(0, point.clientX - chatDragOffsetX), Math.max(0, maxLeft));
+const nextTop = Math.min(Math.max(0, point.clientY - chatDragOffsetY), Math.max(0, maxTop));
+
+container.style.left = `${nextLeft}px`;
+container.style.top = `${nextTop}px`;
+event.preventDefault();
+}
+
+function stopChatDrag() {
+if (!isChatDragging) {
+return;
+}
+
+isChatDragging = false;
+document.body.style.userSelect = '';
+}
+
+document.addEventListener('mousemove', dragChat);
+document.addEventListener('mouseup', stopChatDrag);
+document.addEventListener('touchmove', dragChat, { passive: false });
+document.addEventListener('touchend', stopChatDrag);
+
+async function loadChatMessages() {
+if (!chatInitialized) return;
+
+try {
+if (chatMessagesUnsub) {
+chatMessagesUnsub();
+chatMessagesUnsub = null;
+}
+const db = getPrimaryDb();
+const messagesRef = db.collection('site_messages')
+.orderBy('timestamp', 'desc')
+.limit(200);
+
+let snapshotReady = false;
+let lastNewestMessageId = '';
+
+chatMessagesUnsub = messagesRef.onSnapshot(snapshot => {
+const messagesDiv = document.getElementById('chat-messages');
+
+const accessibleDocsDesc = snapshot.docs.filter((doc) => {
+const data = doc.data() || {};
+if (!doesChatRoomExist(data.room || 'general')) return false;
+const roomConfig = getChatRoomConfig(data.room || 'general');
+if (!canAccessRoom(roomConfig)) return false;
+if (!canModerate(currentChatUser) && isUserBlocked(data.authoredBy || data.user || '')) return false;
+return true;
+});
+
+const visibleDocsDesc = accessibleDocsDesc.filter((doc) => {
+const data = doc.data() || {};
+const roomConfig = getChatRoomConfig(data.room || 'general');
+const room = roomConfig.id;
+if (room !== currentChatRoom) return false;
+return true;
+});
+
+const isInitialRender = !snapshotReady;
+
+if (!snapshotReady) {
+accessibleDocsDesc.forEach((doc) => knownChatMessageIds.add(doc.id));
+} else {
+snapshot.docChanges().forEach((change) => {
+if (change.type !== 'added') return;
+if (knownChatMessageIds.has(change.doc.id)) return;
+knownChatMessageIds.add(change.doc.id);
+notifyCrossRoomMessage(change.doc.data() || {});
+});
+}
+
+const newestMessageId = visibleDocsDesc.length ? visibleDocsDesc[0].id : '';
+const hasNewMessage = snapshotReady && newestMessageId && newestMessageId !== lastNewestMessageId;
+const wasAtBottom = isChatNearBottom(messagesDiv);
+snapshotReady = true;
+lastNewestMessageId = newestMessageId;
+const scrollPos = messagesDiv.scrollTop;
+const chatContainer = document.getElementById('chat-container');
+const isChatOpen = chatContainer.style.display !== 'none' && !chatContainer.classList.contains('minimized');
+if (hasNewMessage && !isChatOpen) {
+chatUnreadCount++;
+updateUnreadBadge();
+}
+if (hasNewMessage && !wasAtBottom) {
+chatPendingNewMessageCount += 1;
+}
+if (hasNewMessage && newestMessageId && newestMessageId !== lastChatNotificationMessageId) {
+const newestData = visibleDocsDesc[0] ? (visibleDocsDesc[0].data() || {}) : null;
+const myUserKey = normalizeUsername(currentChatUser);
+const fromUserKey = normalizeUsername(newestData && newestData.user || '');
+const fromUserLabel = sanitizeNullableText(newestData && (newestData.displayUser || newestData.user), fromUserKey || 'someone');
+const newestText = sanitizeNullableText(newestData && newestData.message, '');
+const mentionsMe = myUserKey && newestText.toLowerCase().includes(`@${myUserKey}`);
+const repliesToMe = myUserKey && newestData && newestData.replyTo && normalizeUsername(newestData.replyTo.user || '') === myUserKey;
+if (newestData && fromUserKey && fromUserKey !== myUserKey && !newestData.system && (mentionsMe || repliesToMe)) {
+pushNotification({
+type: repliesToMe ? 'reply' : 'mention',
+title: repliesToMe ? `Reply from ${fromUserLabel}` : `Mention from ${fromUserLabel}`,
+body: newestText.slice(0, 180) || 'Open chat to read the new message.',
+ read: false,
+ action: { kind: 'room', roomId: currentChatRoom }
+});
+lastChatNotificationMessageId = newestMessageId;
+}
+}
+
+messagesDiv.innerHTML = '';
+const isAdmin = canModerate(currentChatUser);
+window._chatDocs = {};
+window._chatDocOrder = [];
+
+const docsForRender = visibleDocsDesc.slice().reverse();
+const unreadMarkerMs = Number(roomReadMarkers[normalizeUsername(currentChatRoom || 'general')] || 0);
+let unreadSeparatorShown = false;
+if (!docsForRender.length) {
+messagesDiv.innerHTML = '<div class="dm-empty-state">No messages in this room yet.</div>';
+}
+docsForRender.forEach(doc => {
+const docId = doc.id;
+const data = doc.data();
+window._chatDocs[docId] = data;
+window._chatDocOrder.push(docId);
+
+const messageDiv = document.createElement('div');
+const authorKey = normalizeUsername(data.authoredBy || data.user || '');
+const isOwn = authorKey === normalizeUsername(currentChatUser || getUserName() || '');
+const isSystem = data.system === true;
+const hasImage = typeof data.imageData === 'string' && data.imageData !== '';
+const videoSource = getRenderableChatVideoSource(data);
+const videoEmbedUrl = getRenderableChatVideoEmbedUrl(data);
+const hasVideo = !!videoSource;
+const hasVideoEmbed = !!videoEmbedUrl;
+const hasGif = data.type === 'gif' && data.gifUrl && isTrustedGifUrl(data.gifUrl);
+const messageText = sanitizeNullableText(data.message, '');
+const safeCaption = messageText ? renderFormattedMessageHtml(messageText) : '';
+const linkPreviewHtml = renderLinkPreviewHtml(data.linkPreview || null);
+const messageColor = data.color || (isSystem ? '#2f2f2f' : (isOwn ? '#1565c0' : '#5f6368'));
+const timeStr = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString([], {month:'short', day:'numeric', hour: '2-digit', minute:'2-digit'}) : '';
+const roomBadge = !isSystem ? `<span class="chat-room-badge">${escapeHtml(getChatRoomConfig(data.room || 'general').name)}</span>` : '';
+const displayUser = sanitizeNullableText(data.displayUser || data.user, 'unknown');
+const profileUser = normalizeUsername(data.profileUser || data.user || 'unknown');
+const rewardCosmetic = !isSystem ? getEquippedProfileRewardCosmetic(profileUser, getStatsForUserKey(profileUser), getCachedCasinoProfileStats(profileUser), getCachedProfile(profileUser)) : null;
+
+const replyHtml = data.replyTo ? `
+         <div class="chat-message-reply-quote">
+           <strong>${escapeHtml(sanitizeNullableText(data.replyTo.user, ''))}</strong>: ${escapeHtml(sanitizeNullableText(data.replyTo.text, '').slice(0, 80))}
+         </div>` : '';
+
+const reactions = data.reactions || {};
+const reactionsHtml = isSystem ? '' : Object.entries(reactions).map(([emoji, users]) => {
+if (!users.length) return '';
+const hasReacted = users.includes(currentChatUser);
+const userList = users.map(u => escapeHtml(u)).join(', ');
+return `<span class="reaction-pill ${hasReacted ? 'reacted' : ''}" onclick="toggleReaction('${docId}','${emoji}')" title="${userList}">${emoji} ${users.length}<span class="reaction-tooltip">${userList}</span></span>`;
+}).join('');
+
+const imageReactions = Array.isArray(data.reactionImages) ? data.reactionImages : [];
+const imageReactionsHtml = isSystem ? '' : imageReactions.map((item) => {
+const url = (item && typeof item.url === 'string') ? item.url : '';
+const users = (item && Array.isArray(item.users)) ? item.users : [];
+if (!url || !users.length) return '';
+const hasReacted = users.includes(currentChatUser);
+const userList = users.map(u => escapeHtml(u)).join(', ');
+const safeUrl = escapeHtml(url);
+const encodedUrl = encodeURIComponent(url);
+return `<span class="reaction-pill ${hasReacted ? 'reacted' : ''}" onclick="toggleImageReaction('${docId}','${encodedUrl}')" title="${userList}"><img class="reaction-image-thumb" src="${safeUrl}" alt="reaction" />${users.length}<span class="reaction-tooltip">${userList}</span></span>`;
+}).join('');
+
+const replyBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="setReplyTo('${docId}')">↩ Reply</button>`;
+const threadBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="openChatThreadModal('${docId}')">🧵 Thread</button>`;
+const reactBtns = isSystem ? '' : ['❤️','😂','😢','🔥'].map(e => `<button class="chat-action-btn" onclick="toggleReaction('${docId}','${e}')">${e}</button>`).join('');
+const imageReactBtn = isSystem ? '' : `<button class="chat-action-btn" onclick="promptImageReaction('${docId}')">🖼 Img</button>`;
+const canDeleteMessage = hasRolePermission(currentChatUser, 'deleteMessage');
+const canMuteUser = hasRolePermission(currentChatUser, 'mute');
+const canKickUser = hasRolePermission(currentChatUser, 'kick');
+const canTempBanUser = hasRolePermission(currentChatUser, 'tempBan');
+const modTarget = encodeURIComponent(authorKey || displayUser);
+const modUserBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" onclick="openAdminUserHistoryFor('${modTarget}')">👤 User</button>` : '';
+const muteBtn = isAdmin && canMuteUser && !isSystem && !isOwn ? `<button class="chat-action-btn" style="color:#ffb74d;" onclick="quickMuteFromUser('${modTarget}')">🔇 Mute</button>` : '';
+const kickBtn = isAdmin && canKickUser && !isSystem && !isOwn ? `<button class="chat-action-btn" style="color:#ce93d8;" onclick="quickKickFromUser('${modTarget}')">👢 Kick</button>` : '';
+const tempBanBtn = isAdmin && canTempBanUser && !isSystem && !isOwn ? `<button class="chat-action-btn" style="color:#f48fb1;" onclick="quickTempBanFromUser('${modTarget}')">⏱ Temp</button>` : '';
+const deleteBtn = isAdmin && canDeleteMessage ? `<button class="chat-action-btn" style="color:#ff8a80;" onclick="adminDeleteMessage('${docId}')">🗑 Delete</button>` : '';
+const pinBtn = isAdmin && !isSystem ? `<button class="chat-action-btn" style="color:#ffca28;" onclick="pinMessage('${docId}','room')">📌 Room</button><button class="chat-action-btn" style="color:#80cbc4;" onclick="pinMessage('${docId}','global')">🌐 Global</button>` : '';
+const reportBtn = !isSystem && !isAdmin && !isOwn ? `<button class="chat-action-btn" style="color:#ff8a80; opacity:0.75;" onclick="reportMessage('${docId}')">⚑ Report</button>` : '';
+const timestampMs = data.timestamp && typeof data.timestamp.toDate === 'function' ? data.timestamp.toDate().getTime() : 0;
+const canEditOwn = !isSystem && isOwn && !!data.message && timestampMs && (Date.now() - timestampMs <= DM_EDIT_WINDOW_MS);
+const editBtn = canEditOwn ? `<button class="chat-action-btn" onclick="editOwnMessage('${docId}')">✎ Edit</button>` : '';
+const historyBtn = isAdmin && Array.isArray(data.editHistory) && data.editHistory.length ? `<button class="chat-action-btn" onclick="showMessageEditHistory('${docId}')">🕘 History</button>` : '';
+const editedMarker = data.editedAt ? `<span class="chat-edited-marker">edited</span>` : '';
+
+messageDiv.className = `chat-message ${isSystem ? 'system' : (isOwn ? 'own' : 'other')}`;
+if (rewardCosmetic) {
+  messageDiv.style.borderColor = rewardCosmetic.accent;
+  messageDiv.style.boxShadow = `0 0 0 1px ${rewardCosmetic.soft}, 0 16px 30px ${rewardCosmetic.glow}`;
+}
+const ownerTag = !isSystem ? getOwnerTagHtml(profileUser || displayUser) : '';
+const customTag = !isSystem ? getUserTagHtml(profileUser || displayUser) : '';
+const profileTarget = encodeURIComponent(profileUser || normalizeUsername(displayUser || 'unknown'));
+const nameColor = isSystem ? '' : (/^#[0-9a-fA-F]{3,8}$/.test(messageColor) ? messageColor : (isOwn ? '#1565c0' : '#5f6368'));
+const avatarHtml = !isSystem ? renderInlineProfileAvatarHtml(profileUser || displayUser) : '';
+const messageTimestampMs = getTimestampMs(data.timestamp);
+if (!unreadSeparatorShown && unreadMarkerMs && messageTimestampMs && messageTimestampMs > unreadMarkerMs) {
+  const separator = document.createElement('div');
+  separator.className = 'chat-message-separator';
+  separator.textContent = 'New messages';
+  messagesDiv.appendChild(separator);
+  unreadSeparatorShown = true;
+}
+messageDiv.innerHTML = `
+         ${replyHtml}
+         ${isSystem ? '' : `<div class="chat-message-user chat-user-link" style="color:${nameColor}" onclick="openUserProfileFromChat('${profileTarget}', event)">${avatarHtml}<span class="chat-message-user-text">${escapeHtml(displayUser)}${ownerTag}${customTag}</span></div>`}
+         ${hasImage ? `<img class="chat-message-image" src="${data.imageData}" alt="Chat image" />` : ''}
+         ${hasVideo ? `<video class="chat-message-video" src="${escapeHtml(videoSource)}" controls loop playsinline preload="metadata"></video>` : ''}
+         ${!hasVideo && hasVideoEmbed ? `<iframe class="chat-message-video-embed" src="${escapeHtml(videoEmbedUrl)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>` : ''}
+         ${hasGif ? `<img class="chat-message-image" src="${escapeHtml(data.gifUrl)}" alt="GIF" />` : ''}
+         ${safeCaption ? `<div class="chat-message-caption chat-message-text">${safeCaption}</div>` : ''}
+         ${linkPreviewHtml}
+         ${!isSystem && timeStr ? `<div class="chat-message-meta-row">${roomBadge}<div class="chat-message-time">${timeStr}</div>${editedMarker}</div>` : ''}
+         ${(reactionsHtml || imageReactionsHtml) ? `<div class="chat-reactions">${reactionsHtml}${imageReactionsHtml}</div>` : ''}
+         ${(isSystem && isAdmin) || !isSystem ? `<div class="chat-message-actions">${replyBtn}${threadBtn}${reactBtns}${imageReactBtn}${editBtn}${historyBtn}${modUserBtn}${muteBtn}${kickBtn}${tempBanBtn}${pinBtn}${deleteBtn}${reportBtn}</div>` : ''}
+       `;
+messagesDiv.appendChild(messageDiv);
+});
+
+if (isInitialRender || wasAtBottom) {
+scrollChatToLatest();
+} else {
+messagesDiv.scrollTop = scrollPos;
+updateOlderChatsButton(hasNewMessage);
+}
+if (!docsForRender.length) updateOlderChatsButton(false);
+});
+} catch (err) {
+console.error("Error loading messages:", err);
+}
+}
+
+async function sendMessage() {
+const input = document.getElementById('chat-message-input');
+const status = document.getElementById('chat-timeout-status');
+const message = input.value.trim();
+
+if (!message) return;
+if (!chatInitialized) {
+if (status) status.textContent = 'Chat is not ready yet. Refresh the page.';
+return;
+}
+
+if (status) status.textContent = '';
+
+if (!canPostInRoom(getChatRoomConfig(currentChatRoom))) {
+if (status) status.textContent = 'This room is read-only for your account.';
+return;
+}
+
+if (isReadOnlyForCurrentUser()) {
+if (status) status.textContent = 'Chat is currently read-only.';
+return;
+}
+
+const timedBan = await getActiveTimedBan(currentChatUser);
+if (timedBan) {
+if (status) status.textContent = `You are temporarily banned until ${timedBan.expiresAt.toLocaleString()}.`;
+return;
+}
+
+if (containsBlockedWord(message)) {
+if (status) status.textContent = 'Message blocked by word filter.';
+return;
+}
+
+if (await isUserMuted(currentChatUser)) {
+if (status) status.textContent = 'You are currently muted and cannot send messages.';
+return;
+}
+
+if (!canSendChatNow()) {
+return;
+}
+
+try {
+let resolvedMediaUrl = '';
+let resolvedVideoUrl = '';
+if (isValidReactionImageUrl(message)) {
+resolvedMediaUrl = await resolveReactionImageUrl(message);
+}
+const rawLink = resolvedMediaUrl ? '' : extractFirstUrl(message);
+if (rawLink && isValidChatVideoUrl(rawLink) && (isDirectVideoUrl(rawLink) || !!getStreamableEmbedUrl(rawLink))) {
+resolvedVideoUrl = normalizeChatVideoUrl(rawLink);
+}
+const linkPreview = (!resolvedMediaUrl && !resolvedVideoUrl && rawLink) ? buildLinkPreviewData(rawLink) : null;
+
+const db = getPrimaryDb();
+const msgData = applyChatIdentityToMessageData({
+user: currentChatUser,
+message: (resolvedMediaUrl || resolvedVideoUrl) ? '' : message,
+color: currentChatColor,
+room: currentChatRoom,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+if (resolvedMediaUrl) {
+msgData.imageData = resolvedMediaUrl;
+}
+if (resolvedVideoUrl) {
+msgData.videoUrl = resolvedVideoUrl;
+}
+if (linkPreview) {
+msgData.linkPreview = linkPreview;
+}
+if (currentReplyTo) {
+msgData.replyTo = {
+  user: currentReplyTo.user,
+  text: currentReplyTo.text,
+  docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+  rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+};
+}
+await db.collection('site_messages').add(msgData);
+lastChatSendAtMs = Date.now();
+if (resolvedMediaUrl || resolvedVideoUrl) {
+incrementUserStat('mediaShared');
+} else {
+incrementUserStat('messagesSent');
+}
+
+input.value = '';
+input.focus();
+clearReply();
+if (chatInitialized && currentChatUser) {
+clearTimeout(typingTimeout);
+writeTypingState(false);
+typingStateIsTrue = false;
+lastTypingWriteMs = Date.now();
+}
+} catch (err) {
+console.error("Error sending message:", err);
+if (status) status.textContent = err && err.message ? err.message : 'Failed to send message.';
+}
+}
+
+async function handleChatImageSelected(event) {
+const file = event.target.files && event.target.files[0];
+const captionInput = document.getElementById('chat-message-input');
+const status = document.getElementById('chat-timeout-status');
+const caption = captionInput.value.trim();
+
+if (!file) {
+return;
+}
+
+if (!file.type.startsWith('image/')) {
+if (status) status.textContent = 'Choose an image file.';
+return;
+}
+
+if (!chatInitialized) {
+if (status) status.textContent = 'Chat is not ready yet. Refresh the page.';
+return;
+}
+
+if (status) status.textContent = '';
+
+if (!canPostInRoom(getChatRoomConfig(currentChatRoom))) {
+if (status) status.textContent = 'This room is read-only for your account.';
+return;
+}
+
+if (isReadOnlyForCurrentUser()) {
+if (status) status.textContent = 'Chat is currently read-only.';
+return;
+}
+
+const timedBan = await getActiveTimedBan(currentChatUser);
+if (timedBan) {
+if (status) status.textContent = `You are temporarily banned until ${timedBan.expiresAt.toLocaleString()}.`;
+return;
+}
+
+if (containsBlockedWord(caption)) {
+if (status) status.textContent = 'Caption blocked by word filter.';
+return;
+}
+
+if (await isUserMuted(currentChatUser)) {
+if (status) status.textContent = 'You are currently muted and cannot send messages.';
+return;
+}
+
+if (!canSendChatNow()) {
+return;
+}
+
+try {
+const imageData = await compressChatImage(file);
+
+const db = getPrimaryDb();
+const msgData = applyChatIdentityToMessageData({
+user: currentChatUser,
+message: caption,
+color: currentChatColor,
+room: currentChatRoom,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+if (imageData) msgData.imageData = imageData;
+const captionLink = extractFirstUrl(caption);
+if (captionLink) msgData.linkPreview = buildLinkPreviewData(captionLink);
+if (currentReplyTo) {
+msgData.replyTo = {
+  user: currentReplyTo.user,
+  text: currentReplyTo.text,
+  docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+  rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+};
+}
+await db.collection('site_messages').add(msgData);
+lastChatSendAtMs = Date.now();
+incrementUserStat('mediaShared');
+
+captionInput.value = '';
+captionInput.focus();
+clearReply();
+if (chatInitialized && currentChatUser) {
+clearTimeout(typingTimeout);
+writeTypingState(false);
+typingStateIsTrue = false;
+lastTypingWriteMs = Date.now();
+}
+} catch (err) {
+console.error('Error sending media:', err);
+if (status) status.textContent = err && err.message ? err.message : 'Failed to send media.';
+}
+}
+
+async function handleChatVideoSelected(event) {
+const file = event.target.files && event.target.files[0];
+const captionInput = document.getElementById('chat-message-input');
+const status = document.getElementById('chat-timeout-status');
+const caption = captionInput.value.trim();
+
+if (!file) {
+setMediaUploadStatus('');
+return;
+}
+
+if (!/^video\/(mp4|webm|ogg)$/i.test(file.type || '')) {
+if (status) status.textContent = 'Choose an MP4, WebM, or OGG video.';
+setMediaUploadStatus('Choose an MP4, WebM, or OGG video.', 'error');
+return;
+}
+
+if (!chatInitialized) {
+if (status) status.textContent = 'Chat is not ready yet. Refresh the page.';
+setMediaUploadStatus('Chat is not ready yet. Refresh the page.', 'error');
+return;
+}
+
+if (status) status.textContent = '';
+setMediaUploadStatus('Preparing video upload...', 'progress');
+
+if (!canPostInRoom(getChatRoomConfig(currentChatRoom))) {
+if (status) status.textContent = 'This room is read-only for your account.';
+setMediaUploadStatus('This room is read-only for your account.', 'error');
+return;
+}
+
+if (isReadOnlyForCurrentUser()) {
+if (status) status.textContent = 'Chat is currently read-only.';
+setMediaUploadStatus('Chat is currently read-only.', 'error');
+return;
+}
+
+const timedBan = await getActiveTimedBan(currentChatUser);
+if (timedBan) {
+if (status) status.textContent = `You are temporarily banned until ${timedBan.expiresAt.toLocaleString()}.`;
+setMediaUploadStatus(`You are temporarily banned until ${timedBan.expiresAt.toLocaleString()}.`, 'error');
+return;
+}
+
+if (containsBlockedWord(caption)) {
+if (status) status.textContent = 'Caption blocked by word filter.';
+setMediaUploadStatus('Caption blocked by word filter.', 'error');
+return;
+}
+
+if (await isUserMuted(currentChatUser)) {
+if (status) status.textContent = 'You are currently muted and cannot send messages.';
+setMediaUploadStatus('You are currently muted and cannot send messages.', 'error');
+return;
+}
+
+if (!canSendChatNow()) {
+return;
+}
+
+try {
+const videoPayload = await uploadChatVideoFile(file, (message) => setMediaUploadStatus(message, 'progress'));
+setMediaUploadStatus('Sending video to chat...', 'progress');
+
+const db = getPrimaryDb();
+const msgData = applyChatIdentityToMessageData({
+user: currentChatUser,
+message: caption,
+color: currentChatColor,
+room: currentChatRoom,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+if (videoPayload && videoPayload.kind === 'inline' && videoPayload.value) msgData.videoData = videoPayload.value;
+if (videoPayload && videoPayload.kind === 'remote' && videoPayload.value) msgData.videoUrl = videoPayload.value;
+const captionLink = extractFirstUrl(caption);
+if (captionLink) msgData.linkPreview = buildLinkPreviewData(captionLink);
+if (currentReplyTo) {
+msgData.replyTo = {
+  user: currentReplyTo.user,
+  text: currentReplyTo.text,
+  docId: sanitizeNullableText(currentReplyTo.userDocId, ''),
+  rootDocId: sanitizeNullableText(currentReplyTo.rootDocId || currentReplyTo.userDocId, '')
+};
+}
+await db.collection('site_messages').add(msgData);
+lastChatSendAtMs = Date.now();
+incrementUserStat('mediaShared');
+setMediaUploadStatus('Video sent.', 'success');
+
+captionInput.value = '';
+captionInput.focus();
+clearReply();
+if (chatInitialized && currentChatUser) {
+clearTimeout(typingTimeout);
+writeTypingState(false);
+typingStateIsTrue = false;
+lastTypingWriteMs = Date.now();
+}
+closeMediaModal();
+} catch (err) {
+console.error('Error sending video:', err);
+if (status) status.textContent = err && err.message ? err.message : 'Failed to send video.';
+setMediaUploadStatus(err && err.message ? err.message : 'Failed to send video.', 'error');
+} finally {
+if (event && event.target) event.target.value = '';
+}
+}
+
+function readChatVideoFile(file) {
+return new Promise((resolve, reject) => {
+if (!file || !/^video\/(mp4|webm|ogg)$/i.test(file.type || '')) {
+reject(new Error('Choose an MP4, WebM, or OGG video.'));
+return;
+}
+
+if (file.size > CHAT_VIDEO_INLINE_SIZE_LIMIT) {
+reject(new Error('Video is too large. Keep it under about 450 KB so chat storage can hold it.'));
+return;
+}
+
+const reader = new FileReader();
+reader.onload = () => {
+const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+if (!dataUrl || !/^data:video\//i.test(dataUrl)) {
+reject(new Error('Could not read video file.'));
+return;
+}
+if (dataUrl.length > CHAT_VIDEO_INLINE_DATA_URL_LIMIT) {
+reject(new Error('Video is too large after encoding. Use a shorter or more compressed clip.'));
+return;
+}
+resolve(dataUrl);
+};
+reader.onerror = () => reject(new Error('Could not load video file.'));
+reader.readAsDataURL(file);
+});
+}
+
+function isLocalDevelopmentOrigin() {
+try {
+  const hostname = String(window.location.hostname || '').toLowerCase();
+  const protocol = String(window.location.protocol || '').toLowerCase();
+  return protocol === 'file:'
+    || hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '0.0.0.0'
+    || hostname === '[::1]';
+} catch (_) {
+  return false;
+}
+}
+
+function isLikelyStorageUploadFailure(err) {
+const text = String(
+  (err && err.code) || (err && err.message) || err || ''
+).toLowerCase();
+return text.includes('cors')
+  || text.includes('network')
+  || text.includes('xmlhttprequest')
+  || text.includes('xhr')
+  || text.includes('err_failed')
+  || text.includes('storage/unknown')
+  || text.includes('storage/retry-limit-exceeded');
+}
+
+async function uploadChatVideoFile(file, onProgress) {
+if (!file || !/^video\/(mp4|webm|ogg)$/i.test(file.type || '')) {
+  throw new Error('Choose an MP4, WebM, or OGG video.');
+}
+
+if (isLocalDevelopmentOrigin()) {
+  if (file.size > CHAT_VIDEO_INLINE_SIZE_LIMIT) {
+    throw new Error('Large video uploads are blocked on local preview because Firebase Storage is rejecting localhost requests. Use a clip under about 450 KB here, or test the larger upload on your deployed site after bucket CORS is configured.');
+  }
+  if (typeof onProgress === 'function') {
+    onProgress('Local preview detected. Sending video inline instead of Firebase Storage...');
+  }
+  return { kind: 'inline', value: await readChatVideoFile(file) };
+}
+
+const storage = getPrimaryStorage();
+if (!storage) {
+  if (typeof onProgress === 'function') {
+    onProgress('Storage upload unavailable. Compressing video for inline chat...');
+  }
+  return { kind: 'inline', value: await readChatVideoFile(file) };
+}
+
+if (file.size > CHAT_VIDEO_UPLOAD_SIZE_LIMIT) {
+  throw new Error('Video is too large. Keep it under about 25 MB.');
+}
+
+const safeName = String(file.name || 'chat-video').replace(/[^a-z0-9._-]+/gi, '-').slice(-80);
+const storagePath = `chat_videos/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`;
+const ref = storage.ref().child(storagePath);
+if (typeof onProgress === 'function') {
+  onProgress('Uploading video... 0%');
+}
+let snapshot;
+try {
+  snapshot = await new Promise((resolve, reject) => {
+    const uploadTask = ref.put(file, {
+      contentType: file.type || 'video/mp4',
+      customMetadata: {
+        uploadedBy: normalizeUsername(currentChatUser || getUserName() || 'guest') || 'guest',
+        room: normalizeUsername(currentChatRoom || 'general') || 'general'
+      }
+    });
+    uploadTask.on('state_changed', (taskSnapshot) => {
+      if (typeof onProgress !== 'function') return;
+      const totalBytes = Number(taskSnapshot && taskSnapshot.totalBytes) || 0;
+      const transferred = Number(taskSnapshot && taskSnapshot.bytesTransferred) || 0;
+      const percent = totalBytes > 0 ? Math.max(0, Math.min(100, Math.round((transferred / totalBytes) * 100))) : 0;
+      onProgress(`Uploading video... ${percent}%`);
+    }, reject, () => resolve(uploadTask.snapshot));
+  });
+} catch (err) {
+  if (file.size <= CHAT_VIDEO_INLINE_SIZE_LIMIT && isLikelyStorageUploadFailure(err)) {
+    if (typeof onProgress === 'function') {
+      onProgress('Storage upload failed. Falling back to inline video...');
+    }
+    return { kind: 'inline', value: await readChatVideoFile(file) };
+  }
+  throw err;
+}
+if (typeof onProgress === 'function') {
+  onProgress('Finalizing uploaded video...');
+}
+const downloadUrl = await snapshot.ref.getDownloadURL();
+if (!isValidChatVideoUrl(downloadUrl) || !isDirectVideoUrl(downloadUrl)) {
+  throw new Error('Uploaded video URL could not be used in chat.');
+}
+return { kind: 'remote', value: downloadUrl };
+}
+
+function compressChatImage(file) {
+return new Promise((resolve, reject) => {
+if (file && file.type === 'image/gif') {
+if (file.size > CHAT_IMAGE_SIZE_LIMIT) {
+reject(new Error('GIF is too large. Keep it under about 700 KB.'));
+return;
+}
+const gifReader = new FileReader();
+gifReader.onload = () => {
+const dataUrl = typeof gifReader.result === 'string' ? gifReader.result : '';
+if (!dataUrl) {
+reject(new Error('Could not read GIF file.'));
+return;
+}
+if (dataUrl.length > CHAT_IMAGE_SIZE_LIMIT * 1.5) {
+reject(new Error('GIF is too large after encoding. Use a smaller GIF.'));
+return;
+}
+resolve(dataUrl);
+};
+gifReader.onerror = () => reject(new Error('Could not load GIF file.'));
+gifReader.readAsDataURL(file);
+return;
+}
+
+const reader = new FileReader();
+
+reader.onload = () => {
+const image = new Image();
+image.onload = () => {
+let width = image.width;
+let height = image.height;
+const scale = Math.min(
+1,
+CHAT_IMAGE_MAX_WIDTH / width,
+CHAT_IMAGE_MAX_HEIGHT / height
+);
+
+width = Math.max(1, Math.round(width * scale));
+height = Math.max(1, Math.round(height * scale));
+
+const canvas = document.createElement('canvas');
+canvas.width = width;
+canvas.height = height;
+const context = canvas.getContext('2d');
+
+if (!context) {
+reject(new Error('Could not process image.'));
+return;
+}
+
+context.drawImage(image, 0, 0, width, height);
+
+let dataUrl = canvas.toDataURL('image/jpeg', CHAT_IMAGE_QUALITY);
+if (dataUrl.length > CHAT_IMAGE_SIZE_LIMIT) {
+dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+}
+
+if (dataUrl.length > CHAT_IMAGE_SIZE_LIMIT) {
+reject(new Error('Image is too large. Choose a smaller image.'));
+return;
+}
+
+resolve(dataUrl);
+};
+
+image.onerror = () => reject(new Error('Could not read image.'));
+image.src = reader.result;
+};
+
+reader.onerror = () => reject(new Error('Could not load file.'));
+reader.readAsDataURL(file);
+});
+}
+
+function escapeHtml(text) {
+const map = {
+'&': '&amp;',
+'<': '&lt;',
+'>': '&gt;',
+'"': '&quot;',
+"'": '&#039;'
+};
+return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+let currentReplyTo = null;
+
+function setReplyTo(docId) {
+const data = window._chatDocs && window._chatDocs[docId];
+if (!data) return;
+currentReplyTo = {
+userDocId: docId,
+rootDocId: sanitizeNullableText((data.replyTo && (data.replyTo.rootDocId || data.replyTo.docId)) || docId, docId),
+user: sanitizeNullableText(data.displayUser || data.user, 'unknown'),
+text: sanitizeNullableText(data.message, '')
+};
+document.getElementById('reply-preview-bar').style.display = 'flex';
+document.getElementById('reply-preview-text').textContent =
+`Replying to ${currentReplyTo.user}: ${currentReplyTo.text.slice(0, 60)}`;
+document.getElementById('chat-message-input').focus();
+}
+
+function clearReply() {
+currentReplyTo = null;
+document.getElementById('reply-preview-bar').style.display = 'none';
+document.getElementById('reply-preview-text').textContent = '';
+}
+
+async function toggleReaction(docId, emoji) {
+if (!chatInitialized) return;
+try {
+const db = getPrimaryDb();
+const ref = db.collection('site_messages').doc(docId);
+const docSnap = await ref.get();
+if (!docSnap.exists) return;
+const reactions = docSnap.data().reactions || {};
+const users = reactions[emoji] || [];
+if (users.includes(currentChatUser)) {
+await ref.update({ [`reactions.${emoji}`]: firebase.firestore.FieldValue.arrayRemove(currentChatUser) });
+} else {
+await ref.update({ [`reactions.${emoji}`]: firebase.firestore.FieldValue.arrayUnion(currentChatUser) });
+incrementUserStat('reactionsUsed');
+}
+} catch (err) {
+console.error('Error toggling reaction:', err);
+}
+}
+
+function normalizeReactionImageUrl(url) {
+return (url || '').trim();
+}
+
+function isValidReactionImageUrl(url) {
+const lower = url.toLowerCase();
+return lower.startsWith('https://') || lower.startsWith('http://') || lower.startsWith('data:image/');
+}
+
+function isDirectImageUrl(url) {
+if (!url || url.startsWith('data:image/')) return true;
+const clean = url.split('?')[0].toLowerCase();
+return clean.endsWith('.gif') || clean.endsWith('.webp') || clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.avif');
+}
+
+function normalizeChatVideoUrl(url) {
+return String(url || '').trim();
+}
+
+function isValidChatVideoUrl(url) {
+const lower = normalizeChatVideoUrl(url).toLowerCase();
+return lower.startsWith('https://') || lower.startsWith('http://') || lower.startsWith('data:video/');
+}
+
+function isDirectVideoUrl(url) {
+if (!url || /^data:video\//i.test(url)) return true;
+try {
+  const parsed = new URL(url, window.location.href);
+  const cleanPath = parsed.pathname.split('?')[0].toLowerCase();
+  return cleanPath.endsWith('.mp4')
+    || cleanPath.endsWith('.webm')
+    || cleanPath.endsWith('.ogg')
+    || cleanPath.endsWith('.mov')
+    || parsed.hostname.toLowerCase().includes('firebasestorage.googleapis.com')
+    || parsed.hostname.toLowerCase().endsWith('.firebasestorage.app');
+} catch (_) {
+  return false;
+}
+}
+
+function extractStreamableIdFromUrl(url) {
+if (!url || /^data:video\//i.test(url)) return '';
+try {
+  const parsed = new URL(url, window.location.href);
+  const host = parsed.hostname.toLowerCase();
+  if (!host.includes('streamable.com')) return '';
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (!parts.length) return '';
+  let candidate = parts[0];
+  if (candidate === 'e' && parts.length > 1) {
+    candidate = parts[1];
+  }
+  candidate = String(candidate || '').trim();
+  return /^[a-z0-9]+$/i.test(candidate) ? candidate : '';
+} catch (_) {
+  return '';
+}
+}
+
+function getStreamableEmbedUrl(url) {
+const id = extractStreamableIdFromUrl(url);
+return id ? `https://streamable.com/e/${id}?loop=1` : '';
+}
+
+function getRenderableChatVideoSource(data = {}) {
+const inlineVideo = typeof data.videoData === 'string' ? data.videoData : '';
+if (/^data:video\//i.test(inlineVideo)) return inlineVideo;
+const remoteVideo = normalizeChatVideoUrl(data.videoUrl || '');
+return isValidChatVideoUrl(remoteVideo) && isDirectVideoUrl(remoteVideo) ? remoteVideo : '';
+}
+
+function getRenderableChatVideoEmbedUrl(data = {}) {
+const remoteVideo = normalizeChatVideoUrl(data.videoUrl || '');
+if (!isValidChatVideoUrl(remoteVideo) || isDirectVideoUrl(remoteVideo)) return '';
+return getStreamableEmbedUrl(remoteVideo);
+}
+
+function extractGiphyIdFromUrl(url) {
+try {
+const parsed = new URL(url);
+const host = parsed.hostname.toLowerCase();
+if (!host.includes('giphy.com')) return '';
+const parts = parsed.pathname.split('-').filter(Boolean);
+if (!parts.length) return '';
+const id = parts[parts.length - 1].replace(/\//g, '').trim();
+return /^[a-zA-Z0-9]+$/.test(id) ? id : '';
+} catch (e) {
+return '';
+}
+}
+
+async function resolveReactionImageUrl(url) {
+const normalized = normalizeReactionImageUrl(url);
+if (!normalized || !isValidReactionImageUrl(normalized)) return '';
+if (normalized.startsWith('data:image/')) return normalized;
+
+let parsed;
+try {
+parsed = new URL(normalized);
+} catch (e) {
+return '';
+}
+
+const host = parsed.hostname.toLowerCase();
+if (isDirectImageUrl(normalized)) return normalized;
+
+const giphyId = extractGiphyIdFromUrl(normalized);
+if (giphyId) {
+return `https://media.giphy.com/media/${giphyId}/giphy.gif`;
+}
+
+try {
+if (host.includes('giphy.com') && !host.includes('media.giphy.com')) {
+const res = await fetch(`https://giphy.com/services/oembed?url=${encodeURIComponent(normalized)}`);
+const data = await res.json();
+const candidates = [data.url, data.thumbnail_url]
+.map(v => normalizeReactionImageUrl(v || ''))
+.filter(Boolean);
+const direct = candidates.find(v => isValidReactionImageUrl(v) && isDirectImageUrl(v));
+if (direct) return direct;
+}
+} catch (e) {}
+
+return '';
+}
+
+async function promptImageReaction(docId) {
+if (!chatInitialized) return;
+const inputUrl = normalizeReactionImageUrl(prompt('Paste image or GIF URL (Giphy, direct links):'));
+if (!inputUrl) return;
+if (!isValidReactionImageUrl(inputUrl)) {
+alert('Use a valid image URL (http/https or data:image).');
+return;
+}
+const imageUrl = await resolveReactionImageUrl(inputUrl);
+if (!imageUrl) {
+alert('Could not resolve that link to a direct image/GIF. Try a direct .gif/.webp image URL, or a standard Giphy share link.');
+return;
+}
+toggleImageReaction(docId, encodeURIComponent(imageUrl));
+}
+
+async function toggleImageReaction(docId, encodedImageUrl) {
+if (!chatInitialized) return;
+try {
+const imageUrl = normalizeReactionImageUrl(decodeURIComponent(encodedImageUrl || ''));
+if (!imageUrl || !isValidReactionImageUrl(imageUrl)) return;
+const db = getPrimaryDb();
+const ref = db.collection('site_messages').doc(docId);
+const docSnap = await ref.get();
+if (!docSnap.exists) return;
+
+const data = docSnap.data() || {};
+const reactionImages = Array.isArray(data.reactionImages) ? [...data.reactionImages] : [];
+const idx = reactionImages.findIndex(r => r && typeof r.url === 'string' && r.url === imageUrl);
+
+if (idx === -1) {
+reactionImages.push({ url: imageUrl, users: [currentChatUser] });
+incrementUserStat('reactionsUsed');
+} else {
+const existing = reactionImages[idx] || {};
+const users = Array.isArray(existing.users) ? [...existing.users] : [];
+const userIndex = users.indexOf(currentChatUser);
+if (userIndex >= 0) {
+users.splice(userIndex, 1);
+} else {
+users.push(currentChatUser);
+incrementUserStat('reactionsUsed');
+}
+if (users.length === 0) {
+reactionImages.splice(idx, 1);
+} else {
+reactionImages[idx] = { url: imageUrl, users };
+}
+}
+
+await ref.update({ reactionImages });
+} catch (err) {
+console.error('Error toggling image reaction:', err);
+}
+}
+
+async function registerOnlinePresence() {
+if (!chatInitialized || !currentChatUser) return;
+const realtimeDb = getPrimaryRealtimeDb();
+if (realtimeDb) {
+try {
+const ref = realtimeDb.ref(`user_presence/${getSafeRealtimeKey(currentChatUser)}`);
+const writePresence = () => ref.set({
+online: true,
+lastSeen: getRealtimeTimestampValue(),
+username: normalizeUsername(currentChatUser)
+});
+await writePresence();
+realtimeDb.ref('.info/connected').on('value', (snapshot) => {
+if (snapshot.val() !== true) return;
+ref.onDisconnect().remove();
+writePresence().catch(() => {});
+});
+if (realtimePresenceHeartbeatInterval) clearInterval(realtimePresenceHeartbeatInterval);
+realtimePresenceHeartbeatInterval = setInterval(() => {
+writePresence().catch(() => {});
+}, 60000);
+window.addEventListener('beforeunload', () => {
+ref.remove().catch(() => {});
+});
+return;
+} catch (err) {
+console.error('Error registering Realtime Database presence:', err);
+}
+}
+
+try {
+const db = getPrimaryDb();
+const ref = db.collection('user_presence').doc(currentChatUser);
+await ref.set({ online: true, lastSeen: firebase.firestore.FieldValue.serverTimestamp() });
+setInterval(async () => {
+await ref.set({ online: true, lastSeen: firebase.firestore.FieldValue.serverTimestamp() });
+  }, 30000);
+window.addEventListener('beforeunload', () => {
+ref.set({ online: false, lastSeen: firebase.firestore.FieldValue.serverTimestamp() });
+});
+} catch (err) {
+console.error('Error registering presence:', err);
+}
+}
+
+function loadOnlineUsers() {
+if (!chatInitialized) return;
+const realtimeDb = getPrimaryRealtimeDb();
+if (realtimeDb) {
+if (onlineUsersRealtimeRef && onlineUsersRealtimeHandler) {
+onlineUsersRealtimeRef.off('value', onlineUsersRealtimeHandler);
+}
+onlineUsersRealtimeRef = realtimeDb.ref('user_presence');
+onlineUsersRealtimeHandler = (snapshot) => {
+const now = Date.now();
+const onlineUsers = [];
+snapshot.forEach((child) => {
+const data = child.val() || {};
+const username = normalizeUsername(data.username || child.key || '');
+if (!username) return;
+const lastSeen = Number(data.lastSeen) || 0;
+if (data.online && now - lastSeen < 120000) {
+onlineUsers.push(username);
+}
+});
+window._onlineUsers = onlineUsers;
+const btn = document.getElementById('chat-online-btn');
+if (btn) btn.textContent = `🟢 ${onlineUsers.length}`;
+const panel = document.getElementById('online-users-panel');
+if (panel && panel.style.display !== 'none') renderOnlineUsers(onlineUsers);
+};
+onlineUsersRealtimeRef.on('value', onlineUsersRealtimeHandler);
+return;
+}
+
+const db = getPrimaryDb();
+db.collection('user_presence').onSnapshot(snapshot => {
+const now = Date.now();
+const onlineUsers = [];
+snapshot.forEach(doc => {
+const data = doc.data();
+if (data.online && data.lastSeen) {
+const lastSeen = data.lastSeen.toDate ? data.lastSeen.toDate().getTime() : 0;
+if (now - lastSeen < 45000) onlineUsers.push(doc.id);
+}
+});
+window._onlineUsers = onlineUsers;
+const btn = document.getElementById('chat-online-btn');
+if (btn) btn.textContent = `🟢 ${onlineUsers.length}`;
+const panel = document.getElementById('online-users-panel');
+if (panel && panel.style.display !== 'none') renderOnlineUsers(onlineUsers);
+});
+}
+
+function toggleOnlineUsers(event) {
+if (event) event.stopPropagation();
+const panel = document.getElementById('online-users-panel');
+if (panel.style.display === 'none') {
+panel.style.display = 'block';
+renderOnlineUsers(window._onlineUsers || []);
+} else {
+panel.style.display = 'none';
+}
+}
+
+function renderOnlineUsers(users) {
+const panel = document.getElementById('online-users-panel');
+if (!panel) return;
+panel.innerHTML = `<div class="online-count">${users.length} online</div>` +
+users.map(u => `<div class="online-user-item">🟢 ${escapeHtml(u)}</div>`).join('');
+}
+
+function openAdminUserHistoryFor(encodedUsername) {
+if (!canModerate(currentChatUser)) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const input = document.getElementById('admin-history-username');
+if (input) input.value = username;
+openAdminMenu();
+loadAdminUserHistory(username);
+}
+
+async function quickWarnFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'warn')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-warn-username');
+const reasonInput = document.getElementById('admin-warn-reason');
+const reason = (prompt(`Warning reason for ${username}:`, 'Rule violation') || '').trim().slice(0, 120);
+if (!reason) return;
+if (usernameInput) usernameInput.value = username;
+if (reasonInput) reasonInput.value = reason;
+await adminWarnUser();
+loadAdminUserHistory(username);
+}
+
+async function quickMuteFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'mute')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-mute-username');
+if (usernameInput) usernameInput.value = username;
+await adminMuteUser();
+loadAdminUserHistory(username);
+}
+
+async function quickKickFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'kick')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-kick-username');
+if (usernameInput) usernameInput.value = username;
+await adminKickUser();
+loadAdminUserHistory(username);
+}
+
+async function quickTempBanFromUser(encodedUsername) {
+if (!hasRolePermission(currentChatUser, 'tempBan')) return;
+const username = normalizeUsername(decodeURIComponent(encodedUsername || ''));
+if (!username) return;
+const usernameInput = document.getElementById('admin-tempban-username');
+const minutesInput = document.getElementById('admin-tempban-minutes');
+const reasonInput = document.getElementById('admin-tempban-reason');
+const rawMinutes = prompt(`Temp ban ${username} for how many minutes?`, '60');
+if (rawMinutes === null) return;
+const parsedMinutes = parseInt(String(rawMinutes).trim(), 10) || 0;
+if (!parsedMinutes) return;
+const minutes = Math.max(1, Math.min(10080, parsedMinutes));
+const rawReason = prompt(`Temp ban reason for ${username}:`, 'Temporary ban');
+if (rawReason === null) return;
+const reason = String(rawReason).trim().slice(0, 120);
+if (!reason) return;
+if (usernameInput) usernameInput.value = username;
+if (minutesInput) minutesInput.value = String(minutes);
+if (reasonInput) reasonInput.value = reason;
+await adminTempBanUser();
+loadAdminUserHistory(username);
+}
+
+async function adminDeleteMessage(docId) {
+if (!canModerate(currentChatUser)) return;
+try {
+const db = getPrimaryDb();
+const messageData = (window._chatDocs && window._chatDocs[docId]) || (await db.collection('site_messages').doc(docId).get()).data() || null;
+await db.collection('site_messages').doc(docId).delete();
+await decrementUserStatsForDeletedMessage(messageData);
+await writeAuditLog('delete_message', docId, 'Message deleted by moderator');
+} catch (err) {
+console.error('Error deleting message:', err);
+alert('Failed to delete message.');
+}
+}
+
+async function adminMuteUser() {
+if (!canModerate(currentChatUser)) return;
+const username = resolveAdminTargetUsername('admin-mute-username');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) { statusDiv.textContent = 'Enter a username to mute.'; return; }
+if (isProtectedUsername(username)) { statusDiv.textContent = `${username} cannot be muted.`; return; }
+try {
+const minutesInput = (prompt('Mute for how many minutes? Leave blank for permanent mute.', '') || '').trim();
+const minutes = minutesInput ? Math.max(1, Math.min(10080, parseInt(minutesInput, 10) || 0)) : 0;
+const expiresAt = minutes ? new Date(Date.now() + minutes * 60000) : null;
+const db = getAdminDb();
+await db.collection('muted_users').doc(username).set({
+muted: true,
+mutedBy: currentChatUser,
+reason: minutes ? `Timed mute (${minutes}m)` : 'Muted by admin',
+timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+expiresAt: expiresAt ? firebase.firestore.Timestamp.fromDate(expiresAt) : null
+});
+await postSystemNotice(`${username} was muted${minutes ? ` for ${minutes} minute(s)` : ''}.`);
+statusDiv.textContent = `${username} has been muted${minutes ? ` for ${minutes} minute(s)` : ''}.`;
+await writeAuditLog('mute', username, minutes ? `User muted for ${minutes} minutes` : 'User muted');
+document.getElementById('admin-mute-username').value = '';
+} catch (err) {
+statusDiv.textContent = 'Failed to mute user.';
+}
+}
+
+async function adminUnmuteUser() {
+if (!canModerate(currentChatUser)) return;
+const username = resolveAdminTargetUsername('admin-mute-username');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) { statusDiv.textContent = 'Enter a username to unmute.'; return; }
+try {
+const db = getAdminDb();
+await db.collection('muted_users').doc(username).delete();
+await postSystemNotice(`${username} was unmuted.`);
+statusDiv.textContent = `${username} has been unmuted.`;
+await writeAuditLog('unmute', username, 'User unmuted');
+document.getElementById('admin-mute-username').value = '';
+} catch (err) {
+statusDiv.textContent = 'Failed to unmute user.';
+}
+}
+
+async function getActiveMuteInfo(username) {
+if (isProtectedUsername(username)) return null;
+try {
+const db = getAdminDb();
+const doc = await db.collection('muted_users').doc(username).get();
+if (!doc.exists) return null;
+const data = doc.data() || {};
+if (data.muted !== true) return null;
+const expiresAt = data.expiresAt && typeof data.expiresAt.toDate === 'function' ? data.expiresAt.toDate() : null;
+if (expiresAt && expiresAt.getTime() <= Date.now()) {
+await db.collection('muted_users').doc(username).delete();
+return null;
+}
+return {
+reason: sanitizeNullableText(data.reason, ''),
+expiresAt,
+mutedBy: normalizeUsername(data.mutedBy || '')
+};
+} catch (err) {
+return null;
+}
+}
+
+async function isUserMuted(username) {
+return !!(await getActiveMuteInfo(username));
+}
+
+async function postSystemNotice(text) {
+if (!text || !chatInitialized) return;
+try {
+const db = getPrimaryDb();
+await db.collection('site_messages').add({
+user: 'system',
+message: text,
+color: '#2f2f2f',
+system: true,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+} catch (err) {}
+}
+
+function updateUnreadBadge() {
+const badge = document.getElementById('chat-unread-badge');
+if (!badge) return;
+if (chatUnreadCount > 0) {
+badge.textContent = chatUnreadCount > 99 ? '99+' : chatUnreadCount;
+badge.style.display = 'inline-block';
+} else {
+badge.style.display = 'none';
+}
+}
+
+function shouldNotifyForRoomActivity(roomId, username) {
+if (!doesChatRoomExist(roomId || 'general')) return false;
+const room = getChatRoomConfig(roomId || 'general');
+const actor = normalizeUsername(username || '');
+const me = normalizeUsername(currentChatUser || getUserName() || '');
+if (!actor || !me || actor === me) return false;
+if (normalizeUsername(room.id) === normalizeUsername(currentChatRoom || 'general')) return false;
+if (!canAccessRoom(room, me)) return false;
+if (!canModerate(me) && isUserBlocked(actor)) return false;
+return true;
+}
+
+function notifyCrossRoomMessage(data) {
+if (!doesChatRoomExist(data && data.room || 'general')) return;
+const room = getChatRoomConfig(data && data.room || 'general');
+const actorKey = normalizeUsername(data && (data.authoredBy || data.user) || '');
+const fromUser = sanitizeNullableText(data && (data.displayUser || data.user), actorKey || 'unknown');
+if (!data || data.system || !shouldNotifyForRoomActivity(room.id, actorKey)) return;
+const me = normalizeUsername(currentChatUser || getUserName() || '');
+const messageText = sanitizeNullableText(data.message, '');
+const mentionsMe = me && messageText.toLowerCase().includes(`@${me}`);
+const repliesToMe = me && data.replyTo && normalizeUsername(data.replyTo.user || '') === me;
+const title = repliesToMe
+? `Reply in ${room.name}`
+: mentionsMe
+? `Mention in ${room.name}`
+: `New message in ${room.name}`;
+const bodyBase = messageText || (data.imageData ? '[image]' : (data.type === 'gif' ? '[gif]' : 'Open chat to view it.'));
+showFloatingChatNotification(`${fromUser} in ${room.name}: ${bodyBase}`.slice(0, 220), 5000, {
+type: repliesToMe ? 'reply' : (mentionsMe ? 'mention' : 'room-message'),
+title
+});
+}
+
+function notifyCrossRoomTyping(previousCache, nextCache) {
+const now = Date.now();
+Object.values(nextCache || {}).forEach((entry) => {
+const username = normalizeUsername(entry && entry.username || '');
+const roomId = normalizeUsername(entry && entry.room || 'general');
+if (!username || !roomId) return;
+if (!shouldNotifyForRoomActivity(roomId, username)) return;
+if (entry.typing === false || now - (Number(entry.timestamp) || 0) >= 5000) return;
+const previous = previousCache && previousCache[username];
+const wasTypingSameRoom = previous
+&& previous.typing !== false
+&& normalizeUsername(previous.room || 'general') === roomId
+&& now - (Number(previous.timestamp) || 0) < 5000;
+if (wasTypingSameRoom) return;
+const throttleKey = `${username}:${roomId}`;
+const lastNotifiedAt = Number(recentCrossRoomTypingNotifications[throttleKey] || 0);
+if (lastNotifiedAt && now - lastNotifiedAt < 8000) return;
+recentCrossRoomTypingNotifications[throttleKey] = now;
+const room = getChatRoomConfig(roomId);
+pushNotification({
+type: 'typing',
+title: `${username} is typing`,
+body: `Typing in ${room.name}`,
+read: false
+});
+showGlobalAlertNotification(`${username} is typing in ${room.name}`, 4);
+});
+}
+
+function renderTypingIndicator() {
+const indicator = document.getElementById('typing-indicator');
+if (!indicator) return;
+const now = Date.now();
+const currentUserKey = normalizeUsername(currentChatUser);
+const typers = Object.values(typingUsersCache || {})
+.filter((entry) => entry && normalizeUsername(entry.username || '') !== currentUserKey)
+.filter((entry) => normalizeUsername(entry.room || 'general') === normalizeUsername(currentChatRoom || 'general'))
+.filter((entry) => entry.typing !== false && now - (Number(entry.timestamp) || 0) < 5000)
+.map((entry) => normalizeUsername(entry.username || ''))
+.filter(Boolean);
+
+if (typers.length === 0) {
+indicator.textContent = '';
+} else if (typers.length === 1) {
+indicator.textContent = `${typers[0]} is typing...`;
+} else {
+indicator.textContent = `${typers.slice(0, -1).join(', ')} and ${typers[typers.length - 1]} are typing...`;
+}
+}
+
+async function writeTypingState(isTyping) {
+if (!chatInitialized || !currentChatUser) return;
+const realtimeDb = getPrimaryRealtimeDb();
+if (realtimeDb) {
+try {
+const ref = realtimeDb.ref(`typing_status/${getSafeRealtimeKey(currentChatUser)}`);
+if (isTyping) {
+await ref.set({
+typing: true,
+room: currentChatRoom,
+timestamp: getRealtimeTimestampValue(),
+username: normalizeUsername(currentChatUser)
+});
+} else {
+await ref.remove();
+}
+return;
+} catch (err) {
+console.error('Error writing typing state to Realtime Database:', err);
+}
+}
+
+try {
+const db = getPrimaryDb();
+await db.collection('typing_status').doc(currentChatUser).set({
+typing: !!isTyping,
+room: currentChatRoom,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+} catch (err) {
+console.error('Error writing typing state to Firestore:', err);
+}
+}
+
+function onChatInput() {
+if (!chatInitialized || !currentChatUser) return;
+if (isReadOnlyForCurrentUser()) return;
+const now = Date.now();
+if (!typingStateIsTrue || (now - lastTypingWriteMs) > 2500) {
+writeTypingState(true);
+typingStateIsTrue = true;
+lastTypingWriteMs = now;
+}
+clearTimeout(typingTimeout);
+typingTimeout = setTimeout(() => {
+if (typingStateIsTrue) {
+writeTypingState(false);
+typingStateIsTrue = false;
+lastTypingWriteMs = Date.now();
+}
+}, 5000);
+}
+
+function loadTypingUsers() {
+if (!chatInitialized) return;
+const applyTypingUsersSnapshot = (next) => {
+const previous = typingUsersCache;
+typingUsersCache = next;
+if (typingUsersLoadedOnce) {
+notifyCrossRoomTyping(previous, next);
+} else {
+typingUsersLoadedOnce = true;
+}
+renderTypingIndicator();
+};
+const realtimeDb = getPrimaryRealtimeDb();
+if (realtimeDb) {
+if (typingUsersRealtimeRef && typingUsersRealtimeHandler) {
+typingUsersRealtimeRef.off('value', typingUsersRealtimeHandler);
+}
+typingUsersRealtimeRef = realtimeDb.ref('typing_status');
+typingUsersRealtimeHandler = (snapshot) => {
+const next = {};
+snapshot.forEach((child) => {
+const data = child.val() || {};
+const username = normalizeUsername(data.username || child.key || '');
+if (!username) return;
+next[username] = {
+typing: data.typing !== false,
+room: normalizeUsername(data.room || 'general'),
+timestamp: Number(data.timestamp) || 0,
+username
+};
+});
+applyTypingUsersSnapshot(next);
+};
+typingUsersRealtimeRef.on('value', typingUsersRealtimeHandler);
+return;
+}
+
+const db = getPrimaryDb();
+db.collection('typing_status').onSnapshot(snapshot => {
+const next = {};
+snapshot.forEach(doc => {
+const data = doc.data() || {};
+const username = normalizeUsername(doc.id || data.username || '');
+if (!username) return;
+const ts = data.timestamp && data.timestamp.toDate ? data.timestamp.toDate().getTime() : 0;
+next[username] = {
+typing: data.typing !== false,
+room: normalizeUsername(data.room || 'general'),
+timestamp: ts,
+username
+};
+});
+applyTypingUsersSnapshot(next);
+});
+}
+
+async function adminKickUser() {
+if (!canModerate(currentChatUser)) return;
+const username = resolveAdminTargetUsername('admin-kick-username');
+const statusDiv = document.getElementById('admin-ban-status');
+if (!username) { statusDiv.textContent = 'Enter a username to kick.'; return; }
+if (isProtectedUsername(username)) { statusDiv.textContent = `${username} cannot be kicked.`; return; }
+try {
+const db = getAdminDb();
+await db.collection('kicked_users').doc(username).set({
+kicked: true,
+kickedBy: currentChatUser,
+timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+statusDiv.textContent = `${username} has been kicked.`;
+await writeAuditLog('kick', username, 'User kicked');
+document.getElementById('admin-kick-username').value = '';
+setTimeout(async () => {
+await db.collection('kicked_users').doc(username).delete();
+}, 10000);
+} catch (err) {
+statusDiv.textContent = 'Failed to kick user.';
+}
+}
+
+function listenForKick() {
+if (!chatInitialized || !currentChatUser) return;
+if (isProtectedUsername(currentChatUser)) return;
+const db = getAdminDb();
+db.collection('kicked_users').doc(currentChatUser).onSnapshot(doc => {
+if (doc.exists && doc.data().kicked === true) {
+alert('You have been kicked from the chat by an admin.');
+localStorage.removeItem('userName');
+location.reload();
+}
+});
+}
+
